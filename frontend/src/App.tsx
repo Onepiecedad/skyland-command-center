@@ -1,35 +1,61 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState, useCallback } from 'react';
+import { CustomerList } from './components/CustomerList';
+import { ActivityLog } from './components/ActivityLog';
+import { PendingApprovals } from './components/PendingApprovals';
+import { MasterBrainChat } from './components/MasterBrainChat';
+import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedCustomerSlug, setSelectedCustomerSlug] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleSelectCustomer = (id: string | null, slug: string | null) => {
+    setSelectedCustomerId(id);
+    setSelectedCustomerSlug(slug);
+  };
+
+  const handleRefresh = useCallback(() => {
+    setRefreshKey(prev => prev + 1);
+  }, []);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="dashboard">
+      <header className="dashboard-header">
+        <h1>🚀 Skyland Command Center</h1>
+        {selectedCustomerSlug && (
+          <span className="filter-badge">
+            Filtering: {selectedCustomerSlug}
+            <button onClick={() => handleSelectCustomer(null, null)}>×</button>
+          </span>
+        )}
+      </header>
+
+      <div className="dashboard-grid">
+        <div className="left-column">
+          <CustomerList
+            selectedCustomerId={selectedCustomerId}
+            onSelectCustomer={handleSelectCustomer}
+          />
+          <PendingApprovals
+            key={`approvals-${refreshKey}`}
+            selectedCustomerId={selectedCustomerId}
+            onApproved={handleRefresh}
+          />
+        </div>
+
+        <div className="right-column">
+          <ActivityLog
+            key={`activity-${refreshKey}`}
+            selectedCustomerId={selectedCustomerId}
+          />
+          <MasterBrainChat
+            onTaskCreated={handleRefresh}
+          />
+        </div>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </div>
+  );
 }
 
-export default App
+export default App;

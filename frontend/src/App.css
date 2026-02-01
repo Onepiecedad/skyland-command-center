@@ -1,42 +1,417 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* Skyland Command Center Dashboard Styles */
+
+* {
+  box-sizing: border-box;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.dashboard {
+  min-height: 100vh;
+  padding: 1rem;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: #1e293b;
+  border-radius: 8px;
 }
 
-.card {
-  padding: 2em;
+.dashboard-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
 }
 
-.read-the-docs {
-  color: #888;
+.filter-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  background: #3b82f6;
+  border-radius: 9999px;
+  font-size: 0.875rem;
 }
+
+.filter-badge button {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0;
+  margin-left: 0.25rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.left-column,
+.right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Panel base styles */
+.panel {
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.panel h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.125rem;
+  color: #f8fafc;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 0.5rem;
+}
+
+.empty {
+  color: #64748b;
+  font-style: italic;
+}
+
+/* Customer List */
+.customer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.customer-card {
+  background: #334155;
+  border-radius: 6px;
+  padding: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.customer-card:hover {
+  background: #475569;
+}
+
+.customer-card.selected {
+  border-color: #3b82f6;
+  background: #1e3a5f;
+}
+
+.customer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.customer-name {
+  font-weight: 600;
+}
+
+.status-badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  color: white;
+  font-weight: 500;
+}
+
+.customer-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.customer-activity {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}
+
+/* Activity Log */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-height: 250px;
+  overflow-y: auto;
+  font-size: 0.8rem;
+}
+
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  background: #334155;
+  border-radius: 4px;
+}
+
+.activity-time {
+  color: #64748b;
+  font-family: monospace;
+  min-width: 70px;
+}
+
+.severity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.activity-agent {
+  color: #60a5fa;
+  min-width: 90px;
+}
+
+.activity-action {
+  flex: 1;
+  color: #e2e8f0;
+}
+
+.activity-type {
+  color: #94a3b8;
+  font-size: 0.7rem;
+}
+
+.autonomy-badge {
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  color: white;
+  font-weight: 500;
+}
+
+/* Task List / Pending Approvals */
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.task-card {
+  background: #334155;
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.task-title {
+  font-weight: 500;
+  flex: 1;
+  margin-right: 0.5rem;
+}
+
+.priority-badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  color: white;
+  font-weight: 500;
+}
+
+.task-meta {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-bottom: 0.5rem;
+}
+
+.approve-btn {
+  background: #22c55e;
+  color: white;
+  border: none;
+  padding: 0.375rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.approve-btn:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+.approve-btn:disabled {
+  background: #64748b;
+  cursor: not-allowed;
+}
+
+/* Chat Panel */
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 350px;
+}
+
+.chat-messages {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 250px;
+  overflow-y: auto;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  background: #0f172a;
+  border-radius: 6px;
+}
+
+.chat-message {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  max-width: 85%;
+}
+
+.chat-message.user {
+  background: #3b82f6;
+  align-self: flex-end;
+}
+
+.chat-message.assistant {
+  background: #334155;
+  align-self: flex-start;
+}
+
+.message-content {
+  margin-bottom: 0.25rem;
+}
+
+.intent-badge {
+  display: inline-block;
+  background: #8b5cf6;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.proposed-actions {
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: rgba(34, 197, 94, 0.2);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.proposed-action {
+  color: #22c55e;
+}
+
+.task-status {
+  color: #94a3b8;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+}
+
+.suggestion-chip {
+  background: #475569;
+  border: 1px solid #64748b;
+  color: #e2e8f0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggestion-chip:hover {
+  background: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.chat-input {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-input input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+}
+
+.chat-input input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.chat-input button {
+  padding: 0.5rem 1rem;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.chat-input button:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.chat-input button:disabled {
+  background: #475569;
+  cursor: not-allowed;
+}
+
+.conversation-id {
+  font-size: 0.7rem;
+  color: #64748b;
+  margin-top: 0.5rem;
+  font-family: monospace;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* 3D Realm Panel */
