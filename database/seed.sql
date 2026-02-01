@@ -1,49 +1,24 @@
--- Skyland Command Center Seed Data
--- Initial customers and agent configuration
+-- Skyland Command Center Seed Data v1.1
+-- Initial customers and agent configuration (exact SPEC v1.1)
 -- ============================================================================
 -- CUSTOMERS
 -- ============================================================================
-INSERT INTO customers (slug, name, domain, config)
-VALUES (
-        'thomas',
-        'MarinMekaniker',
-        'marinmekaniker.se',
-        '{"industry": "marine", "tier": "standard"}'
-    ),
-    (
-        'axel',
-        'Hasselblads Livs',
-        'hasselbladslivs.se',
-        '{"industry": "retail", "tier": "premium"}'
-    ),
-    (
-        'gustav',
-        'Cold Experience',
-        'coldexperience.se',
-        '{"industry": "tourism", "tier": "standard"}'
-    );
+INSERT INTO customers (name, slug)
+VALUES ('Thomas - MarinMekaniker', 'thomas'),
+    ('Axel - Hasselblads Livs', 'axel'),
+    ('Gustav - Cold Experience', 'gustav');
 -- ============================================================================
 -- AGENT CONFIGS
 -- ============================================================================
 INSERT INTO agent_configs (
-        name,
+        agent_name,
+        display_name,
         description,
-        permissions,
-        settings,
-        is_active
+        autonomy_defaults
     )
 VALUES (
         'master_brain',
-        'Central orchestration agent with controlled autonomy levels',
-        '{
-      "external_output": "SUGGEST",
-      "internal_query": "ACT",
-      "task_creation": "SUGGEST"
-    }',
-        '{
-      "max_concurrent_tasks": 5,
-      "escalation_threshold": 3,
-      "auto_retry_failed": true
-    }',
-        true
+        'Master Brain',
+        'Central koordinator för hela Skyland-systemet',
+        '{"external_output": "SUGGEST", "internal_query": "ACT", "task_creation": "SUGGEST"}'
     );
