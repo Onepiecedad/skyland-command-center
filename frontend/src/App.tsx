@@ -3,6 +3,7 @@ import { CustomerList } from './components/CustomerList';
 import { ActivityLog } from './components/ActivityLog';
 import { PendingApprovals } from './components/PendingApprovals';
 import { MasterBrainChat } from './components/MasterBrainChat';
+import { Realm3D } from './components/Realm3D';
 import './App.css';
 
 function App() {
@@ -30,6 +31,14 @@ function App() {
           </span>
         )}
       </header>
+
+      {/* 3D Realm Visualization */}
+      <div className="realm-row">
+        <Realm3D
+          selectedCustomerId={selectedCustomerId}
+          onSelectCustomer={handleSelectCustomer}
+        />
+      </div>
 
       <div className="dashboard-grid">
         <div className="left-column">
