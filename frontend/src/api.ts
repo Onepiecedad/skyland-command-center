@@ -32,9 +32,11 @@ export interface Activity {
 export interface Task {
     id: string;
     customer_id: string | null;
+    parent_task_id: string | null;
     title: string;
     description: string | null;
     assigned_agent: string | null;
+    executor: string;
     status: 'created' | 'assigned' | 'in_progress' | 'review' | 'completed' | 'failed';
     priority: 'low' | 'normal' | 'high' | 'urgent';
     input: Record<string, unknown>;
@@ -43,6 +45,23 @@ export interface Task {
     approved_at: string | null;
     created_at: string;
     updated_at: string;
+    child_count?: number; // Optional, for list views
+}
+
+export interface TaskRun {
+    id: string;
+    task_id: string;
+    run_number: number;
+    executor: string;
+    status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout';
+    queued_at: string;
+    started_at: string | null;
+    ended_at: string | null;
+    worker_id: string | null;
+    input_snapshot: Record<string, unknown> | null;
+    output: Record<string, unknown>;
+    error: Record<string, unknown>;
+    metrics: Record<string, unknown>;
 }
 
 export interface ChatResponse {
@@ -132,4 +151,56 @@ export async function fetchStatus(): Promise<{
 }> {
     const res = await fetch(`${API_BASE}/status`);
     return res.json();
+}
+
+export async function fetchTaskChildren(taskId: string): Promise<Task[]> {
+    const res = await fetch(`${API_BASE}/tasks/${taskId}/children`);
+    const data = await res.json();
+    return data.children || [];
+}
+
+export async function fetchTaskRuns(taskId: string): Promise<TaskRun[]> {
+    const res = await fetch(`${API_BASE}/tasks/${taskId}/runs`);
+    const data = await res.json();
+    return data.runs || [];
+}
+
+export interface DispatchResult {
+    success: boolean;
+    message?: string;
+    task?: Task;
+    run?: TaskRun;
+    error?: string;
+}
+
+export async function dispatchTask(taskId: string, workerId?: string): Promise<DispatchResult> {
+    const res = await fetch(`${API_BASE}/tasks/${taskId}/dispatch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ worker_id: workerId || 'backend-dispatcher-v0' })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+        return {
+            success: false,
+            error: data.error || `Dispatch failed with status ${res.status}`,
+            task: data.task,
+            run: data.run
+        };
+    }
+
+    return {
+        success: true,
+        message: data.message,
+        task: data.task,
+        run: data.run
+    };
+}
+
+export async function fetchTask(taskId: string): Promise<Task | null> {
+    const res = await fetch(`${API_BASE}/tasks/${taskId}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.task || null;
 }

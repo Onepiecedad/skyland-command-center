@@ -428,9 +428,11 @@ app.get('/api/v1/tasks', async (req: Request, res: Response) => {
 // ============================================================================
 const createTaskSchema = z.object({
     customer_id: z.union([z.string().uuid(), z.literal(null)]).optional(),
+    parent_task_id: z.union([z.string().uuid(), z.literal(null)]).optional(),
     title: z.string().min(1),
     description: z.string().optional(),
     assigned_agent: z.string().optional(),
+    executor: z.string().default('local:echo'),
     priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
     status: z.enum(['created', 'assigned', 'in_progress', 'review', 'completed', 'failed']).default('created'),
     input: z.record(z.string(), z.unknown()).default({})
@@ -535,6 +537,33 @@ app.put('/api/v1/tasks/:id', async (req: Request, res: Response) => {
 
 // ============================================================================
 // POST /api/v1/tasks/:id/approve
+// ============================================================================
+// GET /api/v1/tasks/:id
+// Gets a single task by ID
+// ============================================================================
+app.get('/api/v1/tasks/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const { data: task, error } = await supabase
+            .from('tasks')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error || !task) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
+
+        return res.json({ task });
+    } catch (err) {
+        console.error('Unexpected error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// POST /api/v1/tasks/:id/approve
 // Approves a SUGGEST task (status must be 'review')
 // Sets approved_by, approved_at, and changes status to assigned/in_progress
 // ============================================================================
@@ -595,6 +624,493 @@ app.post('/api/v1/tasks/:id/approve', async (req: Request, res: Response) => {
         return res.json({ task: data });
     } catch (err) {
         console.error('Unexpected error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// GET /api/v1/tasks/:id/children
+// Lists child tasks for a given parent task
+// ============================================================================
+app.get('/api/v1/tasks/:id/children', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        // Verify parent task exists
+        const { data: parentTask, error: parentError } = await supabase
+            .from('tasks')
+            .select('id')
+            .eq('id', id)
+            .single();
+
+        if (parentError || !parentTask) {
+            return res.status(404).json({ error: 'Parent task not found' });
+        }
+
+        // Get children
+        const { data, error } = await supabase
+            .from('tasks')
+            .select('*')
+            .eq('parent_task_id', id)
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching child tasks:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        return res.json({
+            children: data || [],
+            count: data?.length || 0
+        });
+    } catch (err) {
+        console.error('Unexpected error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// GET /api/v1/tasks/:id/runs
+// Lists run history for a given task
+// ============================================================================
+app.get('/api/v1/tasks/:id/runs', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        // Verify task exists
+        const { data: task, error: taskError } = await supabase
+            .from('tasks')
+            .select('id')
+            .eq('id', id)
+            .single();
+
+        if (taskError || !task) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
+
+        // Get runs
+        const { data, error } = await supabase
+            .from('task_runs')
+            .select('*')
+            .eq('task_id', id)
+            .order('queued_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching task runs:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        return res.json({
+            runs: data || []
+        });
+    } catch (err) {
+        console.error('Unexpected error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// DISPATCHER SYSTEM - Ticket 12
+// ============================================================================
+
+// Dispatch request schema
+const dispatchSchema = z.object({
+    worker_id: z.string().default('backend-dispatcher-v0')
+});
+
+// Dispatch result type
+interface DispatchResult {
+    success: boolean;
+    task: Record<string, unknown>;
+    run: Record<string, unknown>;
+    error?: string;
+}
+
+// Helper: Log activity for task runs
+async function logTaskRunActivity(
+    customerId: string | null,
+    taskId: string,
+    runId: string,
+    action: 'run_started' | 'run_completed' | 'run_failed',
+    severity: 'info' | 'error',
+    details: Record<string, unknown> = {}
+) {
+    try {
+        await supabase.from('activities').insert({
+            customer_id: customerId,
+            event_type: 'task_run',
+            action,
+            severity,
+            message: `Task run ${action.replace('run_', '')}`,
+            details: { task_id: taskId, run_id: runId, ...details }
+        });
+    } catch (err) {
+        console.error('Failed to log activity:', err);
+    }
+}
+
+// Helper: Execute local:echo - returns input as output
+async function executeLocalEcho(task: Record<string, unknown>): Promise<{ output: Record<string, unknown>; error?: string }> {
+    return {
+        output: {
+            echo: true,
+            input_received: task.input,
+            executor: task.executor,
+            message: 'Local echo completed successfully'
+        }
+    };
+}
+
+// Helper: Execute n8n webhook
+async function executeN8nWebhook(task: Record<string, unknown>, runId: string): Promise<{ triggered: boolean; error?: string }> {
+    const webhookUrl = process.env.N8N_WEBHOOK_URL;
+
+    if (!webhookUrl) {
+        return { triggered: false, error: 'N8N_WEBHOOK_URL not configured' };
+    }
+
+    try {
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true'
+            },
+            body: JSON.stringify({
+                task_id: task.id,
+                run_id: runId,
+                executor: task.executor,
+                title: task.title,
+                input: task.input,
+                customer_id: task.customer_id,
+                callback_url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/v1/n8n/task-result`
+            })
+        });
+
+        if (!response.ok) {
+            return { triggered: false, error: `Webhook returned ${response.status}` };
+        }
+
+        return { triggered: true };
+    } catch (err) {
+        return { triggered: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    }
+}
+
+// Helper: Execute claw (stub)
+async function executeClawStub(task: Record<string, unknown>): Promise<{ output?: Record<string, unknown>; error: string }> {
+    return {
+        error: `Claw executor not implemented: ${task.executor}`
+    };
+}
+
+// Core dispatcher function
+async function dispatchTask(taskId: string, workerId: string): Promise<DispatchResult> {
+    // 1. Get task and validate status
+    const { data: task, error: fetchError } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('id', taskId)
+        .single();
+
+    if (fetchError || !task) {
+        return { success: false, task: {}, run: {}, error: 'Task not found' };
+    }
+
+    // Only dispatch from assigned or created status
+    if (!['assigned', 'created'].includes(task.status)) {
+        return {
+            success: false,
+            task,
+            run: {},
+            error: `Cannot dispatch task with status '${task.status}'. Expected 'assigned' or 'created'.`
+        };
+    }
+
+    // 2. Get next run number
+    const { data: lastRun } = await supabase
+        .from('task_runs')
+        .select('run_number')
+        .eq('task_id', taskId)
+        .order('run_number', { ascending: false })
+        .limit(1)
+        .single();
+
+    const runNumber = (lastRun?.run_number || 0) + 1;
+
+    // 3. Create task_run with status 'running'
+    const { data: run, error: runError } = await supabase
+        .from('task_runs')
+        .insert({
+            task_id: taskId,
+            run_number: runNumber,
+            executor: task.executor,
+            status: 'running',
+            worker_id: workerId,
+            input_snapshot: task.input,
+            queued_at: new Date().toISOString(),
+            started_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+    if (runError || !run) {
+        return { success: false, task, run: {}, error: `Failed to create run: ${runError?.message}` };
+    }
+
+    // 4. Atomic transition: task status → in_progress
+    const { data: updatedTask, error: updateError } = await supabase
+        .from('tasks')
+        .update({ status: 'in_progress' })
+        .eq('id', taskId)
+        .select()
+        .single();
+
+    if (updateError) {
+        return { success: false, task, run, error: `Failed to update task: ${updateError.message}` };
+    }
+
+    // 5. Log run_started
+    await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_started', 'info', {
+        executor: task.executor,
+        worker_id: workerId,
+        run_number: runNumber
+    });
+
+    // 6. Execute based on executor type
+    const executor = task.executor || 'local:echo';
+
+    if (executor.startsWith('local:echo')) {
+        // Synchronous execution
+        const result = await executeLocalEcho(task);
+
+        // Update run with result
+        await supabase
+            .from('task_runs')
+            .update({
+                status: 'completed',
+                output: result.output,
+                ended_at: new Date().toISOString()
+            })
+            .eq('id', run.id);
+
+        // Update task status
+        const { data: finalTask } = await supabase
+            .from('tasks')
+            .update({ status: 'completed', output: result.output })
+            .eq('id', taskId)
+            .select()
+            .single();
+
+        // Log completion
+        await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_completed', 'info', {
+            executor,
+            duration_ms: Date.now() - new Date(run.started_at).getTime()
+        });
+
+        return { success: true, task: finalTask || updatedTask, run: { ...run, status: 'completed', output: result.output } };
+
+    } else if (executor.startsWith('n8n:')) {
+        // Async execution via webhook
+        const result = await executeN8nWebhook(task, run.id);
+
+        if (!result.triggered) {
+            // Failed to trigger - mark as failed
+            await supabase
+                .from('task_runs')
+                .update({
+                    status: 'failed',
+                    error: result.error,
+                    ended_at: new Date().toISOString()
+                })
+                .eq('id', run.id);
+
+            await supabase
+                .from('tasks')
+                .update({ status: 'failed' })
+                .eq('id', taskId);
+
+            await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_failed', 'error', {
+                executor,
+                error: result.error
+            });
+
+            return { success: false, task: { ...updatedTask, status: 'failed' }, run: { ...run, status: 'failed', error: result.error }, error: result.error };
+        }
+
+        // Webhook triggered successfully - task stays in_progress until callback
+        return { success: true, task: updatedTask, run: { ...run, status: 'running' } };
+
+    } else if (executor.startsWith('claw:')) {
+        // Stub - always fails
+        const result = await executeClawStub(task);
+
+        await supabase
+            .from('task_runs')
+            .update({
+                status: 'failed',
+                error: result.error,
+                ended_at: new Date().toISOString()
+            })
+            .eq('id', run.id);
+
+        await supabase
+            .from('tasks')
+            .update({ status: 'failed' })
+            .eq('id', taskId);
+
+        await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_failed', 'error', {
+            executor,
+            error: result.error
+        });
+
+        return { success: false, task: { ...updatedTask, status: 'failed' }, run: { ...run, status: 'failed', error: result.error }, error: result.error };
+
+    } else {
+        // Unknown executor
+        const errorMsg = `Unknown executor type: ${executor}`;
+
+        await supabase
+            .from('task_runs')
+            .update({
+                status: 'failed',
+                error: errorMsg,
+                ended_at: new Date().toISOString()
+            })
+            .eq('id', run.id);
+
+        await supabase
+            .from('tasks')
+            .update({ status: 'failed' })
+            .eq('id', taskId);
+
+        await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_failed', 'error', {
+            executor,
+            error: errorMsg
+        });
+
+        return { success: false, task: { ...updatedTask, status: 'failed' }, run: { ...run, status: 'failed', error: errorMsg }, error: errorMsg };
+    }
+}
+
+// ============================================================================
+// POST /api/v1/tasks/:id/dispatch
+// Dispatches a task for execution
+// ============================================================================
+app.post('/api/v1/tasks/:id/dispatch', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        const parsed = dispatchSchema.safeParse(req.body);
+
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: parsed.error.issues
+            });
+        }
+
+        const result = await dispatchTask(id, parsed.data.worker_id);
+
+        if (!result.success) {
+            return res.status(400).json({
+                error: result.error,
+                task: result.task,
+                run: result.run
+            });
+        }
+
+        return res.json({
+            message: 'Task dispatched successfully',
+            task: result.task,
+            run: result.run
+        });
+    } catch (err) {
+        console.error('Unexpected error dispatching task:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// POST /api/v1/n8n/task-result
+// Callback endpoint for n8n to report task completion
+// ============================================================================
+const n8nCallbackSchema = z.object({
+    task_id: z.string().uuid(),
+    run_id: z.string().uuid(),
+    success: z.boolean(),
+    output: z.record(z.string(), z.unknown()).optional(),
+    error: z.string().optional()
+});
+
+app.post('/api/v1/n8n/task-result', async (req: Request, res: Response) => {
+    try {
+        const parsed = n8nCallbackSchema.safeParse(req.body);
+
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: parsed.error.issues
+            });
+        }
+
+        const { task_id, run_id, success, output, error } = parsed.data;
+
+        // Get existing run to fetch task info
+        const { data: run, error: runError } = await supabase
+            .from('task_runs')
+            .select('*, tasks(customer_id)')
+            .eq('id', run_id)
+            .single();
+
+        if (runError || !run) {
+            return res.status(404).json({ error: 'Run not found' });
+        }
+
+        const now = new Date().toISOString();
+
+        // Update task_run
+        await supabase
+            .from('task_runs')
+            .update({
+                status: success ? 'completed' : 'failed',
+                output: output || null,
+                error: error || null,
+                ended_at: now
+            })
+            .eq('id', run_id);
+
+        // Update task
+        await supabase
+            .from('tasks')
+            .update({
+                status: success ? 'completed' : 'failed',
+                output: output || {}
+            })
+            .eq('id', task_id);
+
+        // Log activity
+        const customerId = (run as Record<string, unknown>).tasks
+            ? ((run as Record<string, unknown>).tasks as Record<string, unknown>).customer_id as string | null
+            : null;
+
+        await logTaskRunActivity(
+            customerId,
+            task_id,
+            run_id,
+            success ? 'run_completed' : 'run_failed',
+            success ? 'info' : 'error',
+            success ? { output } : { error }
+        );
+
+        return res.json({
+            message: success ? 'Task completed' : 'Task failed',
+            task_id,
+            run_id,
+            status: success ? 'completed' : 'failed'
+        });
+    } catch (err) {
+        console.error('Unexpected error in n8n callback:', err);
         return res.status(500).json({ error: 'Internal server error' });
     }
 });

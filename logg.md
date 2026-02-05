@@ -475,4 +475,172 @@ curl "http://localhost:3001/api/v1/activities?agent=master_brain&limit=5"
 
 ---
 
-*Nästa steg: Ticket 10 (3D)*
+## 2026-02-05
+
+### ✅ Steg 12 — Task Hierarchy + Task Runs (Ticket 11)
+
+**Status:** Klart
+
+**Utfört:**
+
+**Database:**
+
+- [x] Lade till `parent_task_id` (nullable FK → tasks.id) i `tasks` tabell
+- [x] Lade till `executor` kolumn (text, default 'local:echo') i `tasks` tabell
+- [x] Skapade `task_runs` tabell med full struktur:
+  - `id`, `task_id`, `run_number`, `executor`, `status`
+  - `queued_at`, `started_at`, `ended_at`, `worker_id`
+  - `input_snapshot`, `output`, `error`, `metrics`
+- [x] Skapade index: `idx_tasks_parent`, `idx_task_runs_task_number` (unique), `idx_task_runs_task_queued`
+- [x] Migration-fil: `database/migrations/ticket11_task_hierarchy.sql`
+
+**Backend API:**
+
+- [x] Uppdaterade `createTaskSchema` med `parent_task_id` och `executor`
+- [x] `GET /api/v1/tasks/:id/children` → lista child tasks
+- [x] `GET /api/v1/tasks/:id/runs` → lista run-historik
+
+**Frontend:**
+
+- [x] Uppdaterade `Task` interface med nya fält
+- [x] Skapade `TaskRun` interface
+- [x] Lade till `fetchTaskChildren()` och `fetchTaskRuns()` API-funktioner
+- [x] Skapade `TaskDetail.tsx` komponent (metadata, children, runs)
+- [x] CSS-stilar för TaskDetail modal
+
+**Filer skapade/ändrade:**
+
+| Fil | Ändring |
+|-----|---------|
+| `database/schema.sql` | +parent_task_id, +executor, +task_runs tabell |
+| `database/migrations/ticket11_task_hierarchy.sql` | Ny migration-fil |
+| `backend/src/index.ts` | +createTaskSchema fält, +/children, +/runs endpoints |
+| `frontend/src/api.ts` | +Task fält, +TaskRun interface, +fetchTaskChildren/Runs |
+| `frontend/src/components/TaskDetail.tsx` | Ny komponent |
+| `frontend/src/App.css` | +TaskDetail modal stilar |
+
+**Verifiering:**
+
+- [x] Migration körd i Supabase SQL Editor ✅
+- [x] Testat `POST /api/v1/tasks` med `executor` och `parent_task_id` ✅
+- [x] Testat `GET /api/v1/tasks/:id/children` → returnerar child tasks ✅
+- [x] Testat `GET /api/v1/tasks/:id/runs` → returnerar tom lista (inga runs ännu) ✅
+- [x] Integrerat TaskDetail modal i PendingApprovals.tsx ✅
+- [x] Klickbara task-kort med hover-effekt
+- [x] Executor badge visar körmiljö (t.ex. `⚡ n8n:research`)
+
+**Ytterligare filer ändrade:**
+
+| Fil | Ändring |
+|-----|---------|
+| `frontend/src/components/PendingApprovals.tsx` | +TaskDetail import, +selectedTask state, +klickhanterare |
+| `backend/.env` | Skapad med SUPABASE_URL och SUPABASE_SERVICE_ROLE_KEY |
+
+✅ **Ticket 11 FULLSTÄNDIGT KLART**
+
+---
+
+*Nästa steg: Ticket 12 (Task Dispatcher)*
+
+### ✅ Steg 13 — Dispatcher v0 (Ticket 12)
+
+**Status:** Klart
+
+**Utfört:**
+
+**Backend:**
+
+- [x] `dispatchTask(taskId, workerId)` — core dispatcher med atomic transitions
+- [x] `logTaskRunActivity()` — activity logging helper
+- [x] `executeLocalEcho()` — synkron lokal exekvering
+- [x] `executeN8nWebhook()` — async n8n webhook trigger
+- [x] `executeClawStub()` — placeholder stub
+
+**API Endpoints:**
+
+- [x] `POST /api/v1/tasks/:id/dispatch` — dispatcha task
+- [x] `POST /api/v1/n8n/task-result` — callback från n8n
+
+**Executor Support:**
+
+| Executor | Beteende |
+|----------|----------|
+| `local:echo` | Synkron → completed |
+| `n8n:*` | Async webhook → callback |
+| `claw:*` | Stub → failed |
+
+**Activity Logging:**
+
+- `run_started` (severity: info)
+- `run_completed` (severity: info)
+- `run_failed` (severity: error)
+
+**Verifiering:**
+
+- [x] `local:echo` dispatch → completed ✅
+- [x] GET /runs visar run history ✅
+- [x] `claw:*` → fails med tydligt error ✅
+- [x] `n8n:*` utan URL → fails gracefully ✅
+
+**Filer ändrade:**
+
+| Fil | Ändring |
+|-----|---------|
+| `backend/src/index.ts` | +400 rader: dispatcher system |
+| `backend/.env` | +BACKEND_URL, +N8N_WEBHOOK_URL |
+
+✅ **Ticket 12 KLART**
+
+---
+
+### ✅ Steg 14 — Frontend Dispatch (Ticket 13)
+
+**Status:** Klart
+
+**Utfört:**
+
+**Backend:**
+
+- [x] `GET /api/v1/tasks/:id` — hämta enskild task
+
+**Frontend (api.ts):**
+
+- [x] `fetchTask()` — hämta task by ID
+- [x] `dispatchTask()` — trigga exekvering
+
+**Frontend (TaskDetail.tsx):**
+
+- [x] Dispatch-knapp (visas när status=assigned)
+- [x] Loading/error states
+- [x] Short polling efter dispatch
+- [x] Run history med status-färger
+
+**Frontend (PendingApprovals.tsx):**
+
+- [x] Två sektioner: "Pending Approval" + "Ready to Dispatch"
+- [x] Inline dispatch-knappar för assigned tasks
+- [x] Auto-refresh var 10:e sekund
+
+**Verifierat:**
+
+- [x] Dashboard laddar korrekt
+- [x] Task Queue visar 21 tasks
+- [x] Pending Approval (4) med Approve-knappar
+- [x] 3D Realm med 3 kundnoder
+- [x] Activity Log visar real-time events
+
+**Filer ändrade:**
+
+| Fil | Ändring |
+|-----|---------|
+| `backend/src/index.ts` | +GET /tasks/:id |
+| `frontend/src/api.ts` | +fetchTask, +dispatchTask |
+| `frontend/src/components/TaskDetail.tsx` | Rewrite med dispatch/polling |
+| `frontend/src/components/PendingApprovals.tsx` | Dual sections + inline dispatch |
+| `frontend/src/App.css` | Dispatch button styles |
+
+✅ **Ticket 13 KLART**
+
+---
+
+*Nästa steg: n8n fullständig integration + production deployment*
