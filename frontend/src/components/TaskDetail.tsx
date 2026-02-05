@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import type { Task, TaskRun } from '../api';
-import { fetchTaskChildren, fetchTaskRuns, dispatchTask, fetchTask } from '../api';
+import type { Task } from '../api';
+import { fetchTaskChildren, dispatchTask, fetchTask } from '../api';
+import { RunLogPanel } from './RunLogPanel';
 
 interface Props {
     task: Task;
@@ -11,19 +12,14 @@ interface Props {
 export function TaskDetail({ task: initialTask, onClose, onTaskUpdated }: Props) {
     const [task, setTask] = useState<Task>(initialTask);
     const [children, setChildren] = useState<Task[]>([]);
-    const [runs, setRuns] = useState<TaskRun[]>([]);
     const [loading, setLoading] = useState(true);
     const [dispatching, setDispatching] = useState(false);
     const [dispatchError, setDispatchError] = useState<string | null>(null);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const loadData = useCallback(async () => {
-        const [childData, runData] = await Promise.all([
-            fetchTaskChildren(task.id),
-            fetchTaskRuns(task.id)
-        ]);
+        const childData = await fetchTaskChildren(task.id);
         setChildren(childData);
-        setRuns(runData);
     }, [task.id]);
 
     const refreshTask = useCallback(async () => {
@@ -70,9 +66,7 @@ export function TaskDetail({ task: initialTask, onClose, onTaskUpdated }: Props)
             setTask(result.task);
             onTaskUpdated?.(result.task);
         }
-        if (result.run) {
-            setRuns(prev => [result.run!, ...prev]);
-        }
+        // Note: Run is now handled by RunLogPanel's own polling
 
         setDispatching(false);
 
@@ -210,44 +204,10 @@ export function TaskDetail({ task: initialTask, onClose, onTaskUpdated }: Props)
                             )}
                         </div>
 
-                        {/* Run History */}
+                        {/* Run History with Live Panel */}
                         <div className="task-detail-section">
-                            <h3>🏃 Run History ({runs.length})</h3>
-                            {runs.length === 0 ? (
-                                <p className="empty">No runs yet</p>
-                            ) : (
-                                <div className="run-list">
-                                    {runs.map(run => (
-                                        <div key={run.id} className="run-item">
-                                            <div className="run-header">
-                                                <span className="run-number">Run #{run.run_number}</span>
-                                                <span
-                                                    className="run-status"
-                                                    style={{ backgroundColor: getStatusColor(run.status) }}
-                                                >
-                                                    {run.status}
-                                                </span>
-                                            </div>
-                                            <div className="run-meta">
-                                                <span>Executor: <code>{run.executor}</code></span>
-                                                <span>Queued: {formatTime(run.queued_at)}</span>
-                                                {run.started_at && <span>Started: {formatTime(run.started_at)}</span>}
-                                                {run.ended_at && <span>Ended: {formatTime(run.ended_at)}</span>}
-                                            </div>
-                                            {run.error && Object.keys(run.error).length > 0 && (
-                                                <div className="run-error">
-                                                    <strong>Error:</strong> {typeof run.error === 'string' ? run.error : JSON.stringify(run.error)}
-                                                </div>
-                                            )}
-                                            {run.output && Object.keys(run.output).length > 0 && (
-                                                <div className="run-output">
-                                                    <strong>Output:</strong> <code>{JSON.stringify(run.output)}</code>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            <h3>🏃 Run History</h3>
+                            <RunLogPanel taskId={task.id} pollIntervalMs={5000} />
                         </div>
                     </>
                 )}

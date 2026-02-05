@@ -1,0 +1,298 @@
+{
+    "id": "dMbftL2LXAdklUD9",
+    "name": "Skyland Task Approved",
+    "active": true,
+    "nodes": [
+        {
+            "id": "webhook-node",
+            "name": "Webhook",
+            "parameters": {
+                "authentication": "none",
+                "httpMethod": "POST",
+                "options": {},
+                "path": "skyland/task-approved",
+                "responseCode": 200,
+                "responseMode": "onReceived"
+            },
+            "position": [
+                250,
+                300
+            ],
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "webhookId": "e8f9a0b1-2345-6789-cdef-0123456789ab"
+        },
+        {
+            "id": "if-research-node",
+            "name": "Is Research Task",
+            "parameters": {
+                "conditions": {
+                    "combinator": "or",
+                    "conditions": [
+                        {
+                            "id": "research-executor-check",
+                            "leftValue": "={{ $json.body.executor }}",
+                            "operator": {
+                                "operation": "equals",
+                                "type": "string"
+                            },
+                            "rightValue": "n8n:research"
+                        }
+                    ],
+                    "options": {
+                        "caseSensitive": false,
+                        "typeValidation": "loose"
+                    }
+                },
+                "options": {}
+            },
+            "position": [
+                450,
+                300
+            ],
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2
+        },
+        {
+            "id": "extract-query-node",
+            "name": "Extract Query",
+            "parameters": {
+                "jsCode": "const body = $input.first().json.body;\nconst title = body.title || '';\nconst query = title.replace(/^researcha\\s+|^research\\s+/i, '').trim() || title;\n\nreturn [{\n  json: {\n    query,\n    task_id: body.task_id,\n    run_id: body.run_id,\n    callback_url: body.callback_url\n  }\n}];",
+                "language": "javaScript",
+                "mode": "runOnceForAllItems"
+            },
+            "position": [
+                650,
+                200
+            ],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2
+        },
+        {
+            "id": "firecrawl-search-node",
+            "name": "Firecrawl Search",
+            "credentials": {
+                "httpHeaderAuth": {
+                    "id": "JdINZtg430ABaf3X",
+                    "name": "Firecrawl API"
+                }
+            },
+            "parameters": {
+                "authentication": "genericCredentialType",
+                "contentType": "json",
+                "genericAuthType": "httpHeaderAuth",
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "jsonBody": "={{ JSON.stringify({ query: $json.query, limit: 5 }) }}",
+                "method": "POST",
+                "options": {},
+                "sendBody": true,
+                "sendHeaders": true,
+                "sendQuery": false,
+                "specifyBody": "json",
+                "specifyHeaders": "keypair",
+                "url": "https://api.firecrawl.dev/v1/search"
+            },
+            "position": [
+                850,
+                200
+            ],
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2
+        },
+        {
+            "id": "build-report-node",
+            "name": "Build Report",
+            "parameters": {
+                "jsCode": "const extractData = $('Extract Query').first().json;\nconst query = extractData.query;\nconst task_id = extractData.task_id;\nconst run_id = extractData.run_id;\nconst callback_url = extractData.callback_url;\n\nconst searchData = $input.first().json.data || [];\nconst sources = searchData.map(r => ({url: r.url, title: r.title || r.url, snippet: r.description || ''}));\nconst summaryBullets = sources.length > 0 ? sources.map(s => '- ' + (s.snippet || s.title)).join('\\n') : '- Inga resultat hittades';\nconst report = '# Research: ' + query + '\\n\\n## Resultat\\n' + summaryBullets + '\\n';\n\nreturn [{json: {task_id: task_id, run_id: run_id, success: true, severity: 'info', summary: 'Research completed', output: {report_markdown: report, query, sources, generated_at: new Date().toISOString()}, callback_url}}];",
+                "language": "javaScript",
+                "mode": "runOnceForAllItems"
+            },
+            "position": [
+                1050,
+                200
+            ],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2
+        },
+        {
+            "id": "noop-branch-node",
+            "name": "Build Noop Result",
+            "parameters": {
+                "jsCode": "const body = $input.first().json.body;\nconst task_id = body.task_id;\nconst run_id = body.run_id;\nconst callback_url = body.callback_url;\n\nreturn [{json: {task_id: task_id, run_id: run_id, success: true, severity: 'info', summary: 'Not a research task', output: {noop: true, message: 'Task was not identified as a research task'}, callback_url}}];",
+                "language": "javaScript",
+                "mode": "runOnceForAllItems"
+            },
+            "position": [
+                650,
+                400
+            ],
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2
+        },
+        {
+            "id": "send-to-skyland-node",
+            "name": "Send to Skyland",
+            "parameters": {
+                "authentication": "none",
+                "contentType": "json",
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "X-Skyland-Webhook-Secret",
+                            "value": "sk_n8n_xJ7qK9mP2vL4nR8tY6wB3cF5hD"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        },
+                        {
+                            "name": "ngrok-skip-browser-warning",
+                            "value": "true"
+                        }
+                    ]
+                },
+                "jsonBody": "={\"task_id\": \"{{ $json.task_id }}\", \"run_id\": \"{{ $json.run_id }}\", \"success\": {{ $json.success }}, \"severity\": \"{{ $json.severity }}\", \"summary\": \"{{ $json.summary }}\", \"output\": {{ JSON.stringify($json.output) }}}",
+                "method": "POST",
+                "options": {},
+                "sendBody": true,
+                "sendHeaders": true,
+                "sendQuery": false,
+                "specifyBody": "json",
+                "specifyHeaders": "keypair",
+                "url": "={{ $json.callback_url }}"
+            },
+            "position": [
+                1250,
+                300
+            ],
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2
+        },
+        {
+            "id": "response-node",
+            "name": "Response",
+            "parameters": {
+                "assignments": {
+                    "assignments": [
+                        {
+                            "id": "ok",
+                            "name": "ok",
+                            "type": "boolean",
+                            "value": true
+                        },
+                        {
+                            "id": "message",
+                            "name": "message",
+                            "type": "string",
+                            "value": "Task result sent to Skyland"
+                        }
+                    ]
+                },
+                "mode": "manual",
+                "options": {}
+            },
+            "position": [
+                1450,
+                300
+            ],
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.4
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Is Research Task",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Is Research Task": {
+            "main": [
+                [
+                    {
+                        "node": "Extract Query",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Build Noop Result",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extract Query": {
+            "main": [
+                [
+                    {
+                        "node": "Firecrawl Search",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Firecrawl Search": {
+            "main": [
+                [
+                    {
+                        "node": "Build Report",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Build Report": {
+            "main": [
+                [
+                    {
+                        "node": "Send to Skyland",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Build Noop Result": {
+            "main": [
+                [
+                    {
+                        "node": "Send to Skyland",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send to Skyland": {
+            "main": [
+                [
+                    {
+                        "node": "Response",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}

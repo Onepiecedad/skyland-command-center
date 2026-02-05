@@ -204,3 +204,19 @@ export async function fetchTask(taskId: string): Promise<Task | null> {
     const data = await res.json();
     return data.task || null;
 }
+
+export async function fetchRunsGlobal(params?: {
+    limit?: number;
+    status?: string;
+    executorPrefix?: string;
+}): Promise<TaskRun[]> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.executorPrefix) searchParams.set('executorPrefix', params.executorPrefix);
+
+    const url = `${API_BASE}/runs?${searchParams}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data.runs || [];
+}

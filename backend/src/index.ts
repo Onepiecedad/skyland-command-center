@@ -710,6 +710,67 @@ app.get('/api/v1/tasks/:id/runs', async (req: Request, res: Response) => {
 });
 
 // ============================================================================
+// GET /api/v1/runs
+// Global task runs endpoint with filters (Ticket 15)
+// Query params: limit (default 20, max 100), status (comma-separated), executorPrefix
+// ============================================================================
+const globalRunsQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    status: z.string().optional(),
+    executorPrefix: z.string().optional()
+});
+
+app.get('/api/v1/runs', async (req: Request, res: Response) => {
+    try {
+        const parsed = globalRunsQuerySchema.safeParse(req.query);
+
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: parsed.error.issues
+            });
+        }
+
+        const { limit, status, executorPrefix } = parsed.data;
+
+        // Build query
+        let query = supabase
+            .from('task_runs')
+            .select('id, task_id, run_number, executor, status, queued_at, started_at, ended_at, output, error, worker_id')
+            .order('queued_at', { ascending: false })
+            .limit(limit);
+
+        // Filter by status (comma-separated)
+        if (status) {
+            const statuses = status.split(',').map(s => s.trim()).filter(Boolean);
+            if (statuses.length > 0) {
+                query = query.in('status', statuses);
+            }
+        }
+
+        // Filter by executor prefix (e.g., 'n8n', 'local', 'claw')
+        if (executorPrefix) {
+            query = query.like('executor', `${executorPrefix}%`);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            console.error('Error fetching global runs:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        return res.json({
+            runs: data || [],
+            paging: { limit }
+        });
+    } catch (err) {
+        console.error('Unexpected error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
 // DISPATCHER SYSTEM - Ticket 12
 // ============================================================================
 
@@ -731,23 +792,182 @@ async function logTaskRunActivity(
     customerId: string | null,
     taskId: string,
     runId: string,
-    action: 'run_started' | 'run_completed' | 'run_failed',
-    severity: 'info' | 'error',
+    action: 'run_started' | 'run_completed' | 'run_failed' | 'run_timeout',
+    severity: 'info' | 'error' | 'warn',
     details: Record<string, unknown> = {}
 ) {
     try {
         await supabase.from('activities').insert({
             customer_id: customerId,
+            agent: 'system:reaper',
             event_type: 'task_run',
             action,
             severity,
-            message: `Task run ${action.replace('run_', '')}`,
-            details: { task_id: taskId, run_id: runId, ...details }
+            details: { task_id: taskId, run_id: runId, message: `Task run ${action.replace('run_', '')}`, ...details }
         });
     } catch (err) {
         console.error('Failed to log activity:', err);
     }
 }
+
+// ============================================================================
+// Reaper: Timeout stuck running task_runs
+// ============================================================================
+async function reapStuckRuns() {
+    const timeoutMinutes = parseInt(process.env.TASK_RUN_TIMEOUT_MINUTES || '15', 10);
+    const cutoff = new Date(Date.now() - timeoutMinutes * 60 * 1000).toISOString();
+
+    try {
+        // Find stuck runs: status='running' AND started_at < cutoff
+        const { data: stuckRuns, error } = await supabase
+            .from('task_runs')
+            .select('id, task_id, started_at, tasks(customer_id, status)')
+            .eq('status', 'running')
+            .lt('started_at', cutoff);
+
+        if (error) {
+            console.error('[reaper] Error querying stuck runs:', error);
+            return;
+        }
+
+        if (!stuckRuns?.length) return;
+
+        console.log(`[reaper] Found ${stuckRuns.length} stuck run(s) to timeout`);
+
+        for (const run of stuckRuns) {
+            const now = new Date().toISOString();
+            const durationMs = Date.now() - new Date(run.started_at).getTime();
+            // Supabase returns tasks as array for foreign key relation
+            const taskInfo = Array.isArray(run.tasks) ? run.tasks[0] : run.tasks as { customer_id: string | null; status: string } | null;
+
+            // Update run → timeout
+            const { error: runError } = await supabase
+                .from('task_runs')
+                .update({
+                    status: 'timeout',
+                    ended_at: now,
+                    error: { code: 'timeout', message: `Run timed out after ${timeoutMinutes} minutes` },
+                    metrics: { duration_ms: durationMs }
+                })
+                .eq('id', run.id);
+
+            if (runError) {
+                console.error(`[reaper] Failed to update run ${run.id}:`, runError);
+                continue;
+            }
+
+            // Update task → failed (if still in_progress)
+            if (taskInfo?.status === 'in_progress') {
+                await supabase
+                    .from('tasks')
+                    .update({ status: 'failed' })
+                    .eq('id', run.task_id);
+            }
+
+            // Log activity
+            await logTaskRunActivity(
+                taskInfo?.customer_id || null,
+                run.task_id,
+                run.id,
+                'run_timeout',
+                'warn',
+                { timeout_minutes: timeoutMinutes, duration_ms: durationMs }
+            );
+
+            console.log(`[reaper] Run ${run.id} marked as timeout (was running for ${Math.round(durationMs / 1000 / 60)}m)`);
+        }
+    } catch (err) {
+        console.error('[reaper] Unexpected error:', err);
+    }
+}
+
+// ============================================================================
+// Admin: One-shot zombie cleanup
+// ============================================================================
+app.post('/api/v1/admin/reaper/run-timeouts', async (req: Request, res: Response) => {
+    try {
+        const { olderThanMinutes } = req.body;
+
+        if (typeof olderThanMinutes !== 'number' || olderThanMinutes < 1) {
+            return res.status(400).json({
+                error: 'olderThanMinutes must be a positive number'
+            });
+        }
+
+        const cutoff = new Date(Date.now() - olderThanMinutes * 60 * 1000).toISOString();
+        console.log(`[admin-reaper] One-shot cleanup: timing out runs older than ${olderThanMinutes}m (cutoff: ${cutoff})`);
+
+        // Find stuck runs
+        const { data: stuckRuns, error } = await supabase
+            .from('task_runs')
+            .select('id, task_id, started_at, tasks(customer_id, status)')
+            .eq('status', 'running')
+            .lt('started_at', cutoff);
+
+        if (error) {
+            console.error('[admin-reaper] Error querying stuck runs:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        if (!stuckRuns?.length) {
+            return res.json({ updatedRuns: 0, message: 'No stuck runs found' });
+        }
+
+        console.log(`[admin-reaper] Found ${stuckRuns.length} stuck run(s) to timeout`);
+        let updatedCount = 0;
+
+        for (const run of stuckRuns) {
+            const now = new Date().toISOString();
+            const durationMs = Date.now() - new Date(run.started_at).getTime();
+            const taskInfo = Array.isArray(run.tasks) ? run.tasks[0] : run.tasks as { customer_id: string | null; status: string } | null;
+
+            // Update run → timeout
+            const { error: runError } = await supabase
+                .from('task_runs')
+                .update({
+                    status: 'timeout',
+                    ended_at: now,
+                    error: { code: 'timeout', message: `Run timed out (zombie cleanup, threshold: ${olderThanMinutes}m)` },
+                    metrics: { duration_ms: durationMs }
+                })
+                .eq('id', run.id);
+
+            if (runError) {
+                console.error(`[admin-reaper] Failed to update run ${run.id}:`, runError);
+                continue;
+            }
+
+            // Update task → failed (if still in_progress)
+            if (taskInfo?.status === 'in_progress') {
+                await supabase
+                    .from('tasks')
+                    .update({ status: 'failed' })
+                    .eq('id', run.task_id);
+            }
+
+            // Log activity
+            await logTaskRunActivity(
+                taskInfo?.customer_id || null,
+                run.task_id,
+                run.id,
+                'run_timeout',
+                'warn',
+                { timeout_minutes: olderThanMinutes, duration_ms: durationMs, cleanup: 'admin-one-shot' }
+            );
+
+            updatedCount++;
+            console.log(`[admin-reaper] Run ${run.id} marked as timeout (was running for ${Math.round(durationMs / 1000 / 60)}m)`);
+        }
+
+        return res.json({
+            updatedRuns: updatedCount,
+            message: `Timed out ${updatedCount} zombie run(s)`
+        });
+    } catch (err) {
+        console.error('[admin-reaper] Unexpected error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
 
 // Helper: Execute local:echo - returns input as output
 async function executeLocalEcho(task: Record<string, unknown>): Promise<{ output: Record<string, unknown>; error?: string }> {
@@ -1069,25 +1289,40 @@ app.post('/api/v1/n8n/task-result', async (req: Request, res: Response) => {
 
         const now = new Date().toISOString();
 
-        // Update task_run
-        await supabase
+        // Update task_run with error checking
+        const { error: runUpdateError } = await supabase
             .from('task_runs')
             .update({
                 status: success ? 'completed' : 'failed',
-                output: output || null,
-                error: error || null,
+                output: output || {},
+                error: error ? { message: error } : {},
                 ended_at: now
             })
             .eq('id', run_id);
 
-        // Update task
-        await supabase
+        if (runUpdateError) {
+            console.error('Failed to update task_run:', runUpdateError);
+            return res.status(500).json({
+                error: 'Failed to update run',
+                details: runUpdateError.message
+            });
+        }
+
+        // Update task with error checking
+        const { error: taskUpdateError } = await supabase
             .from('tasks')
             .update({
                 status: success ? 'completed' : 'failed',
                 output: output || {}
             })
             .eq('id', task_id);
+
+        if (taskUpdateError) {
+            console.error('Failed to update task:', taskUpdateError);
+            // Don't fail the whole request, but log it
+        }
+
+        console.log(`[n8n-callback] Updated run ${run_id} to ${success ? 'completed' : 'failed'}`);
 
         // Log activity
         const customerId = (run as Record<string, unknown>).tasks
@@ -1441,6 +1676,14 @@ app.get('/api/v1/chat/history', async (req: Request, res: Response) => {
         return res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+// ============================================================================
+// Start Reaper Timer
+// ============================================================================
+const reaperIntervalSeconds = parseInt(process.env.TASK_RUN_REAPER_INTERVAL_SECONDS || '60', 10);
+const timeoutMinutes = parseInt(process.env.TASK_RUN_TIMEOUT_MINUTES || '15', 10);
+setInterval(reapStuckRuns, reaperIntervalSeconds * 1000);
+console.log(`🪓 Reaper started (interval: ${reaperIntervalSeconds}s, timeout: ${timeoutMinutes}m)`);
 
 // ============================================================================
 // Start server

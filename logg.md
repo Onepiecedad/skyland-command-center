@@ -643,4 +643,69 @@ curl "http://localhost:3001/api/v1/activities?agent=master_brain&limit=5"
 
 ---
 
-*Nästa steg: n8n fullständig integration + production deployment*
+### ✅ Steg 15 — N8N Callback Contract + Docs (Ticket 14b)
+
+**Status:** Klart
+
+**Utfört:**
+
+- [x] `docs/N8N_CONTRACT.md` — callback schema + regler + curl regression tests
+- [x] `docs/n8n-workflows/README.md` — node-mapping och payload-struktur
+- [x] `docs/n8n-workflows/task-approved.json` — workflow JSON export
+
+**Callback Contract:**
+
+| Fält | Typ | Required |
+|------|-----|----------|
+| `task_id` | UUID | ✅ Yes |
+| `run_id` | UUID | ✅ Yes |
+| `success` | boolean | ✅ Yes |
+| `output` | object | No |
+| `error` | string | No |
+
+**Regression Tests:**
+
+- Simulate success: `curl -X POST ... -d '{"task_id":"...","run_id":"...","success":true}'`
+- Simulate failure: `curl -X POST ... -d '{"task_id":"...","run_id":"...","success":false,"error":"..."}'`
+
+**Filer skapade:**
+
+| Fil | Beskrivning |
+|-----|-------------|
+| `docs/N8N_CONTRACT.md` | Schema, regler, regression tests |
+| `docs/n8n-workflows/README.md` | Node-mapping guide |
+| `docs/n8n-workflows/task-approved.json` | Workflow JSON export |
+
+✅ **Ticket 14b KLART**
+
+---
+
+### ✅ Steg 16 — Open Task Button (Ticket 18)
+
+**Status:** Klart
+
+**Utfört:**
+
+- [x] Skapade `open-task-btn` CSS-stilar i `App.css`
+- [x] Implementerade "🔗 Open task"-knapp i `RunLogPanel.tsx`
+- [x] Knappen visas i expanderade run-items i System Monitor och Task Detail
+- [x] Klick öppnar TaskDetail modal med korrekt task_id
+
+**Verifiering (Click Test):**
+
+1. [x] Navigera till System Monitor → ✅
+2. [x] Expandera en run-item (klick på rad) → ✅
+3. [x] Klicka "🔗 Open task" → TaskDetail modal öppnas med matchande task_id ✅
+
+**Filer ändrade:**
+
+| Fil | Ändring |
+|-----|---------|
+| `frontend/src/App.css` | +open-task-btn stilar (rad 928-942) |
+| `frontend/src/components/RunLogPanel.tsx` | +Open task-knapp i expanderade runs |
+
+✅ **Ticket 18 KLART** (2026-02-05)
+
+---
+
+*Nästa steg: Production deployment + monitoring*
