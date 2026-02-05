@@ -774,6 +774,14 @@ app.get('/api/v1/runs', async (req: Request, res: Response) => {
 // DISPATCHER SYSTEM - Ticket 12
 // ============================================================================
 
+// Rate limit configuration (Ticket 20)
+const CLAW_MAX_CONCURRENT_PER_CUSTOMER = parseInt(process.env.CLAW_MAX_CONCURRENT_PER_CUSTOMER || '3', 10);
+const CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER = parseInt(process.env.CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER || '20', 10);
+const CLAW_MAX_RUNS_PER_HOUR_GLOBAL = parseInt(process.env.CLAW_MAX_RUNS_PER_HOUR_GLOBAL || '60', 10);
+
+// Claw executor allowlist (Ticket 19)
+const CLAW_EXECUTOR_ALLOWLIST = ['claw:research', 'claw:prospect-finder', 'claw:content'];
+
 // Dispatch request schema
 const dispatchSchema = z.object({
     worker_id: z.string().default('backend-dispatcher-v0')
@@ -785,6 +793,7 @@ interface DispatchResult {
     task: Record<string, unknown>;
     run: Record<string, unknown>;
     error?: string;
+    rateLimited?: boolean;
 }
 
 // Helper: Log activity for task runs
@@ -807,6 +816,129 @@ async function logTaskRunActivity(
         });
     } catch (err) {
         console.error('Failed to log activity:', err);
+    }
+}
+
+// Helper: Log rate_limited activity (Ticket 20)
+async function logRateLimitedActivity(
+    customerId: string | null,
+    taskId: string,
+    reason: 'concurrent_limit' | 'hourly_limit',
+    details: Record<string, unknown> = {}
+) {
+    try {
+        await supabase.from('activities').insert({
+            customer_id: customerId,
+            agent: 'system:dispatcher',
+            event_type: 'rate_limit',
+            action: 'rate_limited',
+            severity: 'warn',
+            details: { task_id: taskId, reason, message: `Task dispatch rate limited: ${reason}`, ...details }
+        });
+    } catch (err) {
+        console.error('Failed to log rate_limited activity:', err);
+    }
+}
+
+// Rate limit result type
+interface RateLimitResult {
+    allowed: boolean;
+    reason?: 'concurrent_limit' | 'hourly_limit';
+    details?: Record<string, unknown>;
+}
+
+// Helper: Check claw rate limits before dispatch (Ticket 20)
+async function checkClawRateLimits(customerId: string | null, executor: string): Promise<RateLimitResult> {
+    // Only apply rate limits to claw executors
+    if (!executor.startsWith('claw:')) {
+        return { allowed: true };
+    }
+
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+    try {
+        // Check concurrent running runs for this customer
+        if (customerId) {
+            const { count: concurrentCount, error: concurrentError } = await supabase
+                .from('task_runs')
+                .select('id', { count: 'exact', head: true })
+                .eq('status', 'running')
+                .like('executor', 'claw:%')
+                .eq('task_id', customerId); // Join via tasks table
+
+            // More accurate: query via tasks table
+            const { data: runningTasks, error: runningError } = await supabase
+                .from('tasks')
+                .select('id, task_runs!inner(id, status)')
+                .eq('customer_id', customerId)
+                .like('executor', 'claw:%');
+
+            if (!runningError && runningTasks) {
+                const runningCount = runningTasks.filter((t: Record<string, unknown>) => {
+                    const runs = t.task_runs as Array<Record<string, unknown>>;
+                    return runs?.some(r => r.status === 'running');
+                }).length;
+
+                if (runningCount >= CLAW_MAX_CONCURRENT_PER_CUSTOMER) {
+                    return {
+                        allowed: false,
+                        reason: 'concurrent_limit',
+                        details: {
+                            customer_id: customerId,
+                            current: runningCount,
+                            limit: CLAW_MAX_CONCURRENT_PER_CUSTOMER
+                        }
+                    };
+                }
+            }
+
+            // Check hourly limit per customer
+            const { count: hourlyCustomerCount, error: hourlyCustomerError } = await supabase
+                .from('task_runs')
+                .select('id, tasks!inner(customer_id)', { count: 'exact', head: true })
+                .like('executor', 'claw:%')
+                .gte('queued_at', oneHourAgo)
+                .eq('tasks.customer_id', customerId);
+
+            if (!hourlyCustomerError && hourlyCustomerCount !== null && hourlyCustomerCount >= CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER) {
+                return {
+                    allowed: false,
+                    reason: 'hourly_limit',
+                    details: {
+                        customer_id: customerId,
+                        current: hourlyCustomerCount,
+                        limit: CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER,
+                        window: '1 hour'
+                    }
+                };
+            }
+        }
+
+        // Check global hourly limit
+        const { count: globalCount, error: globalError } = await supabase
+            .from('task_runs')
+            .select('id', { count: 'exact', head: true })
+            .like('executor', 'claw:%')
+            .gte('queued_at', oneHourAgo);
+
+        if (!globalError && globalCount !== null && globalCount >= CLAW_MAX_RUNS_PER_HOUR_GLOBAL) {
+            return {
+                allowed: false,
+                reason: 'hourly_limit',
+                details: {
+                    scope: 'global',
+                    current: globalCount,
+                    limit: CLAW_MAX_RUNS_PER_HOUR_GLOBAL,
+                    window: '1 hour'
+                }
+            };
+        }
+
+        return { allowed: true };
+    } catch (err) {
+        console.error('[rate-limit] Error checking rate limits:', err);
+        // On error, allow dispatch (fail open)
+        return { allowed: true };
     }
 }
 
@@ -1017,11 +1149,49 @@ async function executeN8nWebhook(task: Record<string, unknown>, runId: string): 
     }
 }
 
-// Helper: Execute claw (stub)
-async function executeClawStub(task: Record<string, unknown>): Promise<{ output?: Record<string, unknown>; error: string }> {
-    return {
-        error: `Claw executor not implemented: ${task.executor}`
-    };
+// Helper: Execute claw webhook (Ticket 19 - async like n8n)
+async function executeClawWebhook(
+    task: Record<string, unknown>,
+    runId: string
+): Promise<{ triggered: boolean; error?: string }> {
+    const hookUrl = process.env.OPENCLAW_HOOK_URL;
+    const hookToken = process.env.OPENCLAW_HOOK_TOKEN;
+    const publicBaseUrl = process.env.SCC_PUBLIC_BASE_URL || process.env.BACKEND_URL || 'http://localhost:3001';
+
+    if (!hookUrl) {
+        return { triggered: false, error: 'OPENCLAW_HOOK_URL not configured' };
+    }
+
+    // Extract agent_id from executor (claw:research → research)
+    const agentId = (task.executor as string).replace('claw:', '');
+
+    try {
+        const response = await fetch(hookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(hookToken ? { 'Authorization': `Bearer ${hookToken}` } : {})
+            },
+            body: JSON.stringify({
+                task_id: task.id,
+                run_id: runId,
+                agent_id: agentId,
+                prompt: task.title,
+                input: task.input,
+                customer_id: task.customer_id,
+                callback_url: `${publicBaseUrl}/api/v1/claw/task-result`
+            })
+        });
+
+        if (!response.ok) {
+            return { triggered: false, error: `OpenClaw hook returned ${response.status}` };
+        }
+
+        console.log(`[claw-dispatch] Triggered ${agentId} for task ${task.id}, run ${runId}`);
+        return { triggered: true };
+    } catch (err) {
+        return { triggered: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    }
 }
 
 // Core dispatcher function
@@ -1047,7 +1217,38 @@ async function dispatchTask(taskId: string, workerId: string): Promise<DispatchR
         };
     }
 
-    // 2. Get next run number
+    // 2. Check rate limits for claw executors (Ticket 20)
+    const rateLimitResult = await checkClawRateLimits(task.customer_id, task.executor);
+    if (!rateLimitResult.allowed) {
+        // Log rate limited activity
+        await logRateLimitedActivity(
+            task.customer_id,
+            taskId,
+            rateLimitResult.reason as 'concurrent_limit' | 'hourly_limit',
+            rateLimitResult.details
+        );
+
+        // Update task with rate limit info (keep in assigned status)
+        await supabase
+            .from('tasks')
+            .update({
+                rate_limited_at: new Date().toISOString(),
+                rate_limit_reason: rateLimitResult.reason
+            })
+            .eq('id', taskId);
+
+        console.log(`[rate-limit] Task ${taskId} rate limited: ${rateLimitResult.reason}`);
+
+        return {
+            success: false,
+            task: { ...task, rate_limited_at: new Date().toISOString(), rate_limit_reason: rateLimitResult.reason },
+            run: {},
+            error: `Rate limited: ${rateLimitResult.reason}`,
+            rateLimited: true
+        } as DispatchResult;
+    }
+
+    // 3. Get next run number
     const { data: lastRun } = await supabase
         .from('task_runs')
         .select('run_number')
@@ -1162,29 +1363,63 @@ async function dispatchTask(taskId: string, workerId: string): Promise<DispatchR
         return { success: true, task: updatedTask, run: { ...run, status: 'running' } };
 
     } else if (executor.startsWith('claw:')) {
-        // Stub - always fails
-        const result = await executeClawStub(task);
+        // Ticket 19: Claw executor with allowlist check
+        if (!CLAW_EXECUTOR_ALLOWLIST.includes(executor)) {
+            // Not in allowlist - fail immediately
+            const errorMsg = `Claw executor not allowed: ${executor}. Allowed: ${CLAW_EXECUTOR_ALLOWLIST.join(', ')}`;
 
-        await supabase
-            .from('task_runs')
-            .update({
-                status: 'failed',
-                error: result.error,
-                ended_at: new Date().toISOString()
-            })
-            .eq('id', run.id);
+            await supabase
+                .from('task_runs')
+                .update({
+                    status: 'failed',
+                    error: { code: 'claw_executor_not_allowed', message: errorMsg },
+                    ended_at: new Date().toISOString()
+                })
+                .eq('id', run.id);
 
-        await supabase
-            .from('tasks')
-            .update({ status: 'failed' })
-            .eq('id', taskId);
+            await supabase
+                .from('tasks')
+                .update({ status: 'failed' })
+                .eq('id', taskId);
 
-        await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_failed', 'error', {
-            executor,
-            error: result.error
-        });
+            await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_failed', 'error', {
+                executor,
+                error: errorMsg,
+                error_code: 'claw_executor_not_allowed'
+            });
 
-        return { success: false, task: { ...updatedTask, status: 'failed' }, run: { ...run, status: 'failed', error: result.error }, error: result.error };
+            return { success: false, task: { ...updatedTask, status: 'failed' }, run: { ...run, status: 'failed', error: errorMsg }, error: errorMsg };
+        }
+
+        // Allowed executor - async webhook execution (like n8n)
+        const result = await executeClawWebhook(task, run.id);
+
+        if (!result.triggered) {
+            // Failed to trigger - mark as failed
+            await supabase
+                .from('task_runs')
+                .update({
+                    status: 'failed',
+                    error: { code: 'claw_trigger_failed', message: result.error },
+                    ended_at: new Date().toISOString()
+                })
+                .eq('id', run.id);
+
+            await supabase
+                .from('tasks')
+                .update({ status: 'failed' })
+                .eq('id', taskId);
+
+            await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_failed', 'error', {
+                executor,
+                error: result.error
+            });
+
+            return { success: false, task: { ...updatedTask, status: 'failed' }, run: { ...run, status: 'failed', error: result.error }, error: result.error };
+        }
+
+        // Webhook triggered successfully - task stays in_progress until callback
+        return { success: true, task: updatedTask, run: { ...run, status: 'running' } };
 
     } else {
         // Unknown executor
@@ -1219,7 +1454,7 @@ async function dispatchTask(taskId: string, workerId: string): Promise<DispatchR
 // ============================================================================
 app.post('/api/v1/tasks/:id/dispatch', async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = req.params.id as string;
 
         const parsed = dispatchSchema.safeParse(req.body);
 
@@ -1346,6 +1581,159 @@ app.post('/api/v1/n8n/task-result', async (req: Request, res: Response) => {
         });
     } catch (err) {
         console.error('Unexpected error in n8n callback:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// POST /api/v1/claw/task-result
+// Callback endpoint for OpenClaw to report task completion (Ticket 19)
+// ============================================================================
+
+// Output schema for claw:research (Ticket 20 - best effort validation)
+const clawResearchOutputSchema = z.object({
+    summary: z.string(),
+    sources: z.array(z.object({ title: z.string(), url: z.string() })).optional(),
+    frameworks: z.array(z.object({
+        name: z.string(),
+        description: z.string().optional(),
+        link: z.string().optional(),
+        what_it_is: z.string().optional(),
+        strengths: z.array(z.string()).optional(),
+        good_for: z.array(z.string()).optional()
+    })).optional(),
+    key_trends_2024: z.array(z.string()).optional(),
+    selection_guide: z.array(z.object({
+        pick: z.string(),
+        if_you_need: z.string()
+    })).optional(),
+    generated_at: z.string().optional(),
+    topic: z.string().optional(),
+    depth: z.string().optional(),
+    notes: z.string().optional()
+}).passthrough();
+
+const clawCallbackSchema = z.object({
+    task_id: z.string().uuid(),
+    run_id: z.string().uuid(),
+    success: z.boolean(),
+    output: z.record(z.string(), z.unknown()).optional(),
+    error: z.string().optional()
+});
+
+app.post('/api/v1/claw/task-result', async (req: Request, res: Response) => {
+    try {
+        const parsed = clawCallbackSchema.safeParse(req.body);
+
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: parsed.error.issues
+            });
+        }
+
+        const { task_id, run_id, success, output, error } = parsed.data;
+
+        // Get existing run to fetch task info
+        const { data: run, error: runError } = await supabase
+            .from('task_runs')
+            .select('*, tasks(customer_id)')
+            .eq('id', run_id)
+            .single();
+
+        if (runError || !run) {
+            return res.status(404).json({ error: 'Run not found' });
+        }
+
+        // Best-effort output schema validation for claw:research (Ticket 20)
+        let schemaWarning: string | null = null;
+        if (success && output && run.executor === 'claw:research') {
+            const schemaResult = clawResearchOutputSchema.safeParse(output);
+            if (!schemaResult.success) {
+                schemaWarning = `Output schema mismatch for claw:research: ${schemaResult.error.issues.map(i => i.message).join(', ')}`;
+                console.warn(`[claw-callback] ${schemaWarning}`);
+                // Log warning activity
+                try {
+                    await supabase.from('activities').insert({
+                        customer_id: (run as Record<string, unknown>).tasks
+                            ? ((run as Record<string, unknown>).tasks as Record<string, unknown>).customer_id
+                            : null,
+                        agent: 'system:validator',
+                        event_type: 'schema_validation',
+                        action: 'schema_mismatch',
+                        severity: 'warn',
+                        details: {
+                            task_id,
+                            run_id,
+                            executor: run.executor,
+                            issues: schemaResult.error.issues
+                        }
+                    });
+                } catch (logErr) {
+                    console.error('Failed to log schema warning:', logErr);
+                }
+            }
+        }
+
+        const now = new Date().toISOString();
+
+        // Update task_run with error checking
+        const { error: runUpdateError } = await supabase
+            .from('task_runs')
+            .update({
+                status: success ? 'completed' : 'failed',
+                output: output || {},
+                error: error ? { message: error } : {},
+                ended_at: now
+            })
+            .eq('id', run_id);
+
+        if (runUpdateError) {
+            console.error('Failed to update task_run:', runUpdateError);
+            return res.status(500).json({
+                error: 'Failed to update run',
+                details: runUpdateError.message
+            });
+        }
+
+        // Update task with error checking
+        const { error: taskUpdateError } = await supabase
+            .from('tasks')
+            .update({
+                status: success ? 'completed' : 'failed',
+                output: output || {}
+            })
+            .eq('id', task_id);
+
+        if (taskUpdateError) {
+            console.error('Failed to update task:', taskUpdateError);
+            // Don't fail the whole request, but log it
+        }
+
+        console.log(`[claw-callback] Updated run ${run_id} to ${success ? 'completed' : 'failed'}`);
+
+        // Log activity
+        const customerId = (run as Record<string, unknown>).tasks
+            ? ((run as Record<string, unknown>).tasks as Record<string, unknown>).customer_id as string | null
+            : null;
+
+        await logTaskRunActivity(
+            customerId,
+            task_id,
+            run_id,
+            success ? 'run_completed' : 'run_failed',
+            success ? 'info' : 'error',
+            success ? { output, source: 'openclaw' } : { error, source: 'openclaw' }
+        );
+
+        return res.json({
+            message: success ? 'Task completed' : 'Task failed',
+            task_id,
+            run_id,
+            status: success ? 'completed' : 'failed'
+        });
+    } catch (err) {
+        console.error('Unexpected error in claw callback:', err);
         return res.status(500).json({ error: 'Internal server error' });
     }
 });

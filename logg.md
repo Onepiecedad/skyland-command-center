@@ -708,4 +708,116 @@ curl "http://localhost:3001/api/v1/activities?agent=master_brain&limit=5"
 
 ---
 
-*Nästa steg: Production deployment + monitoring*
+### ✅ Steg 17 — Claw Executor v0 (Ticket 19)
+
+**Status:** Klart
+
+**Utfört:**
+
+- [x] Skapade `CLAW_EXECUTOR_ALLOWLIST` constant med agent-typer
+- [x] Implementerade `executeClawWebhook()` funktion (async fire-and-forget)
+- [x] Uppdaterade `dispatchTask()` med allowlist-check för Claw-routing
+- [x] Skapade `POST /api/v1/claw/task-result` callback endpoint
+- [x] Lade till env vars: `OPENCLAW_HOOK_URL`, `OPENCLAW_HOOK_TOKEN`, `SCC_PUBLIC_BASE_URL`
+- [x] Skapade dokumentation: `docs/OPENCLAW_HOOK_SCC_DISPATCH.md`
+
+**Filer ändrade:**
+
+| Fil | Ändring |
+|-----|---------|
+| `backend/src/lib/claw-executor.ts` | +Claw executor med webhook POST |
+| `backend/src/routes/claw.ts` | +Callback endpoint med UUID-validering |
+| `backend/.env` | +OpenClaw env vars |
+
+✅ **Ticket 19 KLART** (2026-02-05)
+
+---
+
+### ✅ Steg 17a — OpenClaw Hook (Ticket 19a)
+
+**Status:** Klart
+
+**Utfört:**
+
+- [x] Konfigurerade `~/.openclaw/openclaw.json` med hooks section
+- [x] Skapade transform-script `~/.openclaw/hooks/scc-dispatch.cjs`
+- [x] Implementerade agent mapping (research → research-librarian, etc.)
+- [x] Hook returnerar `action: "agent"` för att spawna sub-agent sessions
+
+**Konfiguration:**
+
+```json
+"hooks": {
+  "enabled": true,
+  "transformsDir": "./hooks",
+  "mappings": [{
+    "match": { "path": "/scc-dispatch" },
+    "transform": { "module": "./scc-dispatch.cjs", "export": "default" }
+  }]
+}
+```
+
+**Verifiering:**
+
+```bash
+curl -X POST http://127.0.0.1:18789/hooks/scc-dispatch \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"task_id":"...", "run_id":"...", "agent_id":"research", ...}'
+# → 202 Accepted + runId
+```
+
+✅ **Ticket 19a KLART** (2026-02-05)
+
+---
+
+### ✅ Steg 17b — SCC Callback Skill (Ticket 19b)
+
+**Status:** Klart
+
+**Utfört:**
+
+- [x] Skapade OpenClaw skill: `~/.openclaw/skills/scc-callback/`
+- [x] Implementerade `callback.sh` med:
+  - UUID-validering för task_id och run_id
+  - JSON payload-byggning med jq
+  - 3x retry med exponentiell backoff (0s, 1s, 3s, 10s)
+  - Distinktion mellan client errors (4xx, no retry) och server errors (5xx, retry)
+- [x] Uppdaterade transform med strikta agent-instruktioner
+
+**E2E Testresultat:**
+
+```bash
+# Hook trigger
+curl -X POST http://127.0.0.1:18789/hooks/scc-dispatch ...
+# → 202 {ok: true, runId: "cb0e0edc-..."}
+
+# Ngrok logs (agent anropade callback)
+POST /api/v1/claw/task-result → 404 (förväntat - test UUIDs)
+```
+
+**Flöde:**
+
+```
+SCC → POST /hooks/scc-dispatch → 202
+       ↓
+OpenClaw spawnar agent session
+       ↓
+Agent utför task
+       ↓
+Agent anropar scc-callback skill
+       ↓
+callback.sh → POST /api/v1/claw/task-result → SCC uppdaterar run
+```
+
+**Filer skapade:**
+
+| Fil | Syfte |
+|-----|-------|
+| `~/.openclaw/skills/scc-callback/SKILL.md` | Skill-dokumentation |
+| `~/.openclaw/skills/scc-callback/scripts/callback.sh` | POST-script med retry |
+
+✅ **Ticket 19b KLART** (2026-02-05)
+
+---
+
+*Nästa steg: Production deployment + real-world testing med riktiga tasks*
