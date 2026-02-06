@@ -7,6 +7,9 @@ import { z } from 'zod';
 dotenv.config();
 
 import { supabase } from './services/supabase';
+import { getAdapter, type ChatMessage } from './llm/adapter';
+import { buildSystemPrompt, CustomerInfo } from './llm/systemPrompt';
+import { MASTER_BRAIN_TOOLS, executeToolCall, formatToolResultForLLM } from './llm/tools';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -1742,59 +1745,16 @@ app.post('/api/v1/claw/task-result', async (req: Request, res: Response) => {
 // CHAT ENDPOINT - Master Brain Stub
 // ============================================================================
 
-// Chat request schema
+// Chat request schema (Ticket 21 - updated with customer_id)
 const chatRequestSchema = z.object({
     message: z.string().min(1),
+    customer_id: z.string().uuid().optional(),
     channel: z.enum(['chat', 'voice', 'email', 'sms', 'whatsapp', 'webhook']).default('chat'),
     conversation_id: z.string().uuid().optional()
 });
 
-// Intent types
-type Intent = 'STATUS_CHECK' | 'SUMMARY' | 'CREATE_TASK' | 'HELP';
-
-// Customer slug mapping (will be used to lookup customer_id)
-const CUSTOMER_SLUGS = ['axel', 'gustav', 'thomas'];
-
-// Helper: Classify intent from message (deterministic, no AI)
-function classifyIntent(message: string): Intent {
-    const lowerMsg = message.toLowerCase();
-
-    // STATUS_CHECK: "hur går det" + customer name
-    if (lowerMsg.includes('hur går det')) {
-        for (const slug of CUSTOMER_SLUGS) {
-            if (lowerMsg.includes(slug)) {
-                return 'STATUS_CHECK';
-            }
-        }
-    }
-
-    // SUMMARY: "briefing" or "summary"
-    if (lowerMsg.includes('briefing') || lowerMsg.includes('summary') || lowerMsg.includes('sammanfattning')) {
-        return 'SUMMARY';
-    }
-
-    // CREATE_TASK: starts with "create task:" or contains action words
-    if (lowerMsg.startsWith('create task:') ||
-        lowerMsg.includes('researcha') ||
-        lowerMsg.includes('skriv') ||
-        lowerMsg.startsWith('be ')) {
-        return 'CREATE_TASK';
-    }
-
-    // Default: HELP
-    return 'HELP';
-}
-
-// Helper: Extract customer slug from message
-function extractCustomerSlug(message: string): string | null {
-    const lowerMsg = message.toLowerCase();
-    for (const slug of CUSTOMER_SLUGS) {
-        if (lowerMsg.includes(slug)) {
-            return slug;
-        }
-    }
-    return null;
-}
+// Number of previous messages to include in context
+const CHAT_CONTEXT_MESSAGE_LIMIT = 10;
 
 // Helper: Log message to messages table
 async function logMessage(params: {
@@ -1823,7 +1783,50 @@ async function logMessage(params: {
     }
 }
 
-// POST /api/v1/chat - Main chat endpoint
+// Helper: Load customers for system prompt
+async function loadCustomersForPrompt(): Promise<CustomerInfo[]> {
+    const { data, error } = await supabase
+        .from('customers')
+        .select('id, name, slug');
+
+    if (error || !data) {
+        console.error('Error loading customers for prompt:', error);
+        return [];
+    }
+
+    return data;
+}
+
+// Helper: Load recent messages for context
+async function loadRecentMessages(
+    conversationId: string | null,
+    limit: number = CHAT_CONTEXT_MESSAGE_LIMIT
+): Promise<ChatMessage[]> {
+    let query = supabase
+        .from('messages')
+        .select('role, content, created_at')
+        .in('role', ['user', 'assistant'])
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+    if (conversationId) {
+        query = query.eq('conversation_id', conversationId);
+    }
+
+    const { data, error } = await query;
+
+    if (error || !data) {
+        return [];
+    }
+
+    // Reverse to get chronological order and map to ChatMessage format
+    return data.reverse().map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+    }));
+}
+
+// POST /api/v1/chat - Main chat endpoint (Ticket 21 - LLM Integration)
 app.post('/api/v1/chat', async (req: Request, res: Response) => {
     try {
         // Validate request
@@ -1836,189 +1839,180 @@ app.post('/api/v1/chat', async (req: Request, res: Response) => {
             });
         }
 
-        const { message, channel } = parsed.data;
-
-        // Generate or use provided conversation_id
+        const { message, channel, customer_id: providedCustomerId } = parsed.data;
         const conversation_id = parsed.data.conversation_id ?? crypto.randomUUID();
 
-        // Classify intent
-        const intent = classifyIntent(message);
+        // Track actions for response
+        const actions_taken: Array<{ action: string; table: string; details?: Record<string, unknown> }> = [];
+        const proposed_actions: unknown[] = [];
 
-        // Extract customer slug if present
-        const customerSlug = extractCustomerSlug(message);
+        // Use provided customer_id or null
+        const customerId = providedCustomerId || null;
 
-        // Get customer_id if slug found
-        let customerId: string | null = null;
-        if (customerSlug) {
-            const { data: customer } = await supabase
-                .from('customers')
-                .select('id')
-                .eq('slug', customerSlug)
-                .single();
-            if (customer) {
-                customerId = customer.id;
-            }
-        }
+        // Log chat_received activity
+        await supabase.from('activities').insert({
+            customer_id: customerId,
+            agent: 'master_brain',
+            action: 'chat_received',
+            event_type: 'chat',
+            severity: 'info',
+            details: { conversation_id, channel, message_length: message.length }
+        });
+        actions_taken.push({ action: 'insert', table: 'activities', details: { event_type: 'chat_received' } });
 
-        // Log inbound message
+        // Log inbound user message
         await logMessage({
             conversation_id,
             role: 'user',
             channel,
             direction: 'internal',
             content: message,
-            customer_id: customerId,
-            metadata: { intent, entities: { customer_slug: customerSlug } }
+            customer_id: customerId
         });
-
-        // Track message insert action
-        const actions_taken: Array<{ action: string; table: string; details?: Record<string, unknown> }> = [];
         actions_taken.push({ action: 'insert', table: 'messages', details: { role: 'user', conversation_id } });
 
-        // Initialize response structure
-        let responseText = '';
-        let data: Record<string, unknown> = {};
-        const proposed_actions: unknown[] = [];
-        const suggestions: string[] = [];
+        // Load context for LLM
+        const [customers, previousMessages] = await Promise.all([
+            loadCustomersForPrompt(),
+            loadRecentMessages(conversation_id)
+        ]);
 
-        // Handle each intent
-        switch (intent) {
-            case 'HELP': {
-                responseText = 'Jag kan hjälpa dig med: statusuppdateringar för kunder (fråga "hur går det för [namn]?"), sammanfattningar (säg "briefing" eller "summary"), samt skapa uppgifter (börja med "researcha...", "skriv..." etc). Vad vill du göra?';
-                break;
-            }
+        // Build system prompt with customer data
+        const systemPrompt = buildSystemPrompt(customers);
 
-            case 'STATUS_CHECK': {
-                if (customerSlug) {
-                    const { data: customerData, error } = await supabase
-                        .from('customer_status')
-                        .select('*')
-                        .eq('slug', customerSlug)
-                        .single();
+        // Build messages for LLM (previous context + current message)
+        const llmMessages: ChatMessage[] = [
+            ...previousMessages.slice(0, -1), // Exclude the message we just logged (it's already the current one)
+            { role: 'user', content: message }
+        ];
 
-                    if (error || !customerData) {
-                        responseText = `Kunde inte hitta kund med slug "${customerSlug}".`;
-                    } else {
-                        data.customer = customerData;
-                        actions_taken.push({ action: 'query', table: 'customer_status', details: { slug: customerSlug } });
-                        const status = customerData.status;
-                        const errors = customerData.errors_24h || 0;
-                        const warnings = customerData.warnings_24h || 0;
-                        const openTasks = customerData.open_tasks || 0;
+        // Get LLM adapter
+        let adapter;
+        try {
+            adapter = getAdapter();
+        } catch (adapterError) {
+            console.error('Failed to initialize LLM adapter:', adapterError);
+            return res.status(500).json({
+                error: 'LLM adapter not configured',
+                details: adapterError instanceof Error ? adapterError.message : 'Unknown error'
+            });
+        }
 
-                        responseText = `${customerData.name}: Status är "${status}". ${errors} fel, ${warnings} varningar (senaste 24h). ${openTasks} öppna uppgifter.`;
-                    }
-                } else {
-                    responseText = 'Jag förstod att du vill ha status, men kunde inte avgöra vilken kund. Prova "hur går det för Axel?"';
-                }
-                break;
-            }
+        // Call LLM
+        let llmResponse;
+        try {
+            llmResponse = await adapter.chat({
+                systemPrompt,
+                messages: llmMessages,
+                tools: MASTER_BRAIN_TOOLS
+            });
+        } catch (llmError) {
+            console.error('LLM call failed:', llmError);
+            return res.status(500).json({
+                error: 'LLM call failed',
+                details: llmError instanceof Error ? llmError.message : 'Unknown error'
+            });
+        }
 
-            case 'SUMMARY': {
-                const { data: allCustomers, error } = await supabase
-                    .from('customer_status')
-                    .select('*');
+        // Process tool calls if present (single round, v1 scope)
+        let responseText = llmResponse.text;
+        const toolResults: Array<{ name: string; result: unknown }> = [];
 
-                if (error) {
-                    responseText = 'Kunde inte hämta kundstatus.';
-                } else {
-                    data.customers = allCustomers;
-                    actions_taken.push({ action: 'query', table: 'customer_status', details: { count: allCustomers?.length || 0 } });
-                    const errorCount = allCustomers?.filter((c: { status: string }) => c.status === 'error').length || 0;
-                    const warningCount = allCustomers?.filter((c: { status: string }) => c.status === 'warning').length || 0;
-                    const activeCount = allCustomers?.filter((c: { status: string }) => c.status === 'active').length || 0;
+        if (llmResponse.toolCalls && llmResponse.toolCalls.length > 0) {
+            console.log(`[chat] Processing ${llmResponse.toolCalls.length} tool calls`);
 
-                    responseText = `Sammanfattning: ${allCustomers?.length || 0} kunder totalt. ${activeCount} aktiva, ${warningCount} med varningar, ${errorCount} med fel.`;
-                }
-                break;
-            }
+            for (const toolCall of llmResponse.toolCalls) {
+                console.log(`[chat] Executing tool: ${toolCall.name}`);
+                const result = await executeToolCall(toolCall.name, toolCall.arguments);
+                toolResults.push({ name: toolCall.name, result });
 
-            case 'CREATE_TASK': {
-                // Determine priority
-                const isUrgent = message.toLowerCase().includes('urgent') || message.toLowerCase().includes('brådskande');
-                const priority = isUrgent ? 'high' : 'normal';
-
-                // Create title from message (remove trigger words)
-                let title = message;
-                if (title.toLowerCase().startsWith('create task:')) {
-                    title = title.substring(12).trim();
-                }
-
-                // Create task with status='review' (SUGGEST mode)
-                const taskInput = {
-                    source_message: message,
-                    conversation_id,
-                    requested_by: 'internal'
-                };
-
-                const { data: createdTask, error: taskError } = await supabase
-                    .from('tasks')
-                    .insert({
-                        title,
-                        status: 'review',
-                        priority,
-                        customer_id: customerId,
-                        input: taskInput
-                    })
-                    .select()
-                    .single();
-
-                if (taskError) {
-                    console.error('Error creating task:', taskError);
-                    responseText = 'Kunde inte skapa uppgiften. Försök igen.';
-                } else {
-                    data.task = createdTask;
-                    actions_taken.push({ action: 'insert', table: 'tasks', details: { task_id: createdTask.id, status: 'review' } });
+                // If task was created, add to proposed_actions
+                if (toolCall.name === 'create_task_proposal' && result.success) {
+                    const taskData = result.data as { task_id: string; title: string };
                     proposed_actions.push({
                         type: 'TASK_CREATED',
-                        task_id: createdTask.id,
-                        task: createdTask
+                        task_id: taskData.task_id,
+                        title: taskData.title
                     });
-                    suggestions.push('Vill du godkänna tasken?');
 
-                    responseText = `Skapar uppgift: "${title}" (prioritet: ${priority}, status: review). Tasken behöver godkännas innan den körs.`;
+                    // Log task_proposed activity
+                    await supabase.from('activities').insert({
+                        customer_id: customerId,
+                        agent: 'master_brain',
+                        action: 'task_proposed',
+                        event_type: 'task',
+                        severity: 'info',
+                        details: {
+                            conversation_id,
+                            task_id: taskData.task_id,
+                            title: taskData.title
+                        }
+                    });
+                    actions_taken.push({ action: 'insert', table: 'activities', details: { event_type: 'task_proposed', task_id: taskData.task_id } });
                 }
-                break;
+
+                // Append formatted tool result to response if LLM didn't provide text
+                if (!responseText) {
+                    responseText = formatToolResultForLLM(toolCall.name, result);
+                }
+            }
+
+            // If LLM provided text AND we have tool results, append tool results
+            if (llmResponse.text && toolResults.length > 0) {
+                const toolSummaries = toolResults
+                    .map(tr => formatToolResultForLLM(tr.name, tr.result as { success: boolean; data?: unknown; error?: string }))
+                    .join('\n\n');
+                // LLM text already includes the response, just ensure it's complete
+                responseText = llmResponse.text;
             }
         }
 
-        // Log outbound message
+        // Fallback if no response
+        if (!responseText) {
+            responseText = 'Jag kunde inte generera ett svar. Vänligen försök igen eller omformulera din fråga.';
+        }
+
+        // Log outbound assistant message
         await logMessage({
             conversation_id,
             role: 'assistant',
             channel,
             direction: 'internal',
             content: responseText,
-            customer_id: customerId
+            customer_id: customerId,
+            metadata: {
+                tool_calls: llmResponse.toolCalls?.map(tc => tc.name) || [],
+                tool_results: toolResults.length
+            }
         });
         actions_taken.push({ action: 'insert', table: 'messages', details: { role: 'assistant', conversation_id } });
 
-        // Log activity for traceability
+        // Log chat_responded activity
         await supabase.from('activities').insert({
             customer_id: customerId,
             agent: 'master_brain',
-            action: `chat_${intent.toLowerCase()}`,
+            action: 'chat_responded',
             event_type: 'chat',
             severity: 'info',
-            autonomy_level: intent === 'CREATE_TASK' ? 'SUGGEST' : 'OBSERVE',
+            autonomy_level: proposed_actions.length > 0 ? 'SUGGEST' : 'OBSERVE',
             details: {
                 conversation_id,
-                intent,
                 channel,
+                response_length: responseText.length,
+                tool_calls_count: llmResponse.toolCalls?.length || 0,
                 has_proposed_actions: proposed_actions.length > 0
             }
         });
-        actions_taken.push({ action: 'insert', table: 'activities', details: { event_type: 'chat', intent } });
+        actions_taken.push({ action: 'insert', table: 'activities', details: { event_type: 'chat_responded' } });
 
         // Return response
         return res.json({
             response: responseText,
             conversation_id,
-            intent,
-            data,
+            customer_id: customerId,
             actions_taken,
             proposed_actions,
-            suggestions
+            tool_calls: llmResponse.toolCalls?.map(tc => tc.name) || []
         });
 
     } catch (err) {
