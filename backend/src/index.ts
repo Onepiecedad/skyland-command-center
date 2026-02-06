@@ -2,6 +2,8 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { z } from 'zod';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Load environment variables before importing supabase
 dotenv.config();
@@ -783,7 +785,7 @@ const CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER = parseInt(process.env.CLAW_MAX_RUNS_P
 const CLAW_MAX_RUNS_PER_HOUR_GLOBAL = parseInt(process.env.CLAW_MAX_RUNS_PER_HOUR_GLOBAL || '60', 10);
 
 // Claw executor allowlist (Ticket 19)
-const CLAW_EXECUTOR_ALLOWLIST = ['claw:research', 'claw:prospect-finder', 'claw:content'];
+const CLAW_EXECUTOR_ALLOWLIST = ['claw:research', 'claw:prospect-finder', 'claw:content', 'claw:deep-research', 'claw:report-writer'];
 
 // Dispatch request schema
 const dispatchSchema = z.object({
@@ -1957,6 +1959,42 @@ app.post('/api/v1/chat', async (req: Request, res: Response) => {
                 }
             }
 
+            // CRITICAL: Send tool results back to LLM for a natural language response
+            // This ensures the user gets a human-readable answer, not raw JSON
+            if (toolResults.length > 0) {
+                console.log(`[chat] Sending ${toolResults.length} tool results back to LLM for natural response`);
+
+                // Build tool result messages
+                const toolResultMessages: ChatMessage[] = [
+                    ...llmMessages,
+                    {
+                        role: 'assistant' as const,
+                        content: `Jag har hämtat data med verktyg: ${toolResults.map(t => t.name).join(', ')}`
+                    },
+                    {
+                        role: 'user' as const,
+                        content: `Verktygsdata:\n${toolResults.map(tr =>
+                            `${tr.name}: ${JSON.stringify(tr.result, null, 2)}`
+                        ).join('\n\n')}\n\nSammanfatta detta på ENKEL SVENSKA. Förklara för en person som INTE kan programmera vad som hänt och varför. Inga JSON-objekt eller teknisk kod i svaret!`
+                    }
+                ];
+
+                try {
+                    const followUpResponse = await adapter.chat({
+                        systemPrompt,
+                        messages: toolResultMessages,
+                        tools: [] // No tools in follow-up, just generate text
+                    });
+
+                    if (followUpResponse.text) {
+                        responseText = followUpResponse.text;
+                    }
+                } catch (followUpError) {
+                    console.error('Follow-up LLM call failed:', followUpError);
+                    // Keep the formatted tool result as fallback
+                }
+            }
+
             // If LLM provided text AND we have tool results, append tool results
             if (llmResponse.text && toolResults.length > 0) {
                 const toolSummaries = toolResults
@@ -2055,6 +2093,207 @@ app.get('/api/v1/chat/history', async (req: Request, res: Response) => {
 
     } catch (err) {
         console.error('Chat history error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// GET /api/v1/reports/:task_id - Download report PDF for a task (Ticket 22)
+// ============================================================================
+
+app.get('/api/v1/reports/:task_id', async (req: Request, res: Response) => {
+    try {
+        const taskId = req.params.task_id as string;
+
+        // Validate UUID format
+        const uuidSchema = z.string().uuid();
+        const uuidParsed = uuidSchema.safeParse(taskId);
+
+        if (!uuidParsed.success) {
+            return res.status(400).json({ error: 'Invalid task_id format' });
+        }
+
+        // Get task to find report path
+        const { data: task, error: taskError } = await supabase
+            .from('tasks')
+            .select('output, status, title')
+            .eq('id', taskId)
+            .single();
+
+        if (taskError || !task) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
+
+        if (task.status !== 'completed') {
+            return res.status(400).json({ error: 'Report not yet generated', status: task.status });
+        }
+
+        // Check for report path in output
+        const output = task.output as Record<string, unknown> | null;
+        const reportPath = (output?.report_path || output?.desktop_path) as string | null;
+
+        if (!reportPath) {
+            // Try default path based on task ID
+            const defaultPath = path.join(
+                process.env.HOME || '/Users/onepiecedad',
+                '.openclaw/output',
+                taskId,
+                'rapport.pdf'
+            );
+
+            if (fs.existsSync(defaultPath)) {
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', `attachment; filename="${task.title || 'rapport'}.pdf"`);
+                return fs.createReadStream(defaultPath).pipe(res);
+            }
+
+            return res.status(404).json({ error: 'Report file not found', checked_path: defaultPath });
+        }
+
+        // Serve the PDF file
+        const absolutePath = reportPath.replace('~', process.env.HOME || '/Users/onepiecedad');
+
+        if (!fs.existsSync(absolutePath)) {
+            return res.status(404).json({ error: 'Report file not found', path: reportPath });
+        }
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${task.title || 'rapport'}.pdf"`);
+        return fs.createReadStream(absolutePath).pipe(res);
+
+    } catch (err) {
+        console.error('Report download error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// GET /api/v1/tasks/:id/progress
+// Returns current progress for a task from latest running/completed run
+// ============================================================================
+app.get('/api/v1/tasks/:id/progress', async (req: Request, res: Response) => {
+    try {
+        const taskId = req.params.id as string;
+
+        // Validate UUID format
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId)) {
+            return res.status(400).json({ error: 'Invalid task ID format' });
+        }
+
+        // Get latest run for this task
+        const { data: run, error } = await supabase
+            .from('task_runs')
+            .select('output, status')
+            .eq('task_id', taskId)
+            .order('run_number', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (error && error.code !== 'PGRST116') {
+            console.error('Progress fetch error:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        if (!run) {
+            return res.json({ progress: null });
+        }
+
+        // Extract progress from run output
+        const output = run.output as Record<string, unknown> || {};
+        const progress = output.progress as {
+            percent?: number;
+            current_step?: string;
+            steps?: Array<{ id: string; name: string; status: string }>;
+        } | null;
+
+        return res.json({
+            progress: progress || null,
+            run_status: run.status
+        });
+
+    } catch (err) {
+        console.error('Progress fetch error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// POST /api/v1/tasks/:id/progress
+// Updates progress for a running task
+// ============================================================================
+const progressDataSchema = z.object({
+    percent: z.number().min(0).max(100).optional(),
+    current_step: z.string().optional(),
+    steps: z.array(z.object({
+        id: z.string(),
+        name: z.string(),
+        status: z.enum(['pending', 'running', 'completed', 'failed'])
+    })).optional()
+});
+
+const progressSchema = z.object({
+    progress: progressDataSchema
+});
+
+app.post('/api/v1/tasks/:id/progress', async (req: Request, res: Response) => {
+    try {
+        const taskId = req.params.id as string;
+
+        // Validate UUID format
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskId)) {
+            return res.status(400).json({ error: 'Invalid task ID format' });
+        }
+
+        // Validate request body
+        const parsed = progressSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({
+                error: 'Validation failed',
+                details: parsed.error.flatten()
+            });
+        }
+
+        // Get latest running run for this task
+        const { data: run, error: fetchError } = await supabase
+            .from('task_runs')
+            .select('id, output')
+            .eq('task_id', taskId)
+            .eq('status', 'running')
+            .order('run_number', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+            console.error('Progress update - fetch error:', fetchError);
+            return res.status(500).json({ error: fetchError.message });
+        }
+
+        if (!run) {
+            return res.status(404).json({ error: 'No running run found for this task' });
+        }
+
+        // Merge progress into existing output
+        const existingOutput = run.output as Record<string, unknown> || {};
+        const updatedOutput = {
+            ...existingOutput,
+            progress: parsed.data.progress
+        };
+
+        // Update the run
+        const { error: updateError } = await supabase
+            .from('task_runs')
+            .update({ output: updatedOutput })
+            .eq('id', run.id);
+
+        if (updateError) {
+            console.error('Progress update error:', updateError);
+            return res.status(500).json({ error: updateError.message });
+        }
+
+        return res.json({ success: true, progress: parsed.data.progress });
+
+    } catch (err) {
+        console.error('Progress update error:', err);
         return res.status(500).json({ error: 'Internal server error' });
     }
 });

@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import type { Task } from '../api';
-import { fetchTaskChildren, dispatchTask, fetchTask } from '../api';
+import { fetchTaskChildren, dispatchTask, fetchTask, getReportUrl } from '../api';
 import { RunLogPanel } from './RunLogPanel';
+import { TaskProgressSection } from './TaskProgressSection';
 
 interface Props {
     task: Task;
@@ -178,6 +179,13 @@ export function TaskDetail({ task: initialTask, onClose, onTaskUpdated }: Props)
                     </div>
                 )}
 
+                {/* Task Progress Section */}
+                <TaskProgressSection
+                    taskId={task.id}
+                    taskStatus={task.status}
+                    executor={task.executor}
+                />
+
                 {loading ? (
                     <p>Loading...</p>
                 ) : (
@@ -209,6 +217,20 @@ export function TaskDetail({ task: initialTask, onClose, onTaskUpdated }: Props)
                             <h3>🏃 Run History</h3>
                             <RunLogPanel taskId={task.id} pollIntervalMs={5000} />
                         </div>
+
+                        {/* Report Download Button - for completed research tasks */}
+                        {task.status === 'completed' && task.executor.startsWith('claw:') && (
+                            <div className="task-detail-section">
+                                <a
+                                    href={getReportUrl(task.id)}
+                                    className="report-btn"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    📄 Visa Rapport (PDF)
+                                </a>
+                            </div>
+                        )}
                     </>
                 )}
             </div>

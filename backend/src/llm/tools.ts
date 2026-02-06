@@ -70,7 +70,7 @@ export const MASTER_BRAIN_TOOLS: ToolDefinition[] = [
                 executor: {
                     type: 'string',
                     description: 'Vilken executor som ska köra tasken',
-                    enum: ['n8n:research', 'claw:research', 'n8n:content', 'local:echo']
+                    enum: ['n8n:research', 'claw:research', 'claw:deep-research', 'claw:report-writer', 'n8n:content', 'local:echo']
                 },
                 input: {
                     type: 'string',

@@ -220,3 +220,40 @@ export async function fetchRunsGlobal(params?: {
     const data = await res.json();
     return data.runs || [];
 }
+
+export function getReportUrl(taskId: string): string {
+    return `${API_BASE}/reports/${taskId}`;
+}
+
+// ============================================================================
+// Task Progress Types & API
+// ============================================================================
+
+export interface TaskProgressStep {
+    id: string;
+    name: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+}
+
+export interface TaskProgress {
+    percent: number;
+    current_step?: string;
+    steps?: TaskProgressStep[];
+}
+
+export async function fetchTaskProgress(taskId: string): Promise<{
+    progress: TaskProgress | null;
+    run_status: string | null;
+}> {
+    try {
+        const res = await fetch(`${API_BASE}/tasks/${taskId}/progress`);
+        if (!res.ok) return { progress: null, run_status: null };
+        const data = await res.json();
+        return {
+            progress: data.progress || null,
+            run_status: data.run_status || null
+        };
+    } catch {
+        return { progress: null, run_status: null };
+    }
+}

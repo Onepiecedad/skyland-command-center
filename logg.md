@@ -820,4 +820,95 @@ callback.sh → POST /api/v1/claw/task-result → SCC uppdaterar run
 
 ---
 
-*Nästa steg: Production deployment + real-world testing med riktiga tasks*
+## 2026-02-06
+
+### ✅ Steg 18 — Master Brain AI Integration (Ticket 21)
+
+**Status:** Klart
+
+**Utfört:**
+
+**LLM Adapter Layer:**
+
+- [x] Skapade `adapter.ts` — provider-agnostisk interface
+- [x] Skapade `openaiAdapter.ts` — OpenAI GPT-4o support
+- [x] Skapade `deepseekAdapter.ts` — DeepSeek V3.2 support
+- [x] Factory pattern för enkel providerbyte via `LLM_PROVIDER` env var
+
+**Tools (Function Calling):**
+
+| Verktyg | Beskrivning |
+|---------|-------------|
+| `get_customer_status` | Hämta kundstatus |
+| `get_customer_errors` | Hämta fel/varningar för diagnostik |
+| `list_recent_activities` | Lista aktivitetshistorik |
+| `create_task_proposal` | Skapa task med status=review |
+| `list_open_tasks` | Lista öppna tasks |
+
+**System Prompt Features:**
+
+- Dynamisk kundkontext från databas
+- Alias-stöd (alex→axel, tomas→thomas)
+- Explicit instruktioner för error-diagnostik
+- Guardrails: tasks skapas alltid med status=review
+
+**Verifiering:**
+
+```bash
+curl -X POST http://localhost:3001/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "varför har alex error?"}'
+# → Visar feldetaljer med get_customer_errors tool
+```
+
+**Aktiv konfiguration:**
+
+```
+LLM_PROVIDER=deepseek
+LLM_MODEL=deepseek-chat
+DEEPSEEK_API_KEY=sk-***
+```
+
+**Filer skapade:**
+
+| Fil | Syfte |
+|-----|-------|
+| `backend/src/llm/adapter.ts` | Provider-interface + factory |
+| `backend/src/llm/openaiAdapter.ts` | OpenAI implementation |
+| `backend/src/llm/deepseekAdapter.ts` | DeepSeek implementation |
+| `backend/src/llm/systemPrompt.ts` | Dynamisk systemprompt |
+| `backend/src/llm/tools.ts` | Tool definitions + handlers |
+
+✅ **Ticket 21 KLART** (2026-02-06)
+
+---
+
+## Nuvarande Status
+
+**Backend:**
+
+- Express API på port 3001
+- Supabase-kopplad (PostgreSQL)
+- LLM: DeepSeek V3.2 (deepseek-chat)
+- Executors: local:echo, n8n:*, claw:*
+
+**Frontend:**
+
+- React dashboard på port 5173
+- 3D Realm visualization
+- Master Brain Chat med tool calling
+- Task Queue med approve/dispatch
+
+**Integrations:**
+
+- n8n webhooks (extern forskning)
+- OpenClaw hooks (agent-baserade tasks)
+- DeepSeek AI (konversation + tools)
+
+---
+
+**Ticket 20 (Claw Executor Hardening):** ✅ Klart — Allowlist, auth token och callback-validering implementerat.
+
+---
+
+*Alla core tickets (1-21) är nu klara! 🎉*
