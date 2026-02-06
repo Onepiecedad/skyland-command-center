@@ -415,6 +415,69 @@ body {
 }
 
 /* 3D Realm Panel */
+.realm-row {
+  margin-bottom: 1rem;
+}
+
+.realm-panel {
+  position: relative;
+}
+
+.realm-canvas-container {
+  height: 300px;
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+
+.realm-canvas-container canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.realm-loading,
+.realm-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: #64748b;
+  font-style: italic;
+}
+
+.realm-error {
+  color: #ef4444;
+}
+
+.realm-footer {
+  display: flex;
+  gap: 1rem;
+  padding-top: 0.75rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.panel-header h2 {
+  margin: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.badge {
+  padding: 0.125rem 0.5rem;
+  background: #334155;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
 
 /* Task Detail Modal */
 .task-detail-overlay {
