@@ -49,7 +49,7 @@ export interface LLMAdapter {
 }
 
 // Supported providers
-export type LLMProvider = 'openai' | 'deepseek' | 'anthropic';
+export type LLMProvider = 'openai' | 'deepseek' | 'openrouter' | 'anthropic';
 
 // Factory function to create adapter based on provider
 export function createAdapter(provider: LLMProvider): LLMAdapter {
@@ -61,6 +61,9 @@ export function createAdapter(provider: LLMProvider): LLMAdapter {
         case 'deepseek':
             const { DeepSeekAdapter } = require('./deepseekAdapter');
             return new DeepSeekAdapter();
+        case 'openrouter':
+            const { OpenRouterAdapter } = require('./openrouterAdapter');
+            return new OpenRouterAdapter();
         case 'anthropic':
             throw new Error('Anthropic adapter not yet implemented');
         default:
