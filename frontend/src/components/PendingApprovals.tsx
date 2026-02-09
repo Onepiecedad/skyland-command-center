@@ -16,6 +16,7 @@ export function PendingApprovals({ selectedCustomerId, onApproved }: Props) {
     const [dispatching, setDispatching] = useState<string | null>(null);
     const [dispatchError, setDispatchError] = useState<{ id: string; error: string } | null>(null);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [now, setNow] = useState(() => Date.now());
 
     const loadTasks = useCallback(async () => {
         try {
@@ -35,6 +36,7 @@ export function PendingApprovals({ selectedCustomerId, onApproved }: Props) {
             ]);
             setReviewTasks(reviewData);
             setAssignedTasks(assignedData);
+            setNow(Date.now());
         } catch (err) {
             console.error('Failed to fetch tasks:', err);
         }
@@ -112,6 +114,17 @@ export function PendingApprovals({ selectedCustomerId, onApproved }: Props) {
         return new Date(iso).toLocaleString('sv-SE');
     };
 
+    type MomentumTier = 'fresh' | 'aging' | 'stale' | 'critical';
+
+    const getMomentum = (createdAt: string): { tier: MomentumTier; label: string; hours: number } => {
+        const hours = (now - new Date(createdAt).getTime()) / 3600000;
+        if (hours < 1) return { tier: 'fresh', label: '⚡ Fresh', hours };
+        if (hours < 6) return { tier: 'aging', label: `🕐 ${Math.floor(hours)}h`, hours };
+        if (hours < 24) return { tier: 'stale', label: `🔥 ${Math.floor(hours)}h`, hours };
+        const days = Math.floor(hours / 24);
+        return { tier: 'critical', label: `🚨 ${days}d`, hours };
+    };
+
     const totalCount = reviewTasks.length + assignedTasks.length;
 
     return (
@@ -129,17 +142,22 @@ export function PendingApprovals({ selectedCustomerId, onApproved }: Props) {
                                 {reviewTasks.map(t => (
                                     <div
                                         key={t.id}
-                                        className="task-card clickable"
+                                        className={`task-card clickable momentum-${getMomentum(t.created_at).tier}`}
                                         onClick={() => setSelectedTask(t)}
                                     >
                                         <div className="task-header">
                                             <span className="task-title">{t.title}</span>
-                                            <span
-                                                className="priority-badge"
-                                                style={{ backgroundColor: getPriorityColor(t.priority) }}
-                                            >
-                                                {t.priority}
-                                            </span>
+                                            <div className="task-badges">
+                                                <span className={`momentum-badge momentum-${getMomentum(t.created_at).tier}`}>
+                                                    {getMomentum(t.created_at).label}
+                                                </span>
+                                                <span
+                                                    className="priority-badge"
+                                                    style={{ backgroundColor: getPriorityColor(t.priority) }}
+                                                >
+                                                    {t.priority}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div className="task-meta">
                                             <span>Created: {formatTime(t.created_at)}</span>
@@ -166,17 +184,22 @@ export function PendingApprovals({ selectedCustomerId, onApproved }: Props) {
                                 {assignedTasks.map(t => (
                                     <div
                                         key={t.id}
-                                        className="task-card clickable"
+                                        className={`task-card clickable momentum-${getMomentum(t.created_at).tier}`}
                                         onClick={() => setSelectedTask(t)}
                                     >
                                         <div className="task-header">
                                             <span className="task-title">{t.title}</span>
-                                            <span
-                                                className="priority-badge"
-                                                style={{ backgroundColor: getPriorityColor(t.priority) }}
-                                            >
-                                                {t.priority}
-                                            </span>
+                                            <div className="task-badges">
+                                                <span className={`momentum-badge momentum-${getMomentum(t.created_at).tier}`}>
+                                                    {getMomentum(t.created_at).label}
+                                                </span>
+                                                <span
+                                                    className="priority-badge"
+                                                    style={{ backgroundColor: getPriorityColor(t.priority) }}
+                                                >
+                                                    {t.priority}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div className="task-meta">
                                             <span>Created: {formatTime(t.created_at)}</span>

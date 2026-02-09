@@ -1,5 +1,5 @@
 // API wrapper for Skyland Command Center
-const API_BASE = 'http://localhost:3001/api/v1';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001/api/v1';
 
 // ============================================================================
 // Types
@@ -141,6 +141,20 @@ export async function sendChatMessage(message: string, conversationId?: string):
             conversation_id: conversationId
         })
     });
+    return res.json();
+}
+
+export async function sendAlexMessage(message: string, conversationId?: string): Promise<{
+    response: string;
+    conversation_id?: string;
+}> {
+    const GATEWAY = 'http://localhost:18789';
+    const res = await fetch(`${GATEWAY}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, conversation_id: conversationId }),
+    });
+    if (!res.ok) throw new Error(`Alex gateway error: ${res.status}`);
     return res.json();
 }
 
