@@ -105,15 +105,15 @@ function CustomerNode({ customer, position, isSelected, onSelect }: CustomerNode
                 >
                     <div
                         style={{
-                            background: 'rgba(15, 23, 42, 0.95)',
+                            background: 'rgba(10, 10, 15, 0.9)',
                             color: '#f8fafc',
                             padding: '12px 16px',
                             borderRadius: '8px',
                             fontSize: '13px',
-                            fontFamily: 'system-ui, sans-serif',
+                            fontFamily: 'Inter, system-ui, sans-serif',
                             whiteSpace: 'nowrap',
                             border: `2px solid ${color}`,
-                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
                         }}
                     >
                         <div style={{ fontWeight: 'bold', marginBottom: '6px', color }}>
@@ -159,7 +159,7 @@ function Scene({ customers, selectedCustomerId, onSelectCustomer }: SceneProps) 
             <directionalLight position={[-3, 3, -3]} intensity={0.3} />
 
             {/* Grid helper for visual reference */}
-            <gridHelper args={[10, 10, '#334155', '#1e293b']} />
+            <gridHelper args={[10, 10, 'rgba(255,255,255,0.06)', 'rgba(255,255,255,0.03)']} />
 
             {/* Customer nodes */}
             {customers.map((customer, index) => (
@@ -240,7 +240,7 @@ export function Realm3D({ onSelectCustomer, selectedCustomerId }: Realm3DProps) 
                 {!loading && !error && (
                     <Canvas
                         camera={{ position: [0, 3, 6], fov: 50 }}
-                        style={{ background: 'linear-gradient(180deg, #0f172a 0%, #1e293b 100%)' }}
+                        style={{ background: 'linear-gradient(180deg, #000000 0%, #0a0a0f 100%)' }}
                     >
                         <Scene
                             customers={customers}

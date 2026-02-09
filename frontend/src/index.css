@@ -1,4 +1,7 @@
-/* Minimal reset - App.css handles all dashboard styling */
+/* Inter font from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Minimal reset — App.css handles all dashboard styling */
 
 * {
   margin: 0;
@@ -10,7 +13,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  /* No display:flex or place-items:center - those break the dashboard layout */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  /* No display:flex or place-items:center — those break the dashboard layout */
 }
 
 /* Force dark mode regardless of system preference */

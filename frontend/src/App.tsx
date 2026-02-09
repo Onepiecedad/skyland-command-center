@@ -5,9 +5,11 @@ import { PendingApprovals } from './components/PendingApprovals';
 import { MasterBrainChat } from './components/MasterBrainChat';
 import { Realm3D } from './components/Realm3D';
 import { SystemMonitor } from './pages/SystemMonitor';
+import { AgentHub } from './pages/AgentHub';
+import { CostCenter } from './pages/CostCenter';
 import './App.css';
 
-type View = 'dashboard' | 'monitor';
+type View = 'dashboard' | 'agents' | 'costs' | 'monitor';
 
 function App() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -27,7 +29,7 @@ function App() {
   return (
     <div className="dashboard">
       <header className="dashboard-header">
-        <h1>🚀 Skyland Command Center</h1>
+        <h1>Skyland Command Center</h1>
         {selectedCustomerSlug && currentView === 'dashboard' && (
           <span className="filter-badge">
             Filtering: {selectedCustomerSlug}
@@ -39,13 +41,25 @@ function App() {
             className={`nav-tab ${currentView === 'dashboard' ? 'active' : ''}`}
             onClick={() => setCurrentView('dashboard')}
           >
-            📊 Dashboard
+            Dashboard
+          </button>
+          <button
+            className={`nav-tab ${currentView === 'agents' ? 'active' : ''}`}
+            onClick={() => setCurrentView('agents')}
+          >
+            Agent Hub
+          </button>
+          <button
+            className={`nav-tab ${currentView === 'costs' ? 'active' : ''}`}
+            onClick={() => setCurrentView('costs')}
+          >
+            Cost Center
           </button>
           <button
             className={`nav-tab ${currentView === 'monitor' ? 'active' : ''}`}
             onClick={() => setCurrentView('monitor')}
           >
-            🖥️ System Monitor
+            System Monitor
           </button>
         </div>
       </header>
@@ -84,6 +98,10 @@ function App() {
             </div>
           </div>
         </>
+      ) : currentView === 'agents' ? (
+        <AgentHub />
+      ) : currentView === 'costs' ? (
+        <CostCenter />
       ) : (
         <SystemMonitor />
       )}
@@ -92,3 +110,4 @@ function App() {
 }
 
 export default App;
+
