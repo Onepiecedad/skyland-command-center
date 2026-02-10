@@ -91,11 +91,17 @@ export async function fetchActivities(params?: {
     limit?: number;
     offset?: number;
     customer_id?: string;
+    event_type?: string;
+    severity?: string;
+    agent?: string;
 }): Promise<Activity[]> {
     const searchParams = new URLSearchParams();
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.offset) searchParams.set('offset', String(params.offset));
     if (params?.customer_id) searchParams.set('customer_id', params.customer_id);
+    if (params?.event_type) searchParams.set('event_type', params.event_type);
+    if (params?.severity) searchParams.set('severity', params.severity);
+    if (params?.agent) searchParams.set('agent', params.agent);
 
     const url = `${API_BASE}/activities?${searchParams}`;
     const res = await fetch(url);

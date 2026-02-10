@@ -1,113 +1,140 @@
-import { useState, useCallback } from 'react';
-import { CustomerList } from './components/CustomerList';
-import { ActivityLog } from './components/ActivityLog';
-import { PendingApprovals } from './components/PendingApprovals';
-import { MasterBrainChat } from './components/MasterBrainChat';
-import { Realm3D } from './components/Realm3D';
-import { SystemMonitor } from './pages/SystemMonitor';
-import { AgentHub } from './pages/AgentHub';
-import { CostCenter } from './pages/CostCenter';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Zap, Building2 } from 'lucide-react';
+import { SegmentedControl } from './components/SegmentedControl';
+import { ParallaxBackground } from './components/ParallaxBackground';
+import { StatusBar } from './components/StatusBar';
+import { AgentMonitor } from './components/AgentMonitor';
+import { AlexView } from './pages/AlexView';
+import { CustomerView } from './pages/CustomerView';
 import './App.css';
 
-type View = 'dashboard' | 'agents' | 'costs' | 'monitor';
+type View = 'alex' | 'customers';
+
+interface Segment {
+  key: string;
+  label: string;
+  icon?: ReactNode;
+}
+
+const SEGMENTS: Segment[] = [
+  { key: 'alex', label: 'Alex', icon: <Zap size={14} strokeWidth={2.5} /> },
+  { key: 'customers', label: 'Kunder', icon: <Building2 size={14} strokeWidth={2} /> },
+];
+
+/* Zoom + fade transition for alien control panel feel */
+const VIEW_VARIANTS = {
+  initial: {
+    scale: 0.96,
+    opacity: 0,
+    filter: 'blur(6px)',
+  },
+  animate: {
+    scale: 1,
+    opacity: 1,
+    filter: 'blur(0px)',
+    transition: {
+      duration: 0.4,
+      ease: 'easeOut' as const,
+    },
+  },
+  exit: {
+    scale: 1.03,
+    opacity: 0,
+    filter: 'blur(4px)',
+    transition: {
+      duration: 0.25,
+      ease: 'easeInOut' as const,
+    },
+  },
+};
 
 function App() {
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const [selectedCustomerSlug, setSelectedCustomerSlug] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<View>('alex');
   const [refreshKey, setRefreshKey] = useState(0);
-  const [currentView, setCurrentView] = useState<View>('dashboard');
 
-  const handleSelectCustomer = (id: string | null, slug: string | null) => {
-    setSelectedCustomerId(id);
-    setSelectedCustomerSlug(slug);
-  };
+  const handleViewChange = useCallback((key: string) => {
+    setCurrentView(key as View);
+  }, []);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
   }, []);
 
+  // Keyboard shortcuts: ⌘+1 = Alex, ⌘+2 = Kunder
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.metaKey) return;
+      if (e.key === '1') {
+        e.preventDefault();
+        handleViewChange('alex');
+      } else if (e.key === '2') {
+        e.preventDefault();
+        handleViewChange('customers');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleViewChange]);
+
   return (
-    <div className="dashboard">
-      <header className="dashboard-header">
-        <h1>Skyland Command Center</h1>
-        {selectedCustomerSlug && currentView === 'dashboard' && (
-          <span className="filter-badge">
-            Filtering: {selectedCustomerSlug}
-            <button onClick={() => handleSelectCustomer(null, null)}>×</button>
-          </span>
-        )}
-        <div className="nav-tabs">
-          <button
-            className={`nav-tab ${currentView === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setCurrentView('dashboard')}
-          >
-            Dashboard
-          </button>
-          <button
-            className={`nav-tab ${currentView === 'agents' ? 'active' : ''}`}
-            onClick={() => setCurrentView('agents')}
-          >
-            Agent Hub
-          </button>
-          <button
-            className={`nav-tab ${currentView === 'costs' ? 'active' : ''}`}
-            onClick={() => setCurrentView('costs')}
-          >
-            Cost Center
-          </button>
-          <button
-            className={`nav-tab ${currentView === 'monitor' ? 'active' : ''}`}
-            onClick={() => setCurrentView('monitor')}
-          >
-            System Monitor
-          </button>
-        </div>
-      </header>
+    <>
+      {/* Living parallax background behind everything */}
+      <ParallaxBackground />
 
-      {currentView === 'dashboard' ? (
-        <>
-          {/* 3D Realm Visualization */}
-          <div className="realm-row">
-            <Realm3D
-              selectedCustomerId={selectedCustomerId}
-              onSelectCustomer={handleSelectCustomer}
-            />
+      <div className="dashboard-v2">
+        {/* Header — Floating glass bar */}
+        <header className="dashboard-v2-header">
+          <h1 className="dashboard-v2-title">Skyland</h1>
+          <SegmentedControl
+            segments={SEGMENTS}
+            activeKey={currentView}
+            onSelect={handleViewChange}
+          />
+          <div className="dashboard-v2-shortcuts">
+            <span className="shortcut-hint">⌘1</span>
+            <span className="shortcut-hint">⌘2</span>
           </div>
+          <AgentMonitor />
+        </header>
 
-          <div className="dashboard-grid">
-            <div className="left-column">
-              <CustomerList
-                selectedCustomerId={selectedCustomerId}
-                onSelectCustomer={handleSelectCustomer}
-              />
-              <PendingApprovals
-                key={`approvals-${refreshKey}`}
-                selectedCustomerId={selectedCustomerId}
-                onApproved={handleRefresh}
-              />
-            </div>
+        {/* View Content — Zoom transitions */}
+        <main className="dashboard-v2-main">
+          <AnimatePresence mode="wait">
+            {currentView === 'alex' ? (
+              <motion.div
+                key="alex"
+                className="view-container"
+                variants={VIEW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <AlexView onTaskCreated={handleRefresh} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="customers"
+                className="view-container"
+                variants={VIEW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <CustomerView
+                  key={`cv-${refreshKey}`}
+                  onTaskCreated={handleRefresh}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
 
-            <div className="right-column">
-              <ActivityLog
-                key={`activity-${refreshKey}`}
-                selectedCustomerId={selectedCustomerId}
-              />
-              <MasterBrainChat
-                onTaskCreated={handleRefresh}
-              />
-            </div>
-          </div>
-        </>
-      ) : currentView === 'agents' ? (
-        <AgentHub />
-      ) : currentView === 'costs' ? (
-        <CostCenter />
-      ) : (
-        <SystemMonitor />
-      )}
-    </div>
+        {/* Status Bar */}
+        <StatusBar />
+      </div>
+    </>
   );
 }
 
 export default App;
-

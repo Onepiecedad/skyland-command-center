@@ -883,6 +883,57 @@ DEEPSEEK_API_KEY=sk-***
 
 ---
 
+## 2026-02-09
+
+### ✅ Gateway WebSocket-anslutning — Alex Online
+
+**Problem:** SCC-frontenden visade Alex som "Offline" med WebSocket-fel (`1008 invalid request frame`, `closed before connect`).
+
+**Rotorsak:** `gatewaySocket.ts` försökte skicka tillbaka `nonce` i `connect`-requestens `auth`-objekt, men gatewayen avvisade den med `invalid handshake: unexpected property 'nonce'`.
+
+**Åtgärder:**
+
+| Fil | Ändring |
+|-----|---------|
+| `frontend/src/gateway/gatewaySocket.ts` | Tog bort nonce från auth-params, behöll token-baserad auth |
+| `frontend/src/gateway/gatewaySocket.ts` | Lade till debug-logging (`console.debug('[GW] ...')`) |
+
+**Verifiering:** Alex visar "Online" 🟢, stabil WebSocket-anslutning.
+
+---
+
+### ✅ Chat Layout — Expanderat meddelandeområde
+
+**Problem:** Chatt-fönstret i Alex-vyn tog bara ~28% av skärmhöjden pga `max-height: 260px` på `.chat-messages`.
+
+**Åtgärder:**
+
+| Fil | Ändring |
+|-----|---------|
+| `frontend/src/App.css` | Tog bort `max-height: 260px` från `.chat-messages` |
+| `frontend/src/App.css` | Lade till `flex: 1` + `min-height: 0` på `.chat-panel` och `.chat-messages` |
+| `frontend/src/App.css` | Justerade padding i `.alex-content .chat-panel/header/messages` |
+
+**Resultat:** Meddelandeområdet fyller nu ~72% av viewport (660px av 918px).
+
+---
+
+### ✅ Vite Proxy — Rollfiler fungerar
+
+**Problem:** "Alex — Rollfiler" modalen var tom. API-anrop till `/api/v1/alex/role-files` returnerade Vite HTML istället för JSON.
+
+**Rotorsak:** `vite.config.ts` saknade proxy-konfiguration — alla `/api`-anrop gick till Vite dev-servern istället för backenden (port 3001).
+
+**Åtgärd:**
+
+| Fil | Ändring |
+|-----|---------|
+| `frontend/vite.config.ts` | Lade till `server.proxy: { '/api': { target: 'http://localhost:3001' } }` |
+
+**Verifiering:** Rollfiler-modalen visar nu alla flikar (Identitet, Agenter, Användare, Heartbeat).
+
+---
+
 ## Nuvarande Status
 
 **Backend:**
@@ -898,12 +949,16 @@ DEEPSEEK_API_KEY=sk-***
 - 3D Realm visualization
 - Master Brain Chat med tool calling
 - Task Queue med approve/dispatch
+- Vite proxy → backend API
+- Alex Gateway WebSocket-anslutning (Online 🟢)
+- Expanderat chattfönster (full höjd)
 
 **Integrations:**
 
 - n8n webhooks (extern forskning)
 - OpenClaw hooks (agent-baserade tasks)
 - DeepSeek AI (konversation + tools)
+- Alex Gateway (WebSocket, port 18789)
 
 ---
 
@@ -912,3 +967,5 @@ DEEPSEEK_API_KEY=sk-***
 ---
 
 *Alla core tickets (1-21) är nu klara! 🎉*
+
+*Senast uppdaterad: 2026-02-09 20:53*
