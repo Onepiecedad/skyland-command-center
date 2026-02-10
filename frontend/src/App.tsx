@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Zap, Building2, Monitor, Puzzle } from 'lucide-react';
+import { Zap, Building2, Monitor, Puzzle, Radar } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -9,9 +9,10 @@ import { AlexView } from './pages/AlexView';
 import { CustomerView } from './pages/CustomerView';
 import { SystemDashboard } from './pages/SystemDashboard';
 import { SkillsView } from './pages/SkillsView';
+import FleetMonitor from './pages/FleetMonitor';
 import './App.css';
 
-type View = 'alex' | 'customers' | 'system' | 'skills';
+type View = 'alex' | 'customers' | 'system' | 'skills' | 'fleet';
 
 interface Segment {
   key: string;
@@ -24,6 +25,7 @@ const SEGMENTS: Segment[] = [
   { key: 'customers', label: 'Kunder', icon: <Building2 size={14} strokeWidth={2} /> },
   { key: 'system', label: 'System', icon: <Monitor size={14} strokeWidth={2} /> },
   { key: 'skills', label: 'Skills', icon: <Puzzle size={14} strokeWidth={2} /> },
+  { key: 'fleet', label: 'Fleet', icon: <Radar size={14} strokeWidth={2} /> },
 ];
 
 /* Zoom + fade transition for alien control panel feel */
@@ -81,6 +83,9 @@ function App() {
       } else if (e.key === '4') {
         e.preventDefault();
         handleViewChange('skills');
+      } else if (e.key === '5') {
+        e.preventDefault();
+        handleViewChange('fleet');
       }
     };
     window.addEventListener('keydown', handler);
@@ -106,6 +111,7 @@ function App() {
             <span className="shortcut-hint">⌘2</span>
             <span className="shortcut-hint">⌘3</span>
             <span className="shortcut-hint">⌘4</span>
+            <span className="shortcut-hint">⌘5</span>
           </div>
           <AgentMonitor />
         </header>
@@ -162,6 +168,18 @@ function App() {
                 exit="exit"
               >
                 <SkillsView />
+              </motion.div>
+            )}
+            {currentView === 'fleet' && (
+              <motion.div
+                key="fleet"
+                className="view-container"
+                variants={VIEW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <FleetMonitor />
               </motion.div>
             )}
           </AnimatePresence>

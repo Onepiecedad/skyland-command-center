@@ -10,6 +10,11 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      '/gateway': {
+        target: 'http://127.0.0.1:18789',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/gateway/, ''),
+      },
     },
   },
 })
