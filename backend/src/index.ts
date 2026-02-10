@@ -12,6 +12,16 @@ import { supabase } from './services/supabase';
 import { getAdapter, type ChatMessage } from './llm/adapter';
 import { buildSystemPrompt, CustomerInfo } from './llm/systemPrompt';
 import { MASTER_BRAIN_TOOLS, executeToolCall, formatToolResultForLLM } from './llm/tools';
+import skillRegistryRouter from './routes/skillRegistry';
+import skillCheckerRouter from './routes/skillChecker';
+import agentQueueRouter from './routes/agentQueue';
+import gitOpsRouter from './routes/gitOps';
+import contextDataRouter from './routes/contextData';
+import toolCallsRouter from './routes/toolCalls';
+import eventStreamRouter from './routes/eventStream';
+import errorRecoveryRouter from './routes/errorRecovery';
+import memorySearchRouter from './routes/memorySearch';
+import memoryManagementRouter from './routes/memoryManagement';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -19,6 +29,18 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Mounted route modules (Phase 2)
+app.use('/api/v1/skills', skillCheckerRouter);  // skillChecker first (POST /check, GET /:name/validate)
+app.use('/api/v1/skills', skillRegistryRouter);  // skillRegistry second (GET /, GET /:name, lifecycle)
+app.use('/api/v1/agent-queue', agentQueueRouter);
+app.use('/api/v1/git', gitOpsRouter);
+app.use('/api/v1/context', contextDataRouter);
+app.use('/api/v1/tools', toolCallsRouter);
+app.use('/api/v1/events', eventStreamRouter);
+app.use('/api/v1/recovery', errorRecoveryRouter);
+app.use('/api/v1/memory', memorySearchRouter);      // search, timeline, stats
+app.use('/api/v1/memory', memoryManagementRouter);   // storage, archive, retention, cleanup
 
 // ============================================================================
 // Health check endpoint - checks if Supabase is reachable

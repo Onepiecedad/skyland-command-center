@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { ChatResponse, Task } from '../api';
 import { sendChatMessage } from '../api';
 import { useGateway } from '../gateway/useGateway';
@@ -287,7 +289,7 @@ export function MasterBrainChat({ onTaskCreated }: Props) {
                     ) : (
                         mbMessages.map((msg, i) => (
                             <div key={i} className={`chat-message ${msg.role}`}>
-                                <div className="message-content">{msg.content}</div>
+                                <div className="message-content markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown></div>
                                 {msg.timestamp && <span className="msg-timestamp">{formatTime(msg.timestamp)}</span>}
                                 {msg.intent && <span className="intent-badge">{msg.intent}</span>}
                                 {msg.proposedActions && msg.proposedActions.length > 0 && (
@@ -322,14 +324,14 @@ export function MasterBrainChat({ onTaskCreated }: Props) {
                         <>
                             {gateway.messages.map((msg, i) => (
                                 <div key={i} className={`chat-message ${msg.role} ${msg.role === 'assistant' ? 'alex' : ''}`}>
-                                    <div className="message-content">{msg.content}</div>
+                                    <div className="message-content markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown></div>
                                     {msg.timestamp && <span className="msg-timestamp">{formatTime(msg.timestamp)}</span>}
                                 </div>
                             ))}
                             {gateway.isStreaming && gateway.streamingContent && (
                                 <div className="chat-message assistant alex streaming">
-                                    <div className="message-content">
-                                        {gateway.streamingContent}
+                                    <div className="message-content markdown-body">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{gateway.streamingContent}</ReactMarkdown>
                                         <span className="streaming-cursor" />
                                     </div>
                                 </div>

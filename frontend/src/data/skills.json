@@ -1,0 +1,394 @@
+[
+  {
+    "name": "afternoon-research",
+    "emoji": "🔬",
+    "description": "Daglig forskningsrapport baserad på Joakims intressen och affärsbehov. Levereras via WhatsApp kl 14:00. Cron: 0 14 * * * (Europe/Stockholm).",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "agent-mail",
+    "emoji": "📨",
+    "description": "Alex egen e-postadress för inkommande förfrågningar. Triagar, sammanfattar och draftar svar. Trigga med 'kolla alex-mailen', 'inkommande förfrågningar', 'hantera mail till alex@skyland.se'.",
+    "category": "automation",
+    "source": "clawd"
+  },
+  {
+    "name": "ai-cover-image",
+    "emoji": "📝",
+    "description": "ai-cover-image skill",
+    "category": "content",
+    "source": "openclaw"
+  },
+  {
+    "name": "allabolag-lookup",
+    "emoji": "🇸🇪",
+    "description": "Svenska företagsdata via allabolag.se. Hämtar org.nr, omsättning, anställda, ägare.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "antigravity-agent",
+    "emoji": "🚀",
+    "description": "Run coding tasks via the Antigravity AI assistant. Use the 'antigravity chat' command to delegate work.",
+    "category": "content",
+    "source": "clawd"
+  },
+  {
+    "name": "antigravity-ui",
+    "emoji": "⚙️",
+    "description": "Automate the Antigravity macOS app UI using Peekaboo. Use when the user asks to drive Antigravity (open the app, focus the window, type/paste instructions into the chat input in the lower-right, submit, capture output/screenshots, and log actions). Includes guardrails for permissions, stable UI anchoring, and human confirmation for risky actions.",
+    "category": "automation",
+    "source": "clawd"
+  },
+  {
+    "name": "apify-company",
+    "emoji": "🌐",
+    "description": "Website scraper via Apify. Extraherar innehåll, meta-tags och kontaktinfo från företagshemsidor.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "apify-facebook",
+    "emoji": "🔧",
+    "description": "apify-facebook skill",
+    "category": "system",
+    "source": "openclaw"
+  },
+  {
+    "name": "apify-google-reviews",
+    "emoji": "🔧",
+    "description": "apify-google-reviews skill",
+    "category": "system",
+    "source": "openclaw"
+  },
+  {
+    "name": "apify-instagram",
+    "emoji": "🔧",
+    "description": "apify-instagram skill",
+    "category": "system",
+    "source": "openclaw"
+  },
+  {
+    "name": "apify-linkedin-company",
+    "emoji": "🏢",
+    "description": "LinkedIn Company Page scraper via Apify. Hämtar företagsinformation, storlek, industri.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "apify-linkedin-profile",
+    "emoji": "👤",
+    "description": "LinkedIn Profile scraper via Apify. Hämtar beslutsfattar-information för prospect research.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "apify-pagespeed",
+    "emoji": "🔧",
+    "description": "apify-pagespeed skill",
+    "category": "system",
+    "source": "openclaw"
+  },
+  {
+    "name": "apify-search",
+    "emoji": "🔍",
+    "description": "Google Search Scraper via Apify. Returnerar strukturerade sökresultat för research.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "apify-techstack",
+    "emoji": "🔧",
+    "description": "apify-techstack skill",
+    "category": "system",
+    "source": "openclaw"
+  },
+  {
+    "name": "apple-calendar",
+    "emoji": "📅",
+    "description": "Apple Calendar.app integration for macOS. CRUD operations for events, search, and multi-calendar support.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "auto-skill-creator",
+    "emoji": "🧠",
+    "description": "Detekterar repetitiva uppgifter och föreslår/skapar nya skills automatiskt. Alex lär sig av mönster i task-loggen och konversationshistorik. Triggad via heartbeat eller 'analysera mina mönster'.",
+    "category": "automation",
+    "source": "clawd"
+  },
+  {
+    "name": "bolagsverket-lookup",
+    "emoji": "🏛️",
+    "description": "Svenska företagsdata via Bolagsverket (mackan.eu API). Gratis, alltid först.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "caldav-calendar",
+    "emoji": "📅",
+    "description": "Sync and query CalDAV calendars (iCloud, Google, Fastmail, Nextcloud, etc.) using vdirsyncer + khal. Works on Linux.",
+    "category": "automation",
+    "source": "clawd"
+  },
+  {
+    "name": "canva",
+    "emoji": "📝",
+    "description": "|",
+    "category": "content",
+    "source": "openclaw"
+  },
+  {
+    "name": "claw-skill-guard",
+    "emoji": "🔧",
+    "description": "Security scanner for OpenClaw skills. Detects malicious patterns, suspicious URLs, and install traps before you install a skill. Use before installing ANY skill from ClawHub or external sources.",
+    "category": "system",
+    "source": "clawd"
+  },
+  {
+    "name": "client-monitor",
+    "emoji": "📊",
+    "description": "Övervaka klienters webbplatser och system. Kontrollerar uptime, svarstid och SSL-certifikat. Trigga med 'kolla klienternas sajter', 'uptime-check', eller via heartbeat.",
+    "category": "monitor",
+    "source": "clawd"
+  },
+  {
+    "name": "competitive-intelligence-market-research",
+    "emoji": "🔍",
+    "description": "B2B SaaS competitive intelligence with 24 scenarios across Sales/HR/Fintech/Ops Tech",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "content-pipeline",
+    "emoji": "🎬",
+    "description": "Automated content discovery, rewriting, and scheduling pipeline. Monitors trending content from specified creators/channels, extracts hooks and scripts, rewrites in Joakim/Skyland's voice, generates visuals, and prepares posts for LinkedIn. Use when asked to 'kör content-pipeline', 'hitta trendande content', or triggered by cron.",
+    "category": "automation",
+    "source": "clawd"
+  },
+  {
+    "name": "deep-research",
+    "emoji": "🔍",
+    "description": "Deep Research Agent specializes in complex, multi-step research tasks that require planning, decomposition, and long-context reasoning across tools and files by we-crafted.com/agents/deep-research",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "document-creator",
+    "emoji": "📄",
+    "description": "Skapa professionella dokument: offerter, avtal, rapporter. Genererar Markdown → PDF. Trigga med 'skapa offert', 'skriv avtal', 'gör rapport för [klient]'.",
+    "category": "content",
+    "source": "clawd"
+  },
+  {
+    "name": "email-sequences",
+    "emoji": "📬",
+    "description": "Automatiserade e-postsekvenser med personalisering och uppföljning. Skapar och hanterar utskick med steg-för-steg follow-ups. Trigga med 'skapa mailsekvens', 'massmejla', 'follow-up-kampanj'.",
+    "category": "automation",
+    "source": "clawd"
+  },
+  {
+    "name": "evening-summary",
+    "emoji": "🌙",
+    "description": "Kvällssammanfattning av dagen. Samlar aktiviteter, avslutade tasks, morgondagens planering och levererar via WhatsApp kl 21:00. Trigga med 'kvällssammanfattning', 'vad hände idag', eller via cron.",
+    "category": "monitor",
+    "source": "openclaw"
+  },
+  {
+    "name": "exa-search",
+    "emoji": "🔍",
+    "description": "Kraftfull websökning, kodsökning, företagsresearch, deep research och people search via Exa MCP. Trigga med 'sök webben efter [ämne]', 'hitta kod för [problem]', 'researcha företaget [namn]', 'djupforska [ämne]', 'hitta personer inom [område]'.",
+    "category": "search",
+    "source": "clawd"
+  },
+  {
+    "name": "exa-web-search-free",
+    "emoji": "🔍",
+    "description": "Free AI search via Exa MCP. Web search for news/info, code search for docs/examples from GitHub/StackOverflow, company research for business intel. No API key needed.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "feedback-scraper",
+    "emoji": "🔍",
+    "description": "Scrape kundkanaler och identifiera pain points. Samlar feedback från mail, formulär, och konversationer — analyserar mönster och rapporterar topp-problem. Triggad via cron eller 'samla feedback'.",
+    "category": "search",
+    "source": "clawd"
+  },
+  {
+    "name": "file-organizer",
+    "emoji": "📁",
+    "description": "Automatisk filorganisering. Sorterar ~/Downloads och andra mappar efter filtyp och datum. Kan köras via heartbeat eller manuellt med 'organisera filer', 'sortera downloads', 'städa mappen'.",
+    "category": "automation",
+    "source": "openclaw"
+  },
+  {
+    "name": "gog-calendar",
+    "emoji": "🔍",
+    "description": "Google Calendar via gogcli: reliable cross-calendar agenda (today/week/range) and best-effort keyword search across calendars (iterate + aggregate). Token-efficient output (`--plain` default, `--json` only when needed). Post-filters unwanted calendars (e.g., holidays) and confirms before writes.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "icp-deep-research",
+    "emoji": "🔍",
+    "description": "Deep-dive research on a single target company to craft ultra-personalized outreach. Use when asked to research an ICP prospect (company + org.nr) and deliver a structured report: company facts (e.g., Allabolag), services/pricing/booking from website, decision makers (LinkedIn/site bios), customer reviews (Google/Tripadvisor/Facebook), tech stack & automation gaps, competitors, growth signals, and a personalized outreach hook with citations and URLs.",
+    "category": "search",
+    "source": "clawd"
+  },
+  {
+    "name": "linkedin-automator",
+    "emoji": "⚙️",
+    "description": "Automate LinkedIn content creation, posting, engagement tracking, and audience growth. Use for posting content, scheduling posts, analyzing engagement metrics, generating content ideas, commenting on posts, and building LinkedIn presence. Requires browser access with LinkedIn logged in.",
+    "category": "automation",
+    "source": "openclaw"
+  },
+  {
+    "name": "n8n-admin",
+    "emoji": "🔍",
+    "description": "Manage an n8n instance (cloud/self-hosted) via its REST API for workflows, webhooks, activations, executions, and basic diagnostics. Use when you need to create/update/activate workflows, fetch webhook URLs, inspect executions, or troubleshoot production webhook 404/registration issues (often reverse proxy / process type / webhook URL config). Requires N8N_BASE_URL + N8N_API_KEY (or equivalent) and uses curl/jq helper scripts.",
+    "category": "search",
+    "source": "clawd"
+  },
+  {
+    "name": "news-aggregator-skill",
+    "emoji": "📊",
+    "description": "Comprehensive news aggregator that fetches, filters, and deeply analyzes real-time content from 8 major sources: Hacker News, GitHub Trending, Product Hunt, 36Kr, Tencent News, WallStreetCN, V2EX, and Weibo. Best for 'daily scans', 'tech news briefings', 'finance updates', and 'deep interpretations' of hot topics.",
+    "category": "monitor",
+    "source": "openclaw"
+  },
+  {
+    "name": "openai-tts",
+    "emoji": "🔊",
+    "description": "Text-to-speech via OpenAI Audio Speech API.",
+    "category": "content",
+    "source": "openclaw"
+  },
+  {
+    "name": "phone-calls",
+    "emoji": "📞",
+    "description": "Make AI-powered phone calls via Bland AI - book restaurants, make appointments, inquire about services. The AI calls on your behalf and reports back with transcripts.",
+    "category": "automation",
+    "source": "openclaw"
+  },
+  {
+    "name": "phone-voice",
+    "emoji": "⚙️",
+    "description": "Connect ElevenLabs Agents to your OpenClaw via phone with Twilio. Includes caller ID auth, voice PIN security, call screening, memory injection, and cost tracking.",
+    "category": "automation",
+    "source": "openclaw"
+  },
+  {
+    "name": "post-mortem",
+    "emoji": "🔬",
+    "description": "Systematisk felanalys vid misslyckade uppgifter. Analysera vad som gick fel, varför, och skapa en lärdom-doc så att samma fel aldrig upprepas. Triggad automatiskt vid fel eller via 'analysera felet'.",
+    "category": "automation",
+    "source": "clawd"
+  },
+  {
+    "name": "proactive-checkin",
+    "emoji": "🌅",
+    "description": "Proactive daily check-in. Gathers signals from email, calendar, tasks, and weather, then triages into SKIP / TEXT / CALL. Use when triggered by cron or manually asked to 'check in' or 'ge morgonbrief'.",
+    "category": "automation",
+    "source": "openclaw"
+  },
+  {
+    "name": "qa-check",
+    "emoji": "🔗",
+    "description": "Kvalitetskontroll av webbplatser. Kontrollerar trasiga länkar, formulär, bilder, meta-tags, och tillgänglighet. Trigga med 'kör QA på [url]', 'kolla länkarna på [sajt]', 'kvalitetskontroll'.",
+    "category": "system",
+    "source": "clawd"
+  },
+  {
+    "name": "qmd",
+    "emoji": "🔍",
+    "description": "Local hybrid search for markdown notes and docs. Use when searching notes, finding related content, or retrieving documents from indexed collections.",
+    "category": "search",
+    "source": "clawd"
+  },
+  {
+    "name": "reddit",
+    "emoji": "🔍",
+    "description": "Read and search Reddit posts via web scraping of old.reddit.com. Use when Clawdbot needs to browse Reddit content - read posts from subreddits, search for topics, monitor specific communities. Read-only access with no posting or comments.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "scc-callback",
+    "emoji": "📡",
+    "description": "Post task results back to Skyland Command Center (SCC) callback endpoint. Used by agents spawned via OpenClaw hooks to report completion or failure.",
+    "category": "automation",
+    "source": "openclaw"
+  },
+  {
+    "name": "screenshot-to-action",
+    "emoji": "📸",
+    "description": "Ta emot en bild/screenshot via WhatsApp, tolka innehållet, och agera. Stödjer skärmbilder av buggar, tweets, felmeddelanden, fakturor, visitkort med mera. Triggad automatiskt när en bild skickas.",
+    "category": "automation",
+    "source": "clawd"
+  },
+  {
+    "name": "self-improvement",
+    "emoji": "📝",
+    "description": "Captures learnings, errors, and corrections to enable continuous improvement. Use when: (1) A command or operation fails unexpectedly, (2) User corrects Claude ('No, that's wrong...', 'Actually...'), (3) User requests a capability that doesn't exist, (4) An external API or tool fails, (5) Claude realizes its knowledge is outdated or incorrect, (6) A better approach is discovered for a recurring task. Also review learnings before major tasks.",
+    "category": "content",
+    "source": "clawd"
+  },
+  {
+    "name": "seo-competitor-analysis",
+    "emoji": "🔍",
+    "description": "Perform deep SEO competitor analysis, including keyword research, backlink checking, and content strategy mapping. Use when the user wants to analyze a website's competitors or improve their own SEO ranking by studying the competition.",
+    "category": "search",
+    "source": "openclaw"
+  },
+  {
+    "name": "server-hardening",
+    "emoji": "🔒",
+    "description": "Säkra upp en Linux-server steg för steg. Kör med 'härda servern', 'server hardening', eller 'säkra upp [server]'. Kräver SSH-åtkomst till målservern.",
+    "category": "system",
+    "source": "clawd"
+  },
+  {
+    "name": "social-gen",
+    "emoji": "📝",
+    "description": "Generate social media posts for different platforms. Use when sharing content.",
+    "category": "content",
+    "source": "openclaw"
+  },
+  {
+    "name": "task-logger",
+    "emoji": "📋",
+    "description": "Automatisk loggning av utförda uppgifter till SCC och Things. Varje gång Alex slutför en uppgift loggas den automatiskt. Trigga med 'logga uppgift', 'spara till SCC', eller automatiskt via AGENTS.md-instruktion.",
+    "category": "system",
+    "source": "clawd"
+  },
+  {
+    "name": "tax-prep",
+    "emoji": "🧾",
+    "description": "Samla och organisera skatteunderlag, kvitton och fakturor. Hjälper till att förbereda material för bokföring. VARNING: Verifiera alltid belopp manuellt. Trigga med 'samla skatteunderlag', 'organisera kvitton', 'förbered för bokförare'.",
+    "category": "system",
+    "source": "clawd"
+  },
+  {
+    "name": "trend-research",
+    "emoji": "📡",
+    "description": "Sök trender på Reddit och X (Twitter) parallellt. Hitta vad folk pratar om kring ett ämne. Trigga med 'sök trender om [ämne]', 'vad snackar folk om [topic]', 'research [ämne] på Reddit och X'.",
+    "category": "search",
+    "source": "clawd"
+  },
+  {
+    "name": "walkie-talkie",
+    "emoji": "⚙️",
+    "description": "Handles voice-to-voice conversations on WhatsApp. Automatically transcribes incoming audio and responds with local TTS audio. Use when the user wants to \"talk\" instead of type.",
+    "category": "automation",
+    "source": "openclaw"
+  },
+  {
+    "name": "website-screenshot",
+    "emoji": "🔍",
+    "description": "website-screenshot skill",
+    "category": "search",
+    "source": "openclaw"
+  }
+]

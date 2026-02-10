@@ -897,8 +897,168 @@ body {
 
 .message-content {
   margin-bottom: 0.25rem;
-  white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ─── Markdown Body in Chat ─── */
+.message-content.markdown-body p {
+  margin: 0.3em 0;
+  line-height: 1.55;
+}
+
+.message-content.markdown-body p:first-child {
+  margin-top: 0;
+}
+
+.message-content.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.message-content.markdown-body strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.message-content.markdown-body em {
+  font-style: italic;
+  opacity: 0.9;
+}
+
+.message-content.markdown-body h1,
+.message-content.markdown-body h2,
+.message-content.markdown-body h3,
+.message-content.markdown-body h4 {
+  margin: 0.6em 0 0.3em;
+  font-weight: 600;
+  color: #fff;
+}
+
+.message-content.markdown-body h1 {
+  font-size: 1.15em;
+}
+
+.message-content.markdown-body h2 {
+  font-size: 1.05em;
+}
+
+.message-content.markdown-body h3 {
+  font-size: 0.95em;
+}
+
+.message-content.markdown-body ul,
+.message-content.markdown-body ol {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+
+.message-content.markdown-body li {
+  margin: 0.15em 0;
+  line-height: 1.5;
+}
+
+.message-content.markdown-body li::marker {
+  color: var(--accent);
+}
+
+.message-content.markdown-body code {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  font-size: 0.85em;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.message-content.markdown-body pre {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.75em 1em;
+  margin: 0.5em 0;
+  overflow-x: auto;
+}
+
+.message-content.markdown-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.82em;
+}
+
+.message-content.markdown-body blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 0.5em 0;
+  padding: 0.3em 0.8em;
+  opacity: 0.85;
+}
+
+.message-content.markdown-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: rgba(var(--accent-rgb, 100, 200, 255), 0.3);
+}
+
+.message-content.markdown-body a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* ─── Markdown Tables ─── */
+.message-content.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  font-size: 0.84em;
+  overflow-x: auto;
+  display: block;
+}
+
+.message-content.markdown-body thead {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.message-content.markdown-body tbody {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.message-content.markdown-body th {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.5em 0.75em;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  white-space: nowrap;
+}
+
+.message-content.markdown-body td {
+  padding: 0.4em 0.75em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.message-content.markdown-body tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.message-content.markdown-body tr:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Markdown Horizontal Rule ─── */
+.message-content.markdown-body hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 0.8em 0;
+}
+
+/* ─── Strikethrough (GFM) ─── */
+.message-content.markdown-body del {
+  opacity: 0.5;
+  text-decoration: line-through;
 }
 
 .msg-timestamp {
@@ -3676,6 +3836,8 @@ body {
   height: 100%;
   position: absolute;
   inset: 0;
+  overflow-y: auto;
+  padding: 0 1.5rem;
 }
 
 /* ─── Segmented Control — Floating Glass Tabs ─── */
@@ -5568,5 +5730,1587 @@ body {
 
   .cv-detail-panel.open {
     flex: 1;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SYSTEM DASHBOARD — AI System Overview (Ticket 1.1–1.4)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Dashboard Container ─── */
+.sys-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  padding: 1rem 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.sys-dashboard-header {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.sys-dashboard-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.sys-title-glow {
+  font-size: 1.6rem;
+  filter: drop-shadow(0 0 8px rgba(10, 132, 255, 0.6));
+}
+
+.sys-dashboard-subtitle {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 0.25rem;
+  letter-spacing: 0.02em;
+}
+
+/* ─── 2×2 Grid ─── */
+.sys-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+/* ─── Panel Card (glassmorphism) ─── */
+.sys-panel {
+  background: rgba(30, 30, 45, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  min-height: 260px;
+}
+
+.sys-panel:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+}
+
+.sys-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sys-panel-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sys-panel-icon {
+  color: rgba(10, 132, 255, 0.8);
+}
+
+.sys-panel-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.sys-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sys-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sys-spin {
+  animation: sys-spin-anim 0.8s linear infinite;
+}
+
+@keyframes sys-spin-anim {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sys-panel-footer {
+  margin-top: auto;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.sys-footer-text {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+/* ─── Workflow Health ─── */
+.sys-wf-summary {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.sys-wf-pill {
+  font-size: 0.66rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+
+.sys-pill-healthy {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+}
+
+.sys-pill-degraded {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+}
+
+.sys-pill-critical {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+
+.sys-wf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sys-wf-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.015);
+  transition: background 0.2s;
+}
+
+.sys-wf-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sys-wf-status-icon {
+  flex-shrink: 0;
+  display: flex;
+}
+
+.sys-wf-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.sys-wf-name {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sys-wf-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.sys-wf-inactive {
+  font-size: 0.58rem;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  margin-left: 4px;
+}
+
+.sys-wf-runs {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.25);
+  white-space: nowrap;
+}
+
+/* ─── Agent Status Panel ─── */
+.sys-agent-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.sys-agent-gateway {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  transition: background 0.3s;
+}
+
+.sys-agent-gateway.sys-online {
+  background: rgba(52, 211, 153, 0.08);
+  color: #34d399;
+}
+
+.sys-agent-gateway.sys-offline {
+  background: rgba(248, 113, 113, 0.08);
+  color: #f87171;
+}
+
+.sys-agent-gateway-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.sys-agent-gateway-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.sys-agent-gateway-sub {
+  font-size: 0.62rem;
+  opacity: 0.5;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.sys-agent-state-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.sys-agent-state-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.sys-agent-state-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.sys-agent-state-name {
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Thinking dots animation */
+.sys-thinking-dots {
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+}
+
+.sys-thinking-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(251, 191, 36, 0.6);
+  animation: sys-dot-pulse 1.2s ease-in-out infinite;
+}
+
+.sys-thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.sys-thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes sys-dot-pulse {
+
+  0%,
+  80%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.3;
+  }
+
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Nodes section */
+.sys-nodes-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sys-nodes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sys-nodes-title {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sys-nodes-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(10, 132, 255, 0.8);
+  background: rgba(10, 132, 255, 0.1);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+.sys-nodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sys-nodes-empty {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.2);
+  font-style: italic;
+}
+
+.sys-node-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  transition: background 0.2s;
+}
+
+.sys-node-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sys-node-on {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sys-node-off {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.sys-node-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sys-node-dot.on {
+  background: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.5);
+}
+
+.sys-node-dot.off {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sys-node-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.sys-node-platform {
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.2);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* Agent stats footer */
+.sys-agent-stats {
+  display: flex;
+  gap: 0.8rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  margin-top: auto;
+}
+
+.sys-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.sys-stat-value {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.sys-stat-label {
+  font-size: 0.58rem;
+  color: rgba(255, 255, 255, 0.25);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ─── System Resources ─── */
+.sys-resource-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.sys-resource-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: border-color 0.3s, background 0.3s;
+}
+
+.sys-res-ok {
+  background: rgba(52, 211, 153, 0.04);
+}
+
+.sys-res-ok:hover {
+  border-color: rgba(52, 211, 153, 0.15);
+}
+
+.sys-res-err {
+  background: rgba(248, 113, 113, 0.04);
+}
+
+.sys-res-err:hover {
+  border-color: rgba(248, 113, 113, 0.15);
+}
+
+.sys-resource-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+
+.sys-res-ok .sys-resource-icon-wrap {
+  color: #34d399;
+}
+
+.sys-res-err .sys-resource-icon-wrap {
+  color: #f87171;
+}
+
+.sys-resource-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.sys-resource-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.sys-resource-detail {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.sys-res-ok .sys-resource-detail {
+  color: rgba(52, 211, 153, 0.7);
+}
+
+.sys-res-err .sys-resource-detail {
+  color: rgba(248, 113, 113, 0.7);
+}
+
+/* Cron Jobs */
+.sys-cron-section {
+  margin-top: auto;
+}
+
+.sys-cron-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.35rem;
+}
+
+.sys-cron-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sys-cron-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.6);
+  transition: background 0.2s;
+}
+
+.sys-cron-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sys-cron-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sys-cron-dot.active {
+  background: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.4);
+}
+
+.sys-cron-dot.paused {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sys-cron-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.sys-cron-schedule {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.2);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.sys-cron-next {
+  font-size: 0.6rem;
+  color: rgba(10, 132, 255, 0.6);
+}
+
+/* ─── Approval Queue ─── */
+.sys-queue-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+  margin-left: 0.3rem;
+}
+
+.sys-approval-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.sys-queue-empty {
+  font-size: 0.78rem;
+  color: rgba(52, 211, 153, 0.6);
+}
+
+.sys-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.sys-queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  transition: all 0.2s;
+}
+
+.sys-queue-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.sys-queue-item.sys-sev-error {
+  border-left: 2px solid rgba(248, 113, 113, 0.4);
+}
+
+.sys-queue-item.sys-sev-warn {
+  border-left: 2px solid rgba(251, 191, 36, 0.3);
+}
+
+/* Pulse for critical items */
+.sys-queue-item.sys-pulse {
+  animation: sys-pulse-anim 2s ease-in-out infinite;
+}
+
+@keyframes sys-pulse-anim {
+
+  0%,
+  100% {
+    box-shadow: none;
+  }
+
+  50% {
+    box-shadow: 0 0 12px rgba(248, 113, 113, 0.15);
+  }
+}
+
+.sys-queue-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.sys-queue-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.sys-queue-title {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sys-queue-desc {
+  font-size: 0.64rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.sys-queue-time {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.2);
+  margin-top: 2px;
+}
+
+.sys-queue-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.sys-approve-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(52, 211, 153, 0.2);
+  background: rgba(52, 211, 153, 0.08);
+  color: #34d399;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sys-approve-btn:hover {
+  background: rgba(52, 211, 153, 0.15);
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.sys-approve-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sys-dismiss-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sys-dismiss-btn:hover {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 800px) {
+  .sys-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sys-resource-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SKILLS VIEW — Skill Registry (Ticket 11.3)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.skills-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.skills-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.skills-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.skills-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.skills-title-glow {
+  font-size: 1.6rem;
+  filter: drop-shadow(0 0 8px rgba(10, 132, 255, 0.6));
+}
+
+.skills-subtitle {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.skills-refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.skills-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Stats bar */
+.skills-stats {
+  display: flex;
+  gap: 1rem;
+}
+
+.skills-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Toolbar */
+.skills-toolbar {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.skills-search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 320px;
+}
+
+.skills-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.skills-search {
+  width: 100%;
+  padding: 8px 10px 8px 30px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(30, 30, 45, 0.6);
+  color: #fff;
+  font-size: 0.78rem;
+  outline: none;
+  transition: border-color 0.3s;
+}
+
+.skills-search:focus {
+  border-color: rgba(10, 132, 255, 0.4);
+}
+
+.skills-filter-group {
+  display: flex;
+  gap: 4px;
+}
+
+.skills-filter-btn {
+  font-size: 0.68rem;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.skills-filter-btn.active {
+  background: rgba(10, 132, 255, 0.12);
+  color: rgba(10, 132, 255, 0.9);
+  border-color: rgba(10, 132, 255, 0.2);
+}
+
+/* Grid */
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.8rem;
+}
+
+.skills-loading,
+.skills-empty,
+.skills-error {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 2rem;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.skills-error {
+  color: #fbbf24;
+}
+
+/* ─── Skill Card ─── */
+.skill-card {
+  background: rgba(30, 30, 45, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.skill-card:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+.skill-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.skill-card-icon {
+  font-size: 1.4rem;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+}
+
+.skill-card-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.skill-card-name {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-card-status {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.skill-card-status--active {
+  color: #34d399;
+}
+
+.skill-card-status--deprecated {
+  color: #fbbf24;
+}
+
+.skill-card-status--draft {
+  color: #94a3b8;
+}
+
+.skill-card-description {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+}
+
+.skill-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: auto;
+}
+
+.skill-card-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.skill-card-meta-scripts {
+  color: rgba(10, 132, 255, 0.7);
+}
+
+.skill-card-meta-link {
+  text-decoration: none;
+  color: rgba(10, 132, 255, 0.6);
+  transition: color 0.2s;
+}
+
+.skill-card-meta-link:hover {
+  color: rgba(10, 132, 255, 0.9);
+}
+
+.skill-card-expand {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.64rem;
+  color: rgba(255, 255, 255, 0.3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  transition: color 0.2s;
+}
+
+.skill-card-expand:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.skill-card-readme {
+  padding: 0.5rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.skill-card-readme pre {
+  font-size: 0.64rem;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* ─── Skill Detail Modal ─── */
+.skills-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 2rem;
+}
+
+.skills-modal {
+  background: rgba(25, 25, 40, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 1.5rem;
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.skills-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.skills-modal-emoji {
+  font-size: 1.6rem;
+}
+
+.skills-modal-header h3 {
+  flex: 1;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.skills-modal-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.skills-modal-close:hover {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+}
+
+.skills-modal-desc {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.skills-modal-link {
+  font-size: 0.72rem;
+  color: rgba(10, 132, 255, 0.8);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.skills-modal-link:hover {
+  color: rgba(10, 132, 255, 1);
+}
+
+.skills-modal-files h4 {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 0.4rem;
+}
+
+.skills-modal-files ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.skills-modal-files li {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 3px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.skills-modal-file-size {
+  margin-left: auto;
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.skills-modal-readme h4 {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 0.4rem;
+}
+
+.skills-modal-readme pre {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.8rem;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GIT PANEL — Git Status & Diff (Ticket 5.2)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.git-panel {
+  margin-top: 0.5rem;
+  background: rgba(30, 30, 45, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  transition: border-color 0.3s;
+}
+
+.git-panel:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.git-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.git-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.git-panel-actions-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.git-branch-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(10, 132, 255, 0.1);
+  color: rgba(10, 132, 255, 0.8);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.git-refresh-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.git-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Status summary */
+.git-status-summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.git-clean-badge {
+  font-size: 0.72rem;
+  color: #34d399;
+  font-weight: 500;
+}
+
+.git-dirty-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: #fbbf24;
+  font-weight: 500;
+}
+
+.git-last-commit {
+  font-size: 0.66rem;
+  color: rgba(255, 255, 255, 0.3);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* Files list */
+.git-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.git-file-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  transition: background 0.2s;
+}
+
+.git-file-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.git-file-status {
+  font-size: 0.62rem;
+  font-weight: 600;
+  min-width: 56px;
+  text-transform: uppercase;
+}
+
+.git-file-status--deleted {
+  color: #f87171;
+}
+
+.git-file-status--added {
+  color: #34d399;
+}
+
+.git-file-status--modified {
+  color: #fbbf24;
+}
+
+.git-file-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 0.68rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.git-files-more {
+  font-size: 0.66rem;
+  color: rgba(255, 255, 255, 0.2);
+  padding: 0.2rem 0.4rem;
+  font-style: italic;
+}
+
+/* Diff */
+.git-diff-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  color: rgba(10, 132, 255, 0.6);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  transition: color 0.2s;
+}
+
+.git-diff-toggle:hover {
+  color: rgba(10, 132, 255, 0.9);
+}
+
+.git-diff-container {
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 0.7rem;
+  max-height: 350px;
+  overflow: auto;
+}
+
+.git-diff-content {
+  font-size: 0.64rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  white-space: pre;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Actions */
+.git-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.git-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid;
+}
+
+.git-stage-btn {
+  border-color: rgba(10, 132, 255, 0.2);
+  background: rgba(10, 132, 255, 0.08);
+  color: rgba(10, 132, 255, 0.8);
+}
+
+.git-stage-btn:hover {
+  background: rgba(10, 132, 255, 0.15);
+}
+
+.git-commit-group {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.git-commit-input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(30, 30, 45, 0.6);
+  color: #fff;
+  font-size: 0.72rem;
+  outline: none;
+  min-width: 0;
+}
+
+.git-commit-input:focus {
+  border-color: rgba(10, 132, 255, 0.4);
+}
+
+.git-commit-btn {
+  border-color: rgba(52, 211, 153, 0.2);
+  background: rgba(52, 211, 153, 0.08);
+  color: #34d399;
+}
+
+.git-commit-btn:hover {
+  background: rgba(52, 211, 153, 0.15);
+}
+
+.git-commit-btn:disabled,
+.git-stage-btn:disabled,
+.git-push-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.git-push-btn {
+  border-color: rgba(168, 85, 247, 0.2);
+  background: rgba(168, 85, 247, 0.08);
+  color: rgba(168, 85, 247, 0.8);
+}
+
+.git-push-btn:hover {
+  background: rgba(168, 85, 247, 0.15);
+}
+
+/* Feedback toast */
+.git-feedback {
+  font-size: 0.72rem;
+  padding: 6px 12px;
+  border-radius: 8px;
+  animation: git-feedback-in 0.3s ease-out;
+}
+
+.git-feedback-success {
+  background: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.15);
+}
+
+.git-feedback-error {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.15);
+}
+
+.git-feedback-warning {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.15);
+}
+
+@keyframes git-feedback-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Spinning animation (shared) */
+@keyframes spinning {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spinning 0.8s linear infinite;
+}
+
+/* ─── Responsive Skills ─── */
+@media (max-width: 700px) {
+  .skills-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .skills-toolbar {
+    flex-direction: column;
+  }
+
+  .skills-search-wrap {
+    max-width: none;
   }
 }

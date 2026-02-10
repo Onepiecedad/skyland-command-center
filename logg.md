@@ -934,6 +934,221 @@ DEEPSEEK_API_KEY=sk-***
 
 ---
 
+## 2026-02-10
+
+### ✅ Chat Markdown-rendering
+
+**Problem:** Markdown i chatmeddelanden renderades som rå text (asterisker, backticks synliga).
+
+**Åtgärder:**
+
+| Fil | Ändring |
+|-----|---------|
+| `frontend/src/components/MasterBrainChat.tsx` | +`react-markdown` + `remark-gfm` för rendering |
+| `frontend/src/App.css` | +Markdown-stilar (tabeller, kodblock, listor) |
+
+**Verifiering:** Tabeller, bold, kodblock och listor renderas korrekt i chatten.
+
+---
+
+### ✅ AI System Dashboard (User Story 1 — Ticket 2.1)
+
+**Status:** Klart
+
+**Utfört:**
+
+- [x] Lagt till "System"-flik i navigeringen (⌘3)
+- [x] Byggt `SystemDashboard.tsx` — grid-layout med 4 paneler
+- [x] `WorkflowHealth.tsx` — n8n workflow-status med färgkodade pills (Healthy/Degraded/Critical)
+- [x] `AgentStatusPanel.tsx` — Gateway-status + Alex state via WebSocket
+- [x] `SystemResources.tsx` — Supabase/Backend/Gateway hälsa + cron jobs med nedräkningar
+- [x] `ApprovalQueue.tsx` — Kritiska notifieringar + task-godkännanden med approve/dismiss
+- [x] ~740 rader glassmorphism CSS i `App.css`
+
+**Filer skapade/ändrade:**
+
+| Fil | Ändring |
+|-----|---------|
+| `frontend/src/App.tsx` | +System tab, ⌘3 shortcut, view routing |
+| `frontend/src/pages/SystemDashboard.tsx` | **NY** — Dashboard-sida med 2×2 grid |
+| `frontend/src/components/system/WorkflowHealth.tsx` | **NY** — Workflow-hälsa |
+| `frontend/src/components/system/AgentStatusPanel.tsx` | **NY** — Agent-status |
+| `frontend/src/components/system/SystemResources.tsx` | **NY** — Systemresurser |
+| `frontend/src/components/system/ApprovalQueue.tsx` | **NY** — Notifieringar & godkännanden |
+| `frontend/src/App.css` | +System Dashboard CSS (rad 5733–6474) |
+
+**Datakällor:**
+
+| Panel | Källa |
+|-------|-------|
+| Workflow Health | n8n MCP (mock, redo för integration) |
+| Agent Status | `useGateway()` WebSocket hook |
+| System Resources | `GET /api/v1/status` |
+| Approval Queue | `GET /api/v1/tasks` + `GET /api/v1/activities` |
+
+**Verifiering:**
+
+- [x] `tsc --noEmit` — inga TypeScript-fel ✅
+- [x] Alla 3 flikar visas i header (Alex, Kunder, System) ✅
+- [x] Alla 4 paneler renderas med live-data ✅
+- [x] Glassmorphism-styling, pulsanimationer, färgkodade badges ✅
+- [x] Auto-refresh och realtidsuppdatering ✅
+
+✅ **User Story 1 + Ticket 2.1 KLART** (2026-02-10)
+
+---
+
+### ✅ Phase 2 Batch A — Backend Routes + Frontend Vyer
+
+**Status:** Klart
+
+**Utfört:**
+
+#### Ticket 11.1 — Skill Registry API (Backend)
+
+- [x] Skapade `backend/src/routes/skillRegistry.ts`
+- [x] `GET /api/v1/skills` — Skannar `clawdbot/skills/` och parsar `SKILL.md` frontmatter
+- [x] `GET /api/v1/skills/:name` — Detaljvy för en enskild skill
+- [x] Monterad i `index.ts` som ny router
+
+#### Ticket 11.3 — Skill Registry Frontend UI
+
+- [x] Skapade `frontend/src/pages/SkillsView.tsx` — Sökbar grid med skill-kort
+- [x] Skapade `frontend/src/components/skills/SkillCard.tsx` — Glassmorphism-kort med status, metadata, expanderbar README
+- [x] Lagt till **Skills**-flik i navigeringen (⌘4) i `App.tsx`
+- [x] Loading states, error handling, och detaljmodal
+
+#### Ticket 5.1 — Git Operations API (Backend)
+
+- [x] Skapade `backend/src/routes/gitOps.ts`
+- [x] `GET /api/v1/git/status` — Kör `git status --porcelain`
+- [x] `GET /api/v1/git/diff` — Kör `git diff`
+- [x] `POST /api/v1/git/add` — Staga filer
+- [x] `POST /api/v1/git/commit` — Committa med diff i response
+- [x] `POST /api/v1/git/push` — Push med branch protection (main/master blockerad → ApprovalQueue)
+
+#### Ticket 5.2 — Git Status & Diff Frontend
+
+- [x] Skapade `frontend/src/components/system/GitPanel.tsx`
+- [x] Integrerad i `SystemDashboard.tsx` som full-bredd panel under 2×2-griden
+- [x] Visar branch, statusfiler, diff med syntax-färgning
+- [x] Action buttons: Stage All, Commit, Push med bekräftelsemodalerna
+- [x] Protected branch-varning vid push till main/master
+
+#### Ticket 6.1 — Agent Task Queue Backend
+
+- [x] Skapade `backend/src/routes/agentQueue.ts`
+- [x] `GET /api/v1/agent-queue` — Filtrerade tasks från Supabase, prioritetssorterade
+- [x] `PUT /api/v1/agent-queue/:taskId` — Uppdatera task-status
+
+**Filer skapade/ändrade:**
+
+| Fil | Typ | Ändring |
+|-----|-----|---------|
+| `backend/src/routes/skillRegistry.ts` | **NY** | Skill Registry API |
+| `backend/src/routes/gitOps.ts` | **NY** | Git Operations API |
+| `backend/src/routes/agentQueue.ts` | **NY** | Agent Task Queue API |
+| `backend/src/index.ts` | Ändrad | +3 router imports & mounts |
+| `frontend/src/pages/SkillsView.tsx` | **NY** | Skills-sida med sökbar grid |
+| `frontend/src/components/skills/SkillCard.tsx` | **NY** | Skill-kort komponent |
+| `frontend/src/components/system/GitPanel.tsx` | **NY** | Git panel komponent |
+| `frontend/src/pages/SystemDashboard.tsx` | Ändrad | +GitPanel integration |
+| `frontend/src/App.tsx` | Ändrad | +Skills tab, ⌘4, view routing |
+| `frontend/src/api.ts` | Ändrad | +Skills/Git/Queue API-funktioner |
+| `frontend/src/App.css` | Ändrad | +800 rader CSS (skills, git panel) |
+
+**Verifiering:**
+
+- [x] `tsc --noEmit` — inga TypeScript-fel (backend + frontend) ✅
+- [x] 4 flikar i header (Alex, Kunder, System, Skills) ✅
+- [x] Skills-grid visar installerade skills med sök/filter ✅
+- [x] Git panel visar branch-info och statusfiler ✅
+- [x] Alla nya API-endpoints svarar korrekt ✅
+
+✅ **Phase 2 Batch A (Ticket 5.1, 5.2, 6.1, 11.1, 11.3) KLART** (2026-02-10)
+
+---
+
+### ✅ Bugfix — Skills View Scroll
+
+**Problem:** Skills-vyn kunde inte scrollas — skills under viewporten var oåtkomliga.
+
+**Rotorsak:** `.dashboard-v2-main` hade `overflow: hidden` och `.view-container` saknade scroll.
+
+**Åtgärd:**
+
+| Fil | Ändring |
+|-----|---------|
+| `frontend/src/App.css` | +`overflow-y: auto` och `padding` på `.view-container` |
+
+**Verifiering:** Alla vyer scrollar korrekt ✅
+
+### ✅ Phase 2 Batch B — Backend API:er + Frontend-klient
+
+**Status:** Klart
+
+**Utfört:**
+
+#### Ticket 11.2 — Skill Lifecycle Management API
+
+- [x] `POST /api/v1/skills/:name/enable` — Aktivera en skill
+- [x] `POST /api/v1/skills/:name/disable` — Avaktivera en skill
+- [x] `POST /api/v1/skills/:name/dry-run` — Validera skill-struktur (SKILL.md, scripts, etc.)
+- [x] Persistens via `.skill-status.json` per skill-katalog
+- [x] `scanSkills()` returnerar nu `enabled` och `tags`
+- [x] `GET /api/v1/skills` inkluderar `enabled_count` och `disabled_count`
+
+#### Ticket 11.4 — AgentSkillChecker Integration
+
+- [x] Skapade `backend/src/routes/skillChecker.ts`
+- [x] `POST /api/v1/skills/check` — Hitta relevanta skills baserat på task-beskrivning (keyword-baserad relevansscoring)
+- [x] `GET /api/v1/skills/:name/validate` — Kontrollera om en skill är användbar (SKILL.md, metadata, scripts, enabled)
+
+#### Ticket 3.1 — Kontextuell Data API
+
+- [x] Skapade `backend/src/routes/contextData.ts`
+- [x] `GET /api/v1/context/:agentId` — Agentens kontext (aktiviteter, tasks, skills, systemstatus)
+- [x] `GET /api/v1/context/customer/:slug` — Kundcentrisk kontext med relaterade agenter
+- [x] Korrekt route-ordning (`/customer/:slug` före `/:agentId` catch-all)
+
+#### Ticket 4.1 — Verktygsanrop API med Schemavalidering
+
+- [x] Skapade `backend/src/routes/toolCalls.ts`
+- [x] `GET /api/v1/tools` — Lista alla registrerade verktyg med parameterscheman
+- [x] `POST /api/v1/tools/invoke` — Kör verktyg med Zod-schemavalidering + aktivitetsloggning
+- [x] 5 inbyggda verktyg: `git_status`, `git_diff`, `system_info`, `db_count`, `recent_activities`
+- [x] Registry-pattern för utökningsbart verktygshantering
+
+#### Frontend API-klient
+
+- [x] Uppdaterade `Skill` interface med `enabled` och `tags`
+- [x] 10 nya API-funktioner i `frontend/src/api.ts`:
+  - `enableSkill()`, `disableSkill()`, `dryRunSkill()`
+  - `checkSkills()`, `validateSkill()`
+  - `fetchAgentContext()`, `fetchCustomerContext()`
+  - `fetchTools()`, `invokeTool()`
+
+**Filer skapade/ändrade:**
+
+| Fil | Typ | Ändring |
+|-----|-----|---------|
+| `backend/src/routes/skillRegistry.ts` | Ändrad | +Lifecycle endpoints (enable/disable/dry-run) |
+| `backend/src/routes/skillChecker.ts` | **NY** | AgentSkillChecker API |
+| `backend/src/routes/contextData.ts` | **NY** | Kontextuell Data API |
+| `backend/src/routes/toolCalls.ts` | **NY** | Verktygsanrop API |
+| `backend/src/index.ts` | Ändrad | +3 router imports & mounts |
+| `frontend/src/api.ts` | Ändrad | +10 nya API-funktioner + utökade typer |
+
+**Verifiering:**
+
+- [x] `tsc --noEmit` — inga TypeScript-fel (backend) ✅
+- [x] `tsc --noEmit` — inga TypeScript-fel (frontend) ✅
+- [x] Alla lint-fel lösta (import-sökvägar, Zod API, typannotationer) ✅
+
+✅ **Phase 2 Batch B (Ticket 11.2, 11.4, 3.1, 4.1) KLART** (2026-02-10)
+
+---
+
 ## Nuvarande Status
 
 **Backend:**
@@ -942,16 +1157,19 @@ DEEPSEEK_API_KEY=sk-***
 - Supabase-kopplad (PostgreSQL)
 - LLM: DeepSeek V3.2 (deepseek-chat)
 - Executors: local:echo, n8n:*, claw:*
+- **Routes:** skillRegistry, skillChecker, gitOps, agentQueue, contextData, toolCalls
 
 **Frontend:**
 
 - React dashboard på port 5173
+- 4-flikar: Alex · Kunder · System · **Skills**
 - 3D Realm visualization
-- Master Brain Chat med tool calling
+- Master Brain Chat med tool calling + markdown-rendering
 - Task Queue med approve/dispatch
+- AI System Dashboard (4 paneler + Git Panel)
+- **Skill Registry** med sökbar grid och detaljmodal
 - Vite proxy → backend API
 - Alex Gateway WebSocket-anslutning (Online 🟢)
-- Expanderat chattfönster (full höjd)
 
 **Integrations:**
 
@@ -962,10 +1180,15 @@ DEEPSEEK_API_KEY=sk-***
 
 ---
 
-**Ticket 20 (Claw Executor Hardening):** ✅ Klart — Allowlist, auth token och callback-validering implementerat.
+**Alla core tickets (1-21) + AI Dashboard + Phase 2 Batch A & B är nu klara! 🎉**
 
----
+**Kvarvarande Phase 2 tickets:**
 
-*Alla core tickets (1-21) är nu klara! 🎉*
+- Ticket 7.1 — Workflow Event Stream API
+- Ticket 8.1 — Automated Error Recovery Engine
+- Ticket 9.1 — Semantisk Minnessökning API
+- Ticket 10.1 — Minneshanterings API
 
-*Senast uppdaterad: 2026-02-09 20:53*
+**Separat epic:** `skyland-agent-skills` repo (8 tickets, se userstory)
+
+*Senast uppdaterad: 2026-02-10 17:20*

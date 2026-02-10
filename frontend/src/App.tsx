@@ -1,15 +1,17 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Zap, Building2 } from 'lucide-react';
+import { Zap, Building2, Monitor, Puzzle } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
 import { AgentMonitor } from './components/AgentMonitor';
 import { AlexView } from './pages/AlexView';
 import { CustomerView } from './pages/CustomerView';
+import { SystemDashboard } from './pages/SystemDashboard';
+import { SkillsView } from './pages/SkillsView';
 import './App.css';
 
-type View = 'alex' | 'customers';
+type View = 'alex' | 'customers' | 'system' | 'skills';
 
 interface Segment {
   key: string;
@@ -20,6 +22,8 @@ interface Segment {
 const SEGMENTS: Segment[] = [
   { key: 'alex', label: 'Alex', icon: <Zap size={14} strokeWidth={2.5} /> },
   { key: 'customers', label: 'Kunder', icon: <Building2 size={14} strokeWidth={2} /> },
+  { key: 'system', label: 'System', icon: <Monitor size={14} strokeWidth={2} /> },
+  { key: 'skills', label: 'Skills', icon: <Puzzle size={14} strokeWidth={2} /> },
 ];
 
 /* Zoom + fade transition for alien control panel feel */
@@ -61,7 +65,7 @@ function App() {
     setRefreshKey(prev => prev + 1);
   }, []);
 
-  // Keyboard shortcuts: ⌘+1 = Alex, ⌘+2 = Kunder
+  // Keyboard shortcuts: ⌘+1 = Alex, ⌘+2 = Kunder, ⌘+3 = System
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey) return;
@@ -71,6 +75,12 @@ function App() {
       } else if (e.key === '2') {
         e.preventDefault();
         handleViewChange('customers');
+      } else if (e.key === '3') {
+        e.preventDefault();
+        handleViewChange('system');
+      } else if (e.key === '4') {
+        e.preventDefault();
+        handleViewChange('skills');
       }
     };
     window.addEventListener('keydown', handler);
@@ -94,6 +104,8 @@ function App() {
           <div className="dashboard-v2-shortcuts">
             <span className="shortcut-hint">⌘1</span>
             <span className="shortcut-hint">⌘2</span>
+            <span className="shortcut-hint">⌘3</span>
+            <span className="shortcut-hint">⌘4</span>
           </div>
           <AgentMonitor />
         </header>
@@ -101,7 +113,7 @@ function App() {
         {/* View Content — Zoom transitions */}
         <main className="dashboard-v2-main">
           <AnimatePresence mode="wait">
-            {currentView === 'alex' ? (
+            {currentView === 'alex' && (
               <motion.div
                 key="alex"
                 className="view-container"
@@ -112,7 +124,8 @@ function App() {
               >
                 <AlexView onTaskCreated={handleRefresh} />
               </motion.div>
-            ) : (
+            )}
+            {currentView === 'customers' && (
               <motion.div
                 key="customers"
                 className="view-container"
@@ -125,6 +138,30 @@ function App() {
                   key={`cv-${refreshKey}`}
                   onTaskCreated={handleRefresh}
                 />
+              </motion.div>
+            )}
+            {currentView === 'system' && (
+              <motion.div
+                key="system"
+                className="view-container"
+                variants={VIEW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <SystemDashboard />
+              </motion.div>
+            )}
+            {currentView === 'skills' && (
+              <motion.div
+                key="skills"
+                className="view-container"
+                variants={VIEW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <SkillsView />
               </motion.div>
             )}
           </AnimatePresence>

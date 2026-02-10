@@ -151,8 +151,8 @@ export function AlexView({ onTaskCreated }: Props) {
     };
 
     const filteredSkills = skillsBySource(sourceFilter).filter(s =>
-        s.name.toLowerCase().includes(skillSearch.toLowerCase()) ||
-        s.description.toLowerCase().includes(skillSearch.toLowerCase())
+        (s.name || '').toLowerCase().includes(skillSearch.toLowerCase()) ||
+        (s.description || '').toLowerCase().includes(skillSearch.toLowerCase())
     );
 
     // Group by category for display
