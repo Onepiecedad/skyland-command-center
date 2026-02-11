@@ -305,6 +305,23 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
     const alexOnline = gateway.status === 'connected';
     const alexBusy = gateway.isStreaming || gateway.alexState === 'thinking' || gateway.alexState === 'executing';
 
+    // --- Filter out noise messages (raw JSON, tool calls, system metadata) ---
+    const isNoiseMessage = useCallback((msg: { role: string; content: string }) => {
+        const c = msg.content.trim();
+        if (!c) return true;
+        // Always hide system role messages (metadata blobs)
+        if (msg.role === 'system') return true;
+        // Detect raw JSON objects or arrays as content
+        if ((c.startsWith('{') && c.endsWith('}')) || (c.startsWith('[{') && c.endsWith('}]') && c.startsWith('[{"type"'))) {
+            try { JSON.parse(c); return true; } catch { /* not JSON, show it */ }
+        }
+        // Detect tool call result messages (e.g. "Successfully replaced text in ...")
+        if (c.startsWith('Successfully replaced text in ') || c.startsWith('Successfully edited ')) return false; // keep these
+        return false;
+    }, []);
+
+    const filteredGatewayMessages = gateway.messages.filter(msg => !isNoiseMessage(msg));
+
     return (
         <div className={`panel chat-panel ${chatMode === 'alex' ? 'chat-alex-mode' : ''}`}>
             {/* Header */}
@@ -376,13 +393,13 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
                         ))
                     )
                 ) : (
-                    gateway.messages.length === 0 && !gateway.isStreaming ? (
+                    filteredGatewayMessages.length === 0 && !gateway.isStreaming ? (
                         <p className="empty">
                             {alexOnline ? 'Talk to Alex…' : 'Connecting to Alex gateway…'}
                         </p>
                     ) : (
                         <>
-                            {gateway.messages.map((msg, i) => (
+                            {filteredGatewayMessages.map((msg, i) => (
                                 <div key={i} className={`chat-message ${msg.role} ${msg.role === 'assistant' ? 'alex' : ''}`}>
                                     {msg.attachments && msg.attachments.length > 0 && (
                                         <div className="msg-attachments">
