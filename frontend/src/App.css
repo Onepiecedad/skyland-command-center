@@ -4303,61 +4303,100 @@ body {
 }
 
 /* ─── Sidebar Navigation ─── */
-.alex-nav {
+/* ─── Collapsible Sidebar Sections (OpenClaw-style) ─── */
+.alex-sidebar-sections {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.5rem 0;
+  gap: 0;
+  padding: 0.25rem 0;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
-.alex-nav-item {
+.alex-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.alex-section:last-child {
+  border-bottom: none;
+}
+
+/* Section Header (toggle) */
+.alex-section-header {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.55rem 0.7rem;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: inherit;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.alex-section-header:hover {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Chevron rotation */
+.alex-section-chevron {
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.alex-section-header.collapsed .alex-section-chevron {
+  transform: rotate(-90deg);
+}
+
+/* Section Items */
+.alex-section-items {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0.4rem 0.35rem;
+}
+
+/* Individual Item */
+.alex-section-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.65rem;
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   color: var(--text-tertiary);
   font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 500;
+  font-size: 0.78rem;
+  font-weight: 450;
   cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-out);
+  transition: all 0.15s ease;
   text-align: left;
   width: 100%;
   position: relative;
 }
 
-.alex-nav-item:hover {
+.alex-section-item:hover {
   background: rgba(255, 255, 255, 0.03);
   color: var(--text-secondary);
-  border-color: rgba(255, 255, 255, 0.04);
 }
 
-.alex-nav-item.active {
+.alex-section-item.active {
   background: rgba(10, 132, 255, 0.06);
   border-color: rgba(10, 132, 255, 0.1);
   color: var(--accent-blue);
 }
 
-.alex-nav-icon {
-  display: flex;
-  align-items: center;
-  opacity: 0.6;
-  transition: opacity var(--duration-fast);
-}
-
-.alex-nav-item.active .alex-nav-icon {
-  opacity: 1;
-  filter: drop-shadow(0 0 4px rgba(10, 132, 255, 0.3));
-}
-
-.alex-nav-label {
-  font-size: 0.8rem;
-}
-
-.alex-nav-indicator {
+.alex-section-item.active::before {
+  content: '';
   position: absolute;
   left: 0;
   top: 25%;
@@ -4365,7 +4404,70 @@ body {
   width: 2px;
   background: var(--accent-blue);
   border-radius: 2px;
-  box-shadow: 0 0 8px rgba(10, 132, 255, 0.4);
+  box-shadow: 0 0 6px rgba(10, 132, 255, 0.3);
+}
+
+/* Item Icon */
+.alex-section-item svg {
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.alex-section-item.active svg {
+  opacity: 1;
+  filter: drop-shadow(0 0 3px rgba(10, 132, 255, 0.3));
+}
+
+/* Count badge */
+.alex-section-count {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 500;
+}
+
+/* New thread button */
+.alex-section-item.new-thread-btn {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.72rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.15rem;
+}
+
+.alex-section-item.new-thread-btn:hover {
+  border-color: rgba(10, 132, 255, 0.2);
+  color: var(--accent-blue);
+  background: rgba(10, 132, 255, 0.04);
+}
+
+/* Thread list inside section — hide its own "new thread" button since we have one */
+.alex-section-items .thread-sidebar .thread-new-btn {
+  display: none;
+}
+
+.alex-section-items .thread-sidebar {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.alex-section-items .thread-sidebar .thread-list {
+  gap: 0.1rem;
+}
+
+.alex-section-items .thread-sidebar .thread-item {
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.76rem;
+}
+
+/* Memory panel inside section */
+.alex-section-items .thread-memory-panel {
+  padding: 0.2rem 0;
+  border: none;
+  background: none;
 }
 
 /* ─── Main Content Area ─── */

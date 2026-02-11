@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
     MessageCircle,
     ListTodo,
@@ -23,6 +23,9 @@ import {
     User,
     Database,
     Plug,
+    ChevronDown,
+    Plus,
+    Brain,
 } from 'lucide-react';
 import { MasterBrainChat } from '../components/MasterBrainChat';
 import { ThreadSidebar } from '../components/chat/ThreadSidebar';
@@ -83,12 +86,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 type SourceFilter = 'all' | 'skills' | 'agents' | 'mcp';
 
-const SIDEBAR_TABS: { key: SidebarTab; icon: React.ReactNode; label: string }[] = [
-    { key: 'chat', icon: <MessageCircle size={15} />, label: 'Chat' },
-    { key: 'tasks', icon: <ListTodo size={15} />, label: 'Uppgifter' },
-    { key: 'skills', icon: <Puzzle size={15} />, label: 'Capabilities' },
-    { key: 'costs', icon: <Wallet size={15} />, label: 'Kostnader' },
-];
+/* Sidebar sections removed — now rendered as collapsible groups */
 
 const SKILLS_API = import.meta.env.VITE_API_URL
     ? `${import.meta.env.VITE_API_URL}/api/v1/skills`
@@ -104,6 +102,16 @@ export function AlexView({ onTaskCreated }: Props) {
     const [skillSearch, setSkillSearch] = useState('');
     const [skills, setSkills] = useState<Skill[]>([]);
     const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+    const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+    const toggleSection = useCallback((section: string) => {
+        setCollapsedSections(prev => {
+            const next = new Set(prev);
+            if (next.has(section)) next.delete(section);
+            else next.add(section);
+            return next;
+        });
+    }, []);
 
     /* ─── Gateway (lifted from MasterBrainChat for multi-thread) ─── */
     const gateway = useGateway('agent:skyland:main');
@@ -209,41 +217,115 @@ export function AlexView({ onTaskCreated }: Props) {
                     </div>
                 </div>
 
-                {/* Sidebar Tabs */}
-                <nav className="alex-nav">
-                    {SIDEBAR_TABS.map(tab => (
-                        <button
-                            key={tab.key}
-                            className={`alex-nav-item ${activeTab === tab.key ? 'active' : ''}`}
-                            onClick={() => setActiveTab(tab.key)}
-                        >
-                            <span className="alex-nav-icon">{tab.icon}</span>
-                            <span className="alex-nav-label">{tab.label}</span>
-                            {activeTab === tab.key && <span className="alex-nav-indicator" />}
-                        </button>
-                    ))}
-                </nav>
+                {/* ─── Collapsible Sidebar Sections (OpenClaw-style) ─── */}
+                <nav className="alex-sidebar-sections">
 
-                {/* Thread Sidebar (visible when chat tab active) */}
-                {activeTab === 'chat' && (
-                    <div className="alex-sidebar-threads">
-                        <ThreadSidebar
-                            sessions={gateway.sessions}
-                            activeSessionKey={gateway.sessionKey}
-                            threadPreviews={gateway.threadPreviews}
-                            onSelectSession={(key) => {
-                                gateway.setSessionKey(key);
-                            }}
-                            onNewThread={() => {
-                                gateway.createNewSession().catch(console.error);
-                            }}
-                        />
-                        <ThreadMemoryPanel
-                            memoryEntries={gateway.memoryEntries}
-                            onSearch={gateway.searchMemory}
-                        />
+                    {/* ── Chat Section ── */}
+                    <div className="alex-section">
+                        <button
+                            className={`alex-section-header ${collapsedSections.has('chat') ? 'collapsed' : ''}`}
+                            onClick={() => toggleSection('chat')}
+                        >
+                            <ChevronDown size={14} className="alex-section-chevron" />
+                            <span>Chat</span>
+                        </button>
+                        {!collapsedSections.has('chat') && (
+                            <div className="alex-section-items">
+                                <button
+                                    className="alex-section-item new-thread-btn"
+                                    onClick={() => gateway.createNewSession().catch(console.error)}
+                                >
+                                    <Plus size={13} />
+                                    <span>Ny tråd</span>
+                                </button>
+                                <ThreadSidebar
+                                    sessions={gateway.sessions}
+                                    activeSessionKey={gateway.sessionKey}
+                                    threadPreviews={gateway.threadPreviews}
+                                    onSelectSession={(key) => {
+                                        gateway.setSessionKey(key);
+                                        setActiveTab('chat');
+                                    }}
+                                    onNewThread={() => {
+                                        gateway.createNewSession().catch(console.error);
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
-                )}
+
+                    {/* ── Uppgifter Section ── */}
+                    <div className="alex-section">
+                        <button
+                            className={`alex-section-header ${collapsedSections.has('tasks') ? 'collapsed' : ''}`}
+                            onClick={() => toggleSection('tasks')}
+                        >
+                            <ChevronDown size={14} className="alex-section-chevron" />
+                            <span>Uppgifter</span>
+                        </button>
+                        {!collapsedSections.has('tasks') && (
+                            <div className="alex-section-items">
+                                <button
+                                    className={`alex-section-item ${activeTab === 'tasks' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('tasks')}
+                                >
+                                    <ListTodo size={13} />
+                                    <span>Aktiva uppgifter</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Agent Section ── */}
+                    <div className="alex-section">
+                        <button
+                            className={`alex-section-header ${collapsedSections.has('agent') ? 'collapsed' : ''}`}
+                            onClick={() => toggleSection('agent')}
+                        >
+                            <ChevronDown size={14} className="alex-section-chevron" />
+                            <span>Agent</span>
+                        </button>
+                        {!collapsedSections.has('agent') && (
+                            <div className="alex-section-items">
+                                <button
+                                    className={`alex-section-item ${activeTab === 'skills' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('skills')}
+                                >
+                                    <Puzzle size={13} />
+                                    <span>Capabilities</span>
+                                    <span className="alex-section-count">{skills.length}</span>
+                                </button>
+                                <button
+                                    className={`alex-section-item ${activeTab === 'costs' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('costs')}
+                                >
+                                    <Wallet size={13} />
+                                    <span>Kostnader</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── Minne Section ── */}
+                    <div className="alex-section">
+                        <button
+                            className={`alex-section-header ${collapsedSections.has('memory') ? 'collapsed' : ''}`}
+                            onClick={() => toggleSection('memory')}
+                        >
+                            <ChevronDown size={14} className="alex-section-chevron" />
+                            <span>Alex Minne</span>
+                        </button>
+                        {!collapsedSections.has('memory') && (
+                            <div className="alex-section-items">
+                                <ThreadMemoryPanel
+                                    memoryEntries={gateway.memoryEntries}
+                                    onSearch={gateway.searchMemory}
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                </nav>
             </aside>
 
             {/* ─── Main Content Area ─── */}
