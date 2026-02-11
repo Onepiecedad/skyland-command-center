@@ -53,9 +53,19 @@ function sanitizeMessage(raw: Record<string, unknown>): GatewayMessage {
 export type GatewayStatus = 'disconnected' | 'connecting' | 'connected';
 export type AlexState = 'idle' | 'thinking' | 'executing' | 'stuck' | 'unknown';
 
+export interface ChatAttachment {
+    id: string;
+    name: string;
+    type: string;          // MIME type
+    size: number;
+    data_b64: string;      // base64-encoded content
+    preview?: string;      // object URL for local preview
+}
+
 export interface GatewayMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
+    attachments?: ChatAttachment[];
     runId?: string;
     toolCalls?: ToolCallInfo[];
     timestamp?: string;
@@ -197,12 +207,21 @@ export class GatewaySocket {
         this.setStatus('disconnected');
     }
 
-    async sendChatMessage(sessionKey: string, message: string): Promise<void> {
-        await this.request('chat.send', {
+    async sendChatMessage(sessionKey: string, message: string, attachments?: ChatAttachment[]): Promise<void> {
+        const payload: Record<string, unknown> = {
             sessionKey,
             message,
             idempotencyKey: crypto.randomUUID(),
-        });
+        };
+        if (attachments?.length) {
+            payload.attachments = attachments.map(a => ({
+                name: a.name,
+                type: a.type,
+                size: a.size,
+                data_b64: a.data_b64,
+            }));
+        }
+        await this.request('chat.send', payload);
     }
 
     async abortChat(): Promise<void> {
@@ -257,25 +276,50 @@ export class GatewaySocket {
     }
 
     async searchMemory(query: string, limit = 20): Promise<MemoryEntry[]> {
+        // Use SCC backend API instead of gateway RPC
         try {
-            const result = await this.request('memory.search', { query, limit });
-            const data = result as { entries?: unknown[] };
-            return (data.entries || []).map((e) => e as MemoryEntry);
-        } catch {
-            // Gateway may not support this RPC yet — return empty
-            console.warn('[GW] memory.search not available');
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
+            const res = await fetch(`${apiUrl}/api/v1/alex/search`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query, limit }),
+            });
+            if (!res.ok) {
+                console.warn('[GW] alex/search failed:', res.status);
+                return [];
+            }
+            const data = await res.json();
+            return (data.entries || []).map((e: Record<string, unknown>) => ({
+                id: e.id as string,
+                content: e.content as string,
+                source: e.source as string,
+                timestamp: e.timestamp as string,
+                score: e.score as number,
+            }));
+        } catch (err) {
+            console.warn('[GW] alex/search error:', err);
             return [];
         }
     }
 
     async getMemoryEntries(limit = 50): Promise<MemoryEntry[]> {
+        // Use SCC backend API instead of gateway RPC
         try {
-            const result = await this.request('memory.list', { limit });
-            const data = result as { entries?: unknown[] };
-            return (data.entries || []).map((e) => e as MemoryEntry);
-        } catch {
-            // Gateway may not support this RPC yet — return empty
-            console.warn('[GW] memory.list not available');
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
+            const res = await fetch(`${apiUrl}/api/v1/alex/list?limit=${limit}`);
+            if (!res.ok) {
+                console.warn('[GW] alex/list failed:', res.status);
+                return [];
+            }
+            const data = await res.json();
+            return (data.entries || []).map((e: Record<string, unknown>) => ({
+                id: e.id as string,
+                content: e.content as string,
+                source: e.source as string,
+                timestamp: e.timestamp as string,
+            }));
+        } catch (err) {
+            console.warn('[GW] alex/list error:', err);
             return [];
         }
     }

@@ -10,6 +10,7 @@ import {
     type GatewayNode,
     type GatewaySession,
     type MemoryEntry,
+    type ChatAttachment,
     type ChatStreamChunk,
 } from './gatewaySocket';
 
@@ -32,7 +33,7 @@ export interface UseGatewayResult {
     threadPreviews: Record<string, ThreadPreview>;
     memoryEntries: MemoryEntry[];
     sessionKey: string;
-    sendMessage: (text: string) => void;
+    sendMessage: (text: string, attachments?: ChatAttachment[]) => void;
     abortChat: () => void;
     loadHistory: () => void;
     setSessionKey: (key: string) => void;
@@ -41,7 +42,8 @@ export interface UseGatewayResult {
     searchMemory: (query: string) => Promise<void>;
 }
 
-export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGatewayResult {
+export function useGateway(initialSessionKey = 'agent:skyland:main', options?: { disabled?: boolean }): UseGatewayResult {
+    const disabled = options?.disabled ?? false;
     const [status, setStatus] = useState<GatewayStatus>('disconnected');
     const [alexState, setAlexState] = useState<AlexState>('unknown');
     const [messages, setMessages] = useState<GatewayMessage[]>([]);
@@ -57,6 +59,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
     const streamBuf = useRef('');
     const currentRunId = useRef<string | null>(null);
     const activeTools = useRef<Map<string, { name: string; status: string }>>(new Map());
+    const seenRunIds = useRef<Set<string>>(new Set());
 
     // --- Chat event handler ---
     const handleChatEvent = useCallback((chunk: ChatStreamChunk) => {
@@ -70,6 +73,10 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
                 break;
 
             case 'final': {
+                // Deduplicate: skip if we already processed this runId
+                if (chunk.runId && seenRunIds.current.has(chunk.runId)) break;
+                if (chunk.runId) seenRunIds.current.add(chunk.runId);
+
                 const finalText = streamBuf.current + (chunk.content || '');
                 streamBuf.current = '';
                 setStreamingContent('');
@@ -125,8 +132,9 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
         }
     }, []);
 
-    // --- Connect on mount ---
+    // --- Connect on mount (skip if disabled) ---
     useEffect(() => {
+        if (disabled) return;
         const socket = new GatewaySocket(GATEWAY_URL, {
             onStatusChange: (s) => {
                 setStatus(s);
@@ -166,7 +174,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
             socket.stop();
             socketRef.current = null;
         };
-    }, [handleChatEvent]);
+    }, [handleChatEvent, disabled]);
 
     // --- Refresh nodes + sessions periodically ---
     useEffect(() => {
@@ -215,17 +223,22 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
         fetchPreviews();
     }, [sessions]);
     // --- Public methods ---
-    const sendMessage = useCallback((text: string) => {
-        if (!socketRef.current?.connected || !text.trim()) return;
+    const sendMessage = useCallback((text: string, attachments?: ChatAttachment[]) => {
+        if (!socketRef.current?.connected || (!text.trim() && !attachments?.length)) return;
 
         // Add user message immediately
-        setMessages(prev => [...prev, { role: 'user', content: text, timestamp: new Date().toISOString() }]);
+        setMessages(prev => [...prev, {
+            role: 'user',
+            content: text,
+            attachments,
+            timestamp: new Date().toISOString(),
+        }]);
         streamBuf.current = '';
         setStreamingContent('');
         setIsStreaming(true);
         setAlexState('thinking');
 
-        socketRef.current.sendChatMessage(sessionKey, text).catch((err) => {
+        socketRef.current.sendChatMessage(sessionKey, text, attachments).catch((err) => {
             setIsStreaming(false);
             setAlexState('idle');
             setMessages(prev => [...prev, {

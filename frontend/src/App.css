@@ -8870,3 +8870,144 @@ body {
   color: rgba(255, 255, 255, 0.12);
   max-width: 160px;
 }
+
+/* ============================================================================
+   Chat Attachment System
+   ============================================================================ */
+
+/* ─── Attachment Preview Strip ─── */
+.attachment-strip {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.attachment-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.attachment-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+  max-width: 180px;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.attachment-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.attachment-chip.has-preview {
+  padding: 0.2rem;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  width: 64px;
+  height: 64px;
+}
+
+.attachment-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0.4rem;
+  display: block;
+}
+
+.attachment-file-icon {
+  color: rgba(129, 140, 248, 0.8);
+  flex-shrink: 0;
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-size {
+  color: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+  font-size: 0.6rem;
+}
+
+.attachment-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.8);
+  border: 1.5px solid rgba(0, 0, 0, 0.3);
+  color: white;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+  transform: scale(0.8);
+  padding: 0;
+}
+
+.attachment-chip:hover .attachment-remove {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.attachment-remove:hover {
+  background: rgba(239, 68, 68, 1);
+}
+
+/* ─── Inline Attachments in Messages ─── */
+.msg-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.msg-attachment-img {
+  max-width: 320px;
+  max-height: 240px;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.msg-attachment-img:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.msg-attachment-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.msg-attachment-file svg {
+  color: rgba(129, 140, 248, 0.8);
+}

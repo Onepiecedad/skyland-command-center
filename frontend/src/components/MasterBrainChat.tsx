@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import type { ChatResponse, Task } from '../api';
 import { sendChatMessage } from '../api';
 import { useGateway, type UseGatewayResult } from '../gateway/useGateway';
+import type { ChatAttachment } from '../gateway/gatewaySocket';
 import {
     Brain,
     Zap,
@@ -17,6 +18,8 @@ import {
     Lightbulb,
     SendHorizontal,
     Square,
+    X,
+    File as FileIcon,
 } from 'lucide-react';
 
 type ChatMode = 'masterbrain' | 'alex';
@@ -127,13 +130,16 @@ function ModelSelector() {
 }
 
 /* ─── Attach Menu ─── */
-function AttachMenu() {
+function AttachMenu({ onImageSelect, onFileSelect }: {
+    onImageSelect: () => void;
+    onFileSelect: () => void;
+}) {
     const [isOpen, setIsOpen] = useState(false);
 
     const items = [
-        { icon: <Paperclip size={14} />, label: 'Ladda upp fil' },
-        { icon: <Image size={14} />, label: 'Lägg till bild' },
-        { icon: <FileCode size={14} />, label: 'Importera kod' },
+        { icon: <Paperclip size={14} />, label: 'Ladda upp fil', action: onFileSelect },
+        { icon: <Image size={14} />, label: 'Lägg till bild', action: onImageSelect },
+        { icon: <FileCode size={14} />, label: 'Importera kod', action: onFileSelect },
     ];
 
     return (
@@ -150,7 +156,7 @@ function AttachMenu() {
                     <div className="bolt-dropdown-backdrop" onClick={() => setIsOpen(false)} />
                     <div className="bolt-attach-dropdown">
                         {items.map((item, i) => (
-                            <button key={i} className="bolt-attach-option" onClick={() => setIsOpen(false)}>
+                            <button key={i} className="bolt-attach-option" onClick={() => { item.action(); setIsOpen(false); }}>
                                 {item.icon}
                                 <span>{item.label}</span>
                             </button>
@@ -173,10 +179,60 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
     const [mbConvoId, setMbConvoId] = useState<string | null>(null);
 
     // Alex state (WebSocket) — use external gateway if provided, otherwise internal
-    const internalGateway = useGateway('agent:skyland:main');
+    const internalGateway = useGateway('agent:skyland:main', { disabled: !!externalGateway });
     const gateway = externalGateway || internalGateway;
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Attachments state
+    const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+
+    // File → base64 helper
+    const fileToAttachment = useCallback((file: File): Promise<ChatAttachment> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const b64 = (reader.result as string).split(',')[1] || '';
+                const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined;
+                resolve({
+                    id: crypto.randomUUID(),
+                    name: file.name,
+                    type: file.type || 'application/octet-stream',
+                    size: file.size,
+                    data_b64: b64,
+                    preview,
+                });
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }, []);
+
+    // Paste handler (Cmd+V screenshots)
+    const handlePaste = useCallback(async (e: React.ClipboardEvent) => {
+        const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith('image/'));
+        if (!files.length) return;
+        e.preventDefault();
+        const newAttachments = await Promise.all(files.map(fileToAttachment));
+        setAttachments(prev => [...prev, ...newAttachments]);
+    }, [fileToAttachment]);
+
+    // File input handlers
+    const handleFilesSelected = useCallback(async (files: FileList | null) => {
+        if (!files?.length) return;
+        const newAttachments = await Promise.all(Array.from(files).map(fileToAttachment));
+        setAttachments(prev => [...prev, ...newAttachments]);
+    }, [fileToAttachment]);
+
+    const removeAttachment = useCallback((id: string) => {
+        setAttachments(prev => {
+            const att = prev.find(a => a.id === id);
+            if (att?.preview) URL.revokeObjectURL(att.preview);
+            return prev.filter(a => a.id !== id);
+        });
+    }, []);
 
     // Auto-scroll
     useEffect(() => {
@@ -222,14 +278,16 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
 
     // --- Send handler ---
     const handleSend = () => {
-        if (!input.trim() || sending) return;
+        if ((!input.trim() && !attachments.length) || sending) return;
         const text = input.trim();
+        const atts = attachments.length ? [...attachments] : undefined;
         setInput('');
+        setAttachments([]);
 
         if (chatMode === 'masterbrain') {
             handleMBSend(text);
         } else {
-            gateway.sendMessage(text);
+            gateway.sendMessage(text, atts);
         }
     };
 
@@ -326,6 +384,19 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
                         <>
                             {gateway.messages.map((msg, i) => (
                                 <div key={i} className={`chat-message ${msg.role} ${msg.role === 'assistant' ? 'alex' : ''}`}>
+                                    {msg.attachments && msg.attachments.length > 0 && (
+                                        <div className="msg-attachments">
+                                            {msg.attachments.filter(a => a.preview).map(a => (
+                                                <img key={a.id} src={a.preview} alt={a.name} className="msg-attachment-img" />
+                                            ))}
+                                            {msg.attachments.filter(a => !a.preview).map(a => (
+                                                <div key={a.id} className="msg-attachment-file">
+                                                    <FileIcon size={12} />
+                                                    <span>{a.name}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="message-content markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown></div>
                                     {msg.timestamp && <span className="msg-timestamp">{formatTime(msg.timestamp)}</span>}
                                 </div>
@@ -362,15 +433,58 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
                         value={input}
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
+                        onPaste={handlePaste}
                         placeholder={chatMode === 'alex' ? 'Prata med Alex…' : 'Fråga MasterBrain…'}
                         disabled={inputDisabled}
                         className="bolt-textarea"
                         rows={1}
                     />
 
+                    {/* Attachment preview strip */}
+                    {attachments.length > 0 && (
+                        <div className="attachment-strip">
+                            {attachments.map(att => (
+                                <div key={att.id} className={`attachment-chip ${att.preview ? 'has-preview' : ''}`}>
+                                    {att.preview ? (
+                                        <img src={att.preview} alt={att.name} className="attachment-thumb" />
+                                    ) : (
+                                        <>
+                                            <FileIcon size={14} className="attachment-file-icon" />
+                                            <span className="attachment-name">{att.name}</span>
+                                            <span className="attachment-size">{(att.size / 1024).toFixed(0)}KB</span>
+                                        </>
+                                    )}
+                                    <button className="attachment-remove" onClick={() => removeAttachment(att.id)} title="Ta bort bilaga">
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Hidden file inputs */}
+                    <input
+                        ref={imageInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        hidden
+                        onChange={e => { handleFilesSelected(e.target.files); e.target.value = ''; }}
+                    />
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        hidden
+                        onChange={e => { handleFilesSelected(e.target.files); e.target.value = ''; }}
+                    />
+
                     <div className="bolt-toolbar">
                         <div className="bolt-toolbar-left">
-                            <AttachMenu />
+                            <AttachMenu
+                                onImageSelect={() => imageInputRef.current?.click()}
+                                onFileSelect={() => fileInputRef.current?.click()}
+                            />
                             <ModelSelector />
                         </div>
 
