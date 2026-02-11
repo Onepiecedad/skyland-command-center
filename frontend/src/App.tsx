@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Zap, Building2, Monitor, Puzzle, Radar } from 'lucide-react';
+import { Archive, Zap, Building2, Monitor, Puzzle, Radar } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -9,10 +9,11 @@ import { AlexView } from './pages/AlexView';
 import { CustomerView } from './pages/CustomerView';
 import { SystemDashboard } from './pages/SystemDashboard';
 import { SkillsView } from './pages/SkillsView';
+import { ArchiveView } from './pages/ArchiveView';
 import FleetMonitor from './pages/FleetMonitor';
 import './App.css';
 
-type View = 'alex' | 'customers' | 'system' | 'skills' | 'fleet';
+type View = 'alex' | 'customers' | 'system' | 'skills' | 'fleet' | 'archive';
 
 interface Segment {
   key: string;
@@ -23,6 +24,7 @@ interface Segment {
 const SEGMENTS: Segment[] = [
   { key: 'alex', label: 'Alex', icon: <Zap size={14} strokeWidth={2.5} /> },
   { key: 'customers', label: 'Kunder', icon: <Building2 size={14} strokeWidth={2} /> },
+  { key: 'archive', label: 'Arkiv', icon: <Archive size={14} strokeWidth={2} /> },
   { key: 'system', label: 'System', icon: <Monitor size={14} strokeWidth={2} /> },
   { key: 'skills', label: 'Skills', icon: <Puzzle size={14} strokeWidth={2} /> },
   { key: 'fleet', label: 'Fleet', icon: <Radar size={14} strokeWidth={2} /> },
@@ -67,7 +69,7 @@ function App() {
     setRefreshKey(prev => prev + 1);
   }, []);
 
-  // Keyboard shortcuts: ⌘+1 = Alex, ⌘+2 = Kunder, ⌘+3 = System
+  // Keyboard shortcuts: ⌘+1 = Alex, ⌘+2 = Kunder, ⌘+3 = Archive, ⌘+4 = System, etc.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey) return;
@@ -79,11 +81,14 @@ function App() {
         handleViewChange('customers');
       } else if (e.key === '3') {
         e.preventDefault();
-        handleViewChange('system');
+        handleViewChange('archive');
       } else if (e.key === '4') {
         e.preventDefault();
-        handleViewChange('skills');
+        handleViewChange('system');
       } else if (e.key === '5') {
+        e.preventDefault();
+        handleViewChange('skills');
+      } else if (e.key === '6') {
         e.preventDefault();
         handleViewChange('fleet');
       }
