@@ -1,6 +1,5 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
-    MessageCircle,
     ListTodo,
     Puzzle,
     Wallet,
@@ -25,9 +24,8 @@ import {
     Plug,
     ChevronDown,
     Plus,
-    Brain,
 } from 'lucide-react';
-import { MasterBrainChat } from '../components/MasterBrainChat';
+import { AlexChat } from '../components/AlexChat';
 import { ThreadSidebar } from '../components/chat/ThreadSidebar';
 import { ThreadMemoryPanel } from '../components/chat/ThreadMemoryPanel';
 import { useGateway } from '../gateway/useGateway';
@@ -113,7 +111,7 @@ export function AlexView({ onTaskCreated }: Props) {
         });
     }, []);
 
-    /* ─── Gateway (lifted from MasterBrainChat for multi-thread) ─── */
+    /* ─── Gateway (lifted for multi-thread support) ─── */
     const gateway = useGateway('agent:skyland:main');
 
     /* ─── Fetch real skills from backend ─── */
@@ -331,7 +329,7 @@ export function AlexView({ onTaskCreated }: Props) {
             {/* ─── Main Content Area ─── */}
             <section className="alex-content">
                 {activeTab === 'chat' && (
-                    <MasterBrainChat onTaskCreated={onTaskCreated} gateway={gateway} />
+                    <AlexChat onTaskCreated={onTaskCreated} gateway={gateway} />
                 )}
 
                 {activeTab === 'tasks' && (

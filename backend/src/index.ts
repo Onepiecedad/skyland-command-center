@@ -23,6 +23,7 @@ import errorRecoveryRouter from './routes/errorRecovery';
 import memorySearchRouter from './routes/memorySearch';
 import memoryManagementRouter from './routes/memoryManagement';
 import alexMemoryRouter from './routes/alexMemory';
+import openworkWebhookRouter from './routes/openworkWebhook';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -43,6 +44,7 @@ app.use('/api/v1/recovery', errorRecoveryRouter);
 app.use('/api/v1/memory', memorySearchRouter);      // search, timeline, stats
 app.use('/api/v1/memory', memoryManagementRouter);   // storage, archive, retention, cleanup
 app.use('/api/v1/alex', alexMemoryRouter);           // Alex's MEMORY.md files
+app.use('/api/v1/webhook', openworkWebhookRouter);   // Openwork webhook receiver
 
 // ============================================================================
 // Health check endpoint - checks if Supabase is reachable

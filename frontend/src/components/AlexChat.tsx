@@ -1,14 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { ChatResponse, Task } from '../api';
-import { sendChatMessage } from '../api';
 import { useGateway, type UseGatewayResult } from '../gateway/useGateway';
 import type { ChatAttachment } from '../gateway/gatewaySocket';
 import {
-    Brain,
     Zap,
     Sparkles,
+    Brain,
     ChevronDown,
     Check,
     Plus,
@@ -22,20 +20,9 @@ import {
     File as FileIcon,
 } from 'lucide-react';
 
-type ChatMode = 'masterbrain' | 'alex';
-
 interface Props {
     onTaskCreated: () => void;
     gateway?: UseGatewayResult;
-}
-
-interface MBMessage {
-    role: 'user' | 'assistant';
-    content: string;
-    intent?: string;
-    proposedActions?: Array<{ type: string; task_id?: string; task?: Task }>;
-    suggestions?: string[];
-    timestamp?: string;
 }
 
 function formatTime(ts?: string): string {
@@ -147,6 +134,7 @@ function AttachMenu({ onImageSelect, onFileSelect }: {
             <button
                 className="bolt-attach-trigger"
                 onClick={() => setIsOpen(!isOpen)}
+                title="Bifoga"
             >
                 <Plus size={14} className={isOpen ? 'bolt-rotate-45' : ''} />
             </button>
@@ -169,14 +157,8 @@ function AttachMenu({ onImageSelect, onFileSelect }: {
 }
 
 /* ─── Main Component ─── */
-export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Props) {
-    const [chatMode, setChatMode] = useState<ChatMode>('alex');
+export function AlexChat({ gateway: externalGateway }: Props) {
     const [input, setInput] = useState('');
-    const [sending, setSending] = useState(false);
-
-    // MasterBrain state (HTTP)
-    const [mbMessages, setMbMessages] = useState<MBMessage[]>([]);
-    const [mbConvoId, setMbConvoId] = useState<string | null>(null);
 
     // Alex state (WebSocket) — use external gateway if provided, otherwise internal
     const internalGateway = useGateway('agent:skyland:main', { disabled: !!externalGateway });
@@ -237,7 +219,7 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
     // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [gateway.messages, gateway.streamingContent, mbMessages]);
+    }, [gateway.messages, gateway.streamingContent]);
 
     // Auto-resize textarea
     const autoResize = useCallback(() => {
@@ -250,45 +232,14 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
 
     useEffect(() => { autoResize(); }, [input, autoResize]);
 
-    // --- MasterBrain send ---
-    const handleMBSend = async (text: string) => {
-        setSending(true);
-        setMbMessages(prev => [...prev, { role: 'user', content: text }]);
-        try {
-            const response: ChatResponse = await sendChatMessage(text, mbConvoId || undefined);
-            setMbConvoId(response.conversation_id);
-            setMbMessages(prev => [...prev, {
-                role: 'assistant',
-                content: response.response,
-                intent: response.intent,
-                proposedActions: response.proposed_actions,
-                suggestions: response.suggestions,
-            }]);
-            if (response.intent === 'CREATE_TASK' && response.proposed_actions.length > 0) {
-                onTaskCreated();
-            }
-        } catch {
-            setMbMessages(prev => [...prev, {
-                role: 'assistant',
-                content: '⚠️ Error: Could not reach MasterBrain',
-            }]);
-        }
-        setSending(false);
-    };
-
     // --- Send handler ---
     const handleSend = () => {
-        if ((!input.trim() && !attachments.length) || sending) return;
+        if ((!input.trim() && !attachments.length)) return;
         const text = input.trim();
         const atts = attachments.length ? [...attachments] : undefined;
         setInput('');
         setAttachments([]);
-
-        if (chatMode === 'masterbrain') {
-            handleMBSend(text);
-        } else {
-            gateway.sendMessage(text, atts);
-        }
+        gateway.sendMessage(text, atts);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -298,10 +249,7 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
         }
     };
 
-    const inputDisabled = chatMode === 'masterbrain'
-        ? sending
-        : gateway.status === 'disconnected';
-
+    const inputDisabled = gateway.status === 'disconnected';
     const alexOnline = gateway.status === 'connected';
     const alexBusy = gateway.isStreaming || gateway.alexState === 'thinking' || gateway.alexState === 'executing';
 
@@ -309,134 +257,85 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
     const isNoiseMessage = useCallback((msg: { role: string; content: string }) => {
         const c = msg.content.trim();
         if (!c) return true;
-        // Always hide system role messages (metadata blobs)
         if (msg.role === 'system') return true;
-        // Detect raw JSON objects or arrays as content
         if ((c.startsWith('{') && c.endsWith('}')) || (c.startsWith('[{') && c.endsWith('}]') && c.startsWith('[{"type"'))) {
             try { JSON.parse(c); return true; } catch { /* not JSON, show it */ }
         }
-        // Detect tool call result messages (e.g. "Successfully replaced text in ...")
-        if (c.startsWith('Successfully replaced text in ') || c.startsWith('Successfully edited ')) return false; // keep these
+        if (c.startsWith('Successfully replaced text in ') || c.startsWith('Successfully edited ')) return false;
         return false;
     }, []);
 
     const filteredGatewayMessages = gateway.messages.filter(msg => !isNoiseMessage(msg));
 
     return (
-        <div className={`panel chat-panel ${chatMode === 'alex' ? 'chat-alex-mode' : ''}`}>
+        <div className="panel chat-panel chat-alex-mode">
             {/* Header */}
             <div className="chat-header">
                 <div className="chat-mode-toggle">
-                    <button
-                        className={`chat-mode-btn ${chatMode === 'masterbrain' ? 'active' : ''}`}
-                        onClick={() => setChatMode('masterbrain')}
-                    >
-                        <Brain size={13} />
-                        MasterBrain
-                    </button>
-                    <button
-                        className={`chat-mode-btn ${chatMode === 'alex' ? 'active' : ''}`}
-                        onClick={() => setChatMode('alex')}
-                    >
+                    <button className="chat-mode-btn active">
                         <span className={`gateway-dot ${alexOnline ? 'online' : 'offline'}`} />
                         <Zap size={13} />
                         Alex
                     </button>
                 </div>
 
-                {chatMode === 'alex' && (
-                    <div className="alex-status-bar">
-                        <span className={`alex-status-label ${gateway.status}`}>
-                            {STATUS_LABELS[gateway.status] || gateway.status}
+                <div className="alex-status-bar">
+                    <span className={`alex-status-label ${gateway.status}`}>
+                        {STATUS_LABELS[gateway.status] || gateway.status}
+                    </span>
+                    {alexOnline && gateway.alexState !== 'unknown' && (
+                        <span className={`alex-state ${gateway.alexState}`}>
+                            {ALEX_STATE_LABELS[gateway.alexState]}
                         </span>
-                        {alexOnline && gateway.alexState !== 'unknown' && (
-                            <span className={`alex-state ${gateway.alexState}`}>
-                                {ALEX_STATE_LABELS[gateway.alexState]}
-                            </span>
-                        )}
-                    </div>
-                )}
+                    )}
+                </div>
             </div>
 
             {/* Messages */}
             <div className="chat-messages">
-                {chatMode === 'masterbrain' ? (
-                    mbMessages.length === 0 ? (
-                        <p className="empty">Start a conversation with MasterBrain…</p>
-                    ) : (
-                        mbMessages.map((msg, i) => (
-                            <div key={i} className={`chat-message ${msg.role}`}>
-                                <div className="message-content markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown></div>
-                                {msg.timestamp && <span className="msg-timestamp">{formatTime(msg.timestamp)}</span>}
-                                {msg.intent && <span className="intent-badge">{msg.intent}</span>}
-                                {msg.proposedActions && msg.proposedActions.length > 0 && (
-                                    <div className="proposed-actions">
-                                        {msg.proposedActions.map((action, j) => (
-                                            <div key={j} className="proposed-action">
-                                                📋 {action.type}: {action.task?.title || action.task_id}
+                {filteredGatewayMessages.length === 0 && !gateway.isStreaming ? (
+                    <p className="empty">
+                        {alexOnline ? 'Talk to Alex…' : 'Connecting to Alex gateway…'}
+                    </p>
+                ) : (
+                    <>
+                        {filteredGatewayMessages.map((msg, i) => (
+                            <div key={i} className={`chat-message ${msg.role} ${msg.role === 'assistant' ? 'alex' : ''}`}>
+                                {msg.attachments && msg.attachments.length > 0 && (
+                                    <div className="msg-attachments">
+                                        {msg.attachments.filter(a => a.preview).map(a => (
+                                            <img key={a.id} src={a.preview} alt={a.name} className="msg-attachment-img" />
+                                        ))}
+                                        {msg.attachments.filter(a => !a.preview).map(a => (
+                                            <div key={a.id} className="msg-attachment-file">
+                                                <FileIcon size={12} />
+                                                <span>{a.name}</span>
                                             </div>
                                         ))}
                                     </div>
                                 )}
-                                {msg.suggestions && msg.suggestions.length > 0 && (
-                                    <div className="suggestions">
-                                        {msg.suggestions.map((s, j) => (
-                                            <button
-                                                key={j}
-                                                className="suggestion-chip"
-                                                onClick={() => setInput(s)}
-                                            >{s}</button>
-                                        ))}
-                                    </div>
-                                )}
+                                <div className="message-content markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown></div>
+                                {msg.timestamp && <span className="msg-timestamp">{formatTime(msg.timestamp)}</span>}
                             </div>
-                        ))
-                    )
-                ) : (
-                    filteredGatewayMessages.length === 0 && !gateway.isStreaming ? (
-                        <p className="empty">
-                            {alexOnline ? 'Talk to Alex…' : 'Connecting to Alex gateway…'}
-                        </p>
-                    ) : (
-                        <>
-                            {filteredGatewayMessages.map((msg, i) => (
-                                <div key={i} className={`chat-message ${msg.role} ${msg.role === 'assistant' ? 'alex' : ''}`}>
-                                    {msg.attachments && msg.attachments.length > 0 && (
-                                        <div className="msg-attachments">
-                                            {msg.attachments.filter(a => a.preview).map(a => (
-                                                <img key={a.id} src={a.preview} alt={a.name} className="msg-attachment-img" />
-                                            ))}
-                                            {msg.attachments.filter(a => !a.preview).map(a => (
-                                                <div key={a.id} className="msg-attachment-file">
-                                                    <FileIcon size={12} />
-                                                    <span>{a.name}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                    <div className="message-content markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown></div>
-                                    {msg.timestamp && <span className="msg-timestamp">{formatTime(msg.timestamp)}</span>}
+                        ))}
+                        {gateway.isStreaming && gateway.streamingContent && (
+                            <div className="chat-message assistant alex streaming">
+                                <div className="message-content markdown-body">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{gateway.streamingContent}</ReactMarkdown>
+                                    <span className="streaming-cursor" />
                                 </div>
-                            ))}
-                            {gateway.isStreaming && gateway.streamingContent && (
-                                <div className="chat-message assistant alex streaming">
-                                    <div className="message-content markdown-body">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{gateway.streamingContent}</ReactMarkdown>
-                                        <span className="streaming-cursor" />
-                                    </div>
+                            </div>
+                        )}
+                        {gateway.isStreaming && !gateway.streamingContent && (
+                            <div className="chat-message assistant alex streaming">
+                                <div className="message-content">
+                                    <span className="thinking-dots">
+                                        <span /><span /><span />
+                                    </span>
                                 </div>
-                            )}
-                            {gateway.isStreaming && !gateway.streamingContent && (
-                                <div className="chat-message assistant alex streaming">
-                                    <div className="message-content">
-                                        <span className="thinking-dots">
-                                            <span /><span /><span />
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )
+                            </div>
+                        )}
+                    </>
                 )}
                 <div ref={messagesEndRef} />
             </div>
@@ -451,7 +350,7 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
-                        placeholder={chatMode === 'alex' ? 'Prata med Alex…' : 'Fråga MasterBrain…'}
+                        placeholder="Prata med Alex…"
                         disabled={inputDisabled}
                         className="bolt-textarea"
                         rows={1}
@@ -511,7 +410,7 @@ export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Pro
                                 <span>Plan</span>
                             </button>
 
-                            {chatMode === 'alex' && alexBusy ? (
+                            {alexBusy ? (
                                 <button
                                     className="bolt-abort-btn"
                                     onClick={gateway.abortChat}

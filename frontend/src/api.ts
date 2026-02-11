@@ -64,15 +64,6 @@ export interface TaskRun {
     metrics: Record<string, unknown>;
 }
 
-export interface ChatResponse {
-    response: string;
-    conversation_id: string;
-    intent: 'STATUS_CHECK' | 'SUMMARY' | 'CREATE_TASK' | 'HELP';
-    data: Record<string, unknown>;
-    actions_taken: Array<{ action: string; table: string; details?: Record<string, unknown> }>;
-    proposed_actions: Array<{ type: string; task_id?: string; task?: Task }>;
-    suggestions: string[];
-}
 
 // ============================================================================
 // API Functions
@@ -137,18 +128,7 @@ export async function approveTask(taskId: string, approvedBy: string): Promise<T
     return data.task;
 }
 
-export async function sendChatMessage(message: string, conversationId?: string): Promise<ChatResponse> {
-    const res = await fetch(`${API_BASE}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            message,
-            channel: 'chat',
-            conversation_id: conversationId
-        })
-    });
-    return res.json();
-}
+
 
 export async function sendAlexMessage(message: string, conversationId?: string): Promise<{
     response: string;
