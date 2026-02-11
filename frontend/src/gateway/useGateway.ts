@@ -8,11 +8,18 @@ import {
     type AlexState,
     type GatewayMessage,
     type GatewayNode,
+    type GatewaySession,
+    type MemoryEntry,
     type ChatStreamChunk,
 } from './gatewaySocket';
 
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'ws://127.0.0.1:18789';
 const GATEWAY_TOKEN = import.meta.env.VITE_GATEWAY_TOKEN || '';
+
+export interface ThreadPreview {
+    lastMessage: string;
+    messageCount: number;
+}
 
 export interface UseGatewayResult {
     status: GatewayStatus;
@@ -21,11 +28,17 @@ export interface UseGatewayResult {
     streamingContent: string;
     isStreaming: boolean;
     nodes: GatewayNode[];
+    sessions: GatewaySession[];
+    threadPreviews: Record<string, ThreadPreview>;
+    memoryEntries: MemoryEntry[];
     sessionKey: string;
     sendMessage: (text: string) => void;
     abortChat: () => void;
     loadHistory: () => void;
     setSessionKey: (key: string) => void;
+    refreshSessions: () => void;
+    createNewSession: () => Promise<string>;
+    searchMemory: (query: string) => Promise<void>;
 }
 
 export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGatewayResult {
@@ -35,6 +48,9 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
     const [streamingContent, setStreamingContent] = useState('');
     const [isStreaming, setIsStreaming] = useState(false);
     const [nodes, setNodes] = useState<GatewayNode[]>([]);
+    const [sessions, setSessions] = useState<GatewaySession[]>([]);
+    const [threadPreviews, setThreadPreviews] = useState<Record<string, ThreadPreview>>({});
+    const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
     const [sessionKey, setSessionKey] = useState(initialSessionKey);
 
     const socketRef = useRef<GatewaySocket | null>(null);
@@ -130,9 +146,12 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
                 if (busy) setAlexState('executing');
             },
             onHello: () => {
-                // On connect, fetch nodes
+                // On connect, fetch nodes + sessions
                 socket.getNodes()
                     .then(setNodes)
+                    .catch(() => { });
+                socket.getSessions()
+                    .then(setSessions)
                     .catch(() => { });
             },
             onError: (err) => {
@@ -149,17 +168,52 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
         };
     }, [handleChatEvent]);
 
-    // --- Refresh nodes periodically ---
+    // --- Refresh nodes + sessions periodically ---
     useEffect(() => {
         if (status !== 'connected') return;
         const interval = setInterval(() => {
             socketRef.current?.getNodes()
                 .then(setNodes)
                 .catch(() => { });
+            socketRef.current?.getSessions()
+                .then(setSessions)
+                .catch(() => { });
         }, 30000);
         return () => clearInterval(interval);
     }, [status]);
 
+    // --- Fetch thread previews when sessions change ---
+    useEffect(() => {
+        if (!socketRef.current?.connected || sessions.length === 0) return;
+
+        const fetchPreviews = async () => {
+            const previews: Record<string, ThreadPreview> = {};
+            const socket = socketRef.current;
+            if (!socket) return;
+
+            await Promise.all(
+                sessions.map(async (s) => {
+                    try {
+                        const result = await socket.getChatHistory(s.key, 3);
+                        const msgs = result.messages || [];
+                        const lastAssistant = [...msgs].reverse().find(m => m.role === 'assistant');
+                        const lastAny = msgs[msgs.length - 1];
+                        const preview = lastAssistant?.content || lastAny?.content || '';
+                        previews[s.key] = {
+                            lastMessage: preview.slice(0, 120),
+                            messageCount: msgs.length,
+                        };
+                    } catch {
+                        previews[s.key] = { lastMessage: '', messageCount: 0 };
+                    }
+                })
+            );
+
+            setThreadPreviews(previews);
+        };
+
+        fetchPreviews();
+    }, [sessions]);
     // --- Public methods ---
     const sendMessage = useCallback((text: string) => {
         if (!socketRef.current?.connected || !text.trim()) return;
@@ -191,10 +245,30 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
             .then((result) => {
                 if (result.messages?.length) {
                     setMessages(result.messages);
+                } else {
+                    setMessages([]);
                 }
             })
             .catch(() => { });
     }, [sessionKey]);
+
+    const refreshSessions = useCallback(() => {
+        if (!socketRef.current?.connected) return;
+        socketRef.current.getSessions()
+            .then(setSessions)
+            .catch(() => { });
+    }, []);
+
+    const createNewSession = useCallback(async (): Promise<string> => {
+        if (!socketRef.current?.connected) throw new Error('Not connected');
+        const newKey = await socketRef.current.createSession();
+        // Refresh sessions list
+        refreshSessions();
+        // Switch to the new session
+        setSessionKey(newKey);
+        setMessages([]);
+        return newKey;
+    }, [refreshSessions]);
 
     // Load history when session changes and connected
     useEffect(() => {
@@ -203,6 +277,27 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
         }
     }, [status, sessionKey, loadHistory]);
 
+    const searchMemoryFn = useCallback(async (query: string) => {
+        if (!socketRef.current?.connected) return;
+        try {
+            const entries = query.trim()
+                ? await socketRef.current.searchMemory(query)
+                : await socketRef.current.getMemoryEntries();
+            setMemoryEntries(entries);
+        } catch {
+            setMemoryEntries([]);
+        }
+    }, []);
+
+    // Initial memory fetch on connect
+    useEffect(() => {
+        if (status === 'connected' && socketRef.current) {
+            socketRef.current.getMemoryEntries(30)
+                .then(setMemoryEntries)
+                .catch(() => setMemoryEntries([]));
+        }
+    }, [status]);
+
     return {
         status,
         alexState,
@@ -210,10 +305,16 @@ export function useGateway(initialSessionKey = 'agent:skyland:main'): UseGateway
         streamingContent,
         isStreaming,
         nodes,
+        sessions,
+        threadPreviews,
+        memoryEntries,
         sessionKey,
         sendMessage,
         abortChat,
         loadHistory,
         setSessionKey,
+        refreshSessions,
+        createNewSession,
+        searchMemory: searchMemoryFn,
     };
 }

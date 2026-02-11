@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatResponse, Task } from '../api';
 import { sendChatMessage } from '../api';
-import { useGateway } from '../gateway/useGateway';
+import { useGateway, type UseGatewayResult } from '../gateway/useGateway';
 import {
     Brain,
     Zap,
@@ -23,6 +23,7 @@ type ChatMode = 'masterbrain' | 'alex';
 
 interface Props {
     onTaskCreated: () => void;
+    gateway?: UseGatewayResult;
 }
 
 interface MBMessage {
@@ -162,7 +163,7 @@ function AttachMenu() {
 }
 
 /* ─── Main Component ─── */
-export function MasterBrainChat({ onTaskCreated }: Props) {
+export function MasterBrainChat({ onTaskCreated, gateway: externalGateway }: Props) {
     const [chatMode, setChatMode] = useState<ChatMode>('alex');
     const [input, setInput] = useState('');
     const [sending, setSending] = useState(false);
@@ -171,8 +172,9 @@ export function MasterBrainChat({ onTaskCreated }: Props) {
     const [mbMessages, setMbMessages] = useState<MBMessage[]>([]);
     const [mbConvoId, setMbConvoId] = useState<string | null>(null);
 
-    // Alex state (WebSocket)
-    const gateway = useGateway('agent:skyland:main');
+    // Alex state (WebSocket) — use external gateway if provided, otherwise internal
+    const internalGateway = useGateway('agent:skyland:main');
+    const gateway = externalGateway || internalGateway;
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 

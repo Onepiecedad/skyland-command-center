@@ -25,6 +25,9 @@ import {
     Plug,
 } from 'lucide-react';
 import { MasterBrainChat } from '../components/MasterBrainChat';
+import { ThreadSidebar } from '../components/chat/ThreadSidebar';
+import { ThreadMemoryPanel } from '../components/chat/ThreadMemoryPanel';
+import { useGateway } from '../gateway/useGateway';
 
 /* ─── Types ─── */
 interface Skill {
@@ -101,6 +104,9 @@ export function AlexView({ onTaskCreated }: Props) {
     const [skillSearch, setSkillSearch] = useState('');
     const [skills, setSkills] = useState<Skill[]>([]);
     const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+
+    /* ─── Gateway (lifted from MasterBrainChat for multi-thread) ─── */
+    const gateway = useGateway('agent:skyland:main');
 
     /* ─── Fetch real skills from backend ─── */
     useEffect(() => {
@@ -217,12 +223,33 @@ export function AlexView({ onTaskCreated }: Props) {
                         </button>
                     ))}
                 </nav>
+
+                {/* Thread Sidebar (visible when chat tab active) */}
+                {activeTab === 'chat' && (
+                    <div className="alex-sidebar-threads">
+                        <ThreadSidebar
+                            sessions={gateway.sessions}
+                            activeSessionKey={gateway.sessionKey}
+                            threadPreviews={gateway.threadPreviews}
+                            onSelectSession={(key) => {
+                                gateway.setSessionKey(key);
+                            }}
+                            onNewThread={() => {
+                                gateway.createNewSession().catch(console.error);
+                            }}
+                        />
+                        <ThreadMemoryPanel
+                            memoryEntries={gateway.memoryEntries}
+                            onSearch={gateway.searchMemory}
+                        />
+                    </div>
+                )}
             </aside>
 
             {/* ─── Main Content Area ─── */}
             <section className="alex-content">
                 {activeTab === 'chat' && (
-                    <MasterBrainChat onTaskCreated={onTaskCreated} />
+                    <MasterBrainChat onTaskCreated={onTaskCreated} gateway={gateway} />
                 )}
 
                 {activeTab === 'tasks' && (

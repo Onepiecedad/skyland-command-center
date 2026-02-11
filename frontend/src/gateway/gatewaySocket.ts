@@ -81,6 +81,17 @@ export interface GatewaySession {
     label?: string;
     lastMessageAt?: string;
     channel?: string;
+    model?: string;
+    tokenCount?: number;
+}
+
+export interface MemoryEntry {
+    id?: string;
+    content: string;
+    source?: string;
+    sessionKey?: string;
+    timestamp?: string;
+    score?: number;
 }
 
 export interface ChatStreamChunk {
@@ -209,6 +220,64 @@ export class GatewaySocket {
         const result = await this.request('node.list', {});
         const data = result as { nodes?: GatewayNode[] };
         return data.nodes || [];
+    }
+
+    async getSessions(agentId = 'main'): Promise<GatewaySession[]> {
+        try {
+            const result = await this.request('sessions.list', { agentId });
+            const data = result as { sessions?: unknown[] };
+            return (data.sessions || []).map((s) => {
+                const raw = s as Record<string, unknown>;
+                return {
+                    key: String(raw.key || raw.sessionKey || ''),
+                    label: raw.label as string | undefined,
+                    lastMessageAt: raw.lastMessageAt as string | undefined,
+                    channel: raw.channel as string | undefined,
+                    model: raw.model as string | undefined,
+                    tokenCount: raw.tokenCount as number | undefined,
+                } as GatewaySession;
+            });
+        } catch {
+            // Fallback: gateway may not support sessions.list — return empty
+            console.warn('[GW] sessions.list not supported, returning empty');
+            return [];
+        }
+    }
+
+    async createSession(agentId = 'main'): Promise<string> {
+        const sessionKey = `agent:${agentId}:scc:${crypto.randomUUID().slice(0, 8)}`;
+        // Warm up the session by sending an empty history request
+        // This ensures the gateway knows about this session key
+        try {
+            await this.request('chat.history', { sessionKey, limit: 1 });
+        } catch {
+            // Ignore — session may not exist yet, which is fine
+        }
+        return sessionKey;
+    }
+
+    async searchMemory(query: string, limit = 20): Promise<MemoryEntry[]> {
+        try {
+            const result = await this.request('memory.search', { query, limit });
+            const data = result as { entries?: unknown[] };
+            return (data.entries || []).map((e) => e as MemoryEntry);
+        } catch {
+            // Gateway may not support this RPC yet — return empty
+            console.warn('[GW] memory.search not available');
+            return [];
+        }
+    }
+
+    async getMemoryEntries(limit = 50): Promise<MemoryEntry[]> {
+        try {
+            const result = await this.request('memory.list', { limit });
+            const data = result as { entries?: unknown[] };
+            return (data.entries || []).map((e) => e as MemoryEntry);
+        } catch {
+            // Gateway may not support this RPC yet — return empty
+            console.warn('[GW] memory.list not available');
+            return [];
+        }
     }
 
     // --- Connection Management ---
