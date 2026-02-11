@@ -7,8 +7,11 @@ const router = Router();
 // ============================================================================
 // Configuration
 // ============================================================================
-const GIT_REPO_PATH = process.env.GIT_REPO_PATH ||
-    '/Users/onepiecedad/skyland-command-center';
+const GIT_REPO_PATH = process.env.GIT_REPO_PATH;
+
+if (!GIT_REPO_PATH) {
+    throw new Error('GIT_REPO_PATH environment variable is required');
+}
 
 const PROTECTED_BRANCHES = ['main', 'master'];
 

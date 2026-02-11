@@ -41,6 +41,12 @@ export interface ChatInput {
 export interface ChatOutput {
     text: string;
     toolCalls?: ToolCall[];
+    usage?: {
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+        costUsd?: number;  // Available from OpenRouter via x-openrouter-cost
+    };
 }
 
 // Provider-agnostic LLM adapter interface

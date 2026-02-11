@@ -8,7 +8,7 @@ const router = Router();
 // ============================================================================
 // Configuration
 // ============================================================================
-const WORKSPACE_DIR = process.env.OPENCLAW_WORKSPACE || process.env.HOME || '/Users/onepiecedad';
+const WORKSPACE_DIR = process.env.OPENCLAW_WORKSPACE || process.env.HOME || '';
 const MEMORY_FILE = path.join(WORKSPACE_DIR, 'MEMORY.md');
 const MEMORY_DIR = path.join(WORKSPACE_DIR, 'memory');
 
@@ -54,7 +54,7 @@ function getFileTimestamp(filePath: string): string | undefined {
 function calculateRelevance(content: string, query: string): number {
     const lowerContent = content.toLowerCase();
     const keywords = query.toLowerCase().split(/\s+/).filter(k => k.length > 1);
-    
+
     let score = 0;
     for (const kw of keywords) {
         const regex = new RegExp(kw, 'g');
@@ -63,7 +63,7 @@ function calculateRelevance(content: string, query: string): number {
             score += matches.length * 10;
         }
     }
-    
+
     // Normalize to 0-1 range
     return Math.min(score / 100, 1);
 }
@@ -73,7 +73,7 @@ function calculateRelevance(content: string, query: string): number {
 // ============================================================================
 async function readAllMemoryFiles(): Promise<MemoryEntry[]> {
     const entries: MemoryEntry[] = [];
-    
+
     // Read MEMORY.md
     try {
         if (fs.existsSync(MEMORY_FILE)) {
@@ -91,7 +91,7 @@ async function readAllMemoryFiles(): Promise<MemoryEntry[]> {
     } catch (err) {
         console.error('Failed to read MEMORY.md:', err);
     }
-    
+
     // Read memory/*.md
     try {
         if (fs.existsSync(MEMORY_DIR)) {
@@ -99,7 +99,7 @@ async function readAllMemoryFiles(): Promise<MemoryEntry[]> {
                 .filter(f => f.endsWith('.md'))
                 .sort()
                 .reverse(); // Newest first
-            
+
             for (const file of files) {
                 const filePath = path.join(MEMORY_DIR, file);
                 try {
@@ -121,7 +121,7 @@ async function readAllMemoryFiles(): Promise<MemoryEntry[]> {
     } catch (err) {
         console.error('Failed to read memory directory:', err);
     }
-    
+
     return entries;
 }
 
@@ -135,17 +135,17 @@ const listSchema = z.object({
 router.get('/list', async (req: Request, res: Response) => {
     try {
         const parsed = listSchema.safeParse(req.query);
-        
+
         if (!parsed.success) {
             return res.status(400).json({
                 error: 'Validation failed',
                 details: parsed.error.issues,
             });
         }
-        
+
         const { limit } = parsed.data;
         const entries = await readAllMemoryFiles();
-        
+
         return res.json({
             entries: entries.slice(0, limit),
             count: entries.length,
@@ -167,17 +167,17 @@ const searchSchema = z.object({
 router.post('/search', async (req: Request, res: Response) => {
     try {
         const parsed = searchSchema.safeParse(req.body);
-        
+
         if (!parsed.success) {
             return res.status(400).json({
                 error: 'Validation failed',
                 details: parsed.error.issues,
             });
         }
-        
+
         const { query, limit } = parsed.data;
         const entries = await readAllMemoryFiles();
-        
+
         // Score and filter
         const scored = entries
             .map(entry => ({
@@ -186,7 +186,7 @@ router.post('/search', async (req: Request, res: Response) => {
             }))
             .filter(entry => entry.score > 0)
             .sort((a, b) => (b.score || 0) - (a.score || 0));
-        
+
         return res.json({
             entries: scored.slice(0, limit),
             count: scored.length,
@@ -206,7 +206,7 @@ router.get('/raw', async (_req: Request, res: Response) => {
         if (!fs.existsSync(MEMORY_FILE)) {
             return res.json({ content: '', exists: false });
         }
-        
+
         const content = fs.readFileSync(MEMORY_FILE, 'utf-8');
         return res.json({
             content,

@@ -229,7 +229,7 @@ function dryRunSkill(skillPath: string, skillName: string): DryRunResult {
 // ============================================================================
 export const SKILLS_DIR = process.env.SKILLS_DIR ||
     path.join(
-        process.env.HOME || '/Users/onepiecedad',
+        process.env.HOME || '',
         '.gemini/antigravity/playground/inner-asteroid/clawdbot/skills'
     );
 

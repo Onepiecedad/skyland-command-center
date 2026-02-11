@@ -9,7 +9,7 @@ const router = Router();
 // ============================================================================
 // Configuration
 // ============================================================================
-const ARCHIVE_BASE = process.env.ARCHIVE_PATH || path.join(process.env.HOME || '/Users/onepiecedad', 'Arkiv');
+const ARCHIVE_BASE = process.env.ARCHIVE_PATH || path.join(process.env.HOME || '', 'Arkiv');
 const ALLOWED_TYPES = ['dokument', 'bilder', 'video', 'rapporter', 'referenser'] as const;
 
 // ============================================================================
@@ -79,15 +79,15 @@ function detectMimeType(filename: string): string {
 
 function detectFileType(filename: string): string {
     const ext = getFileExtension(filename);
-    
+
     const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'heic', 'webp', 'svg'];
     const videoExts = ['mp4', 'mov', 'avi', 'mkv'];
     const docExts = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md'];
-    
+
     if (imageExts.includes(ext)) return 'bilder';
     if (videoExts.includes(ext)) return 'video';
     if (docExts.includes(ext)) return 'dokument';
-    
+
     return 'referenser';
 }
 
@@ -112,43 +112,43 @@ const listSchema = z.object({
 router.get('/files', async (req: Request, res: Response) => {
     try {
         const parsed = listSchema.safeParse(req.query);
-        
+
         if (!parsed.success) {
             return res.status(400).json({ error: 'Invalid parameters', details: parsed.error.issues });
         }
-        
+
         const { type, tags, search, favorite, limit, offset } = parsed.data;
-        
+
         let query = supabase
             .from('archive_files')
             .select('*', { count: 'exact' })
             .eq('is_archived', false)
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
-        
+
         if (type) {
             query = query.eq('file_type', type);
         }
-        
+
         if (tags) {
             query = query.contains('tags', tags.split(','));
         }
-        
+
         if (favorite !== undefined) {
             query = query.eq('is_favorite', favorite);
         }
-        
+
         if (search) {
             query = query.textSearch('search_vector', search, { type: 'websearch' });
         }
-        
+
         const { data, error, count } = await query;
-        
+
         if (error) {
             console.error('Supabase error:', error);
             return res.status(500).json({ error: 'Database error' });
         }
-        
+
         return res.json({
             files: data,
             total: count,
@@ -167,21 +167,21 @@ router.get('/files', async (req: Request, res: Response) => {
 router.get('/files/:id', async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        
+
         const { data, error } = await supabase
             .from('archive_files')
             .select('*')
             .eq('id', id)
             .single();
-        
+
         if (error || !data) {
             return res.status(404).json({ error: 'File not found' });
         }
-        
+
         // Check if file exists on disk
         const fullPath = path.join(ARCHIVE_BASE, data.file_path);
         const exists = fs.existsSync(fullPath);
-        
+
         return res.json({
             ...data,
             exists_on_disk: exists,
@@ -215,47 +215,47 @@ const addSchema = z.object({
 router.post('/files', async (req: Request, res: Response) => {
     try {
         const parsed = addSchema.safeParse(req.body);
-        
+
         if (!parsed.success) {
             return res.status(400).json({ error: 'Invalid data', details: parsed.error.issues });
         }
-        
-        const { 
-            filename, 
-            original_name, 
-            file_type, 
-            title, 
-            description, 
-            tags, 
+
+        const {
+            filename,
+            original_name,
+            file_type,
+            title,
+            description,
+            tags,
             source,
             project_id,
             customer_id,
             file_date,
             file_size,
-            content 
+            content
         } = parsed.data;
-        
+
         // Detect file type if not provided
         const detectedType = file_type || detectFileType(filename);
         const mimeType = detectMimeType(filename);
-        
+
         // Build file path
         const filePath = `${detectedType}/${filename}`;
         const fullPath = path.join(ARCHIVE_BASE, filePath);
-        
+
         // Ensure directory exists
         await ensureDir(path.dirname(fullPath));
-        
+
         // Write content if provided
         if (content) {
             const buffer = Buffer.from(content, 'base64');
             fs.writeFileSync(fullPath, buffer);
         }
-        
+
         // Get file size if not provided
         const stats = content ? null : fs.existsSync(fullPath) ? fs.statSync(fullPath) : null;
         const size = file_size || stats?.size;
-        
+
         // Insert into database
         const { data, error } = await supabase
             .from('archive_files')
@@ -276,12 +276,12 @@ router.post('/files', async (req: Request, res: Response) => {
             })
             .select()
             .single();
-        
+
         if (error) {
             console.error('Insert error:', error);
             return res.status(500).json({ error: 'Failed to add file' });
         }
-        
+
         return res.json({ success: true, file: data });
     } catch (err) {
         console.error('Add file error:', err);
@@ -307,22 +307,22 @@ router.patch('/files/:id', async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const parsed = updateSchema.safeParse(req.body);
-        
+
         if (!parsed.success) {
             return res.status(400).json({ error: 'Invalid data', details: parsed.error.issues });
         }
-        
+
         const { data, error } = await supabase
             .from('archive_files')
             .update(parsed.data)
             .eq('id', id)
             .select()
             .single();
-        
+
         if (error) {
             return res.status(500).json({ error: 'Failed to update file' });
         }
-        
+
         return res.json({ success: true, file: data });
     } catch (err) {
         console.error('Update file error:', err);
@@ -337,28 +337,28 @@ router.delete('/files/:id', async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { delete_file } = req.query;
-        
+
         // Get file info first
         const { data: file, error: fetchError } = await supabase
             .from('archive_files')
             .select('*')
             .eq('id', id)
             .single();
-        
+
         if (fetchError || !file) {
             return res.status(404).json({ error: 'File not found' });
         }
-        
+
         // Delete from database
         const { error: deleteError } = await supabase
             .from('archive_files')
             .delete()
             .eq('id', id);
-        
+
         if (deleteError) {
             return res.status(500).json({ error: 'Failed to delete from database' });
         }
-        
+
         // Optionally delete from disk
         if (delete_file === 'true') {
             const fullPath = path.join(ARCHIVE_BASE, file.file_path);
@@ -366,7 +366,7 @@ router.delete('/files/:id', async (req: Request, res: Response) => {
                 fs.unlinkSync(fullPath);
             }
         }
-        
+
         return res.json({ success: true, deleted_from_disk: delete_file === 'true' });
     } catch (err) {
         console.error('Delete file error:', err);
@@ -385,43 +385,43 @@ router.get('/scan', async (req: Request, res: Response) => {
             skipped: 0,
             errors: [] as string[],
         };
-        
+
         // Get existing files from database
         const { data: existingFiles } = await supabase
             .from('archive_files')
             .select('file_path');
-        
+
         const existingPaths = new Set(existingFiles?.map(f => f.file_path) || []);
-        
+
         // Scan each type folder
         for (const type of ALLOWED_TYPES) {
             const typeDir = path.join(ARCHIVE_BASE, type);
-            
+
             if (!fs.existsSync(typeDir)) {
                 continue;
             }
-            
+
             const files = fs.readdirSync(typeDir);
-            
+
             for (const filename of files) {
                 stats.scanned++;
                 const filePath = `${type}/${filename}`;
-                
+
                 // Skip if already in database
                 if (existingPaths.has(filePath)) {
                     stats.skipped++;
                     continue;
                 }
-                
+
                 try {
                     const fullPath = path.join(typeDir, filename);
                     const fileStats = fs.statSync(fullPath);
-                    
+
                     // Skip directories
                     if (fileStats.isDirectory()) {
                         continue;
                     }
-                    
+
                     // Add to database
                     const { error } = await supabase
                         .from('archive_files')
@@ -434,7 +434,7 @@ router.get('/scan', async (req: Request, res: Response) => {
                             title: filename,
                             source: 'scan',
                         });
-                    
+
                     if (error) {
                         stats.errors.push(`${filename}: ${error.message}`);
                     } else {
@@ -445,7 +445,7 @@ router.get('/scan', async (req: Request, res: Response) => {
                 }
             }
         }
-        
+
         return res.json(stats);
     } catch (err) {
         console.error('Scan error:', err);
@@ -463,12 +463,12 @@ router.get('/stats', async (_req: Request, res: Response) => {
             .from('archive_files')
             .select('file_type, file_size, is_favorite')
             .eq('is_archived', false);
-        
+
         // Aggregate
         const stats: Record<string, { count: number; size: number; favorites: number }> = {};
         let totalSize = 0;
         let totalCount = 0;
-        
+
         for (const file of typeStats || []) {
             const type = file.file_type;
             if (!stats[type]) {
@@ -480,7 +480,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
             totalSize += file.file_size || 0;
             totalCount++;
         }
-        
+
         // Format sizes
         const formatSize = (bytes: number): string => {
             if (bytes < 1024) return `${bytes} B`;
@@ -488,7 +488,7 @@ router.get('/stats', async (_req: Request, res: Response) => {
             if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
             return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
         };
-        
+
         return res.json({
             by_type: stats,
             total: {
@@ -512,11 +512,11 @@ router.get('/collections', async (_req: Request, res: Response) => {
             .from('archive_collections')
             .select('*')
             .order('name');
-        
+
         if (error) {
             return res.status(500).json({ error: 'Database error' });
         }
-        
+
         return res.json({ collections: data });
     } catch (err) {
         console.error('Collections error:', err);

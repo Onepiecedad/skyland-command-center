@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { fetchWithAuth, API_BASE } from '../api';
 
 interface DailyCost {
     date: string;
@@ -37,7 +38,7 @@ const PROVIDER_COLORS: Record<string, string> = {
     other: '#64748B',
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 
 export function CostCenter() {
     const [timeRange, setTimeRange] = useState<'7d' | '30d'>('30d');
@@ -49,7 +50,7 @@ export function CostCenter() {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_BASE}/api/v1/costs?range=${range}`);
+            const res = await fetchWithAuth(`${API_BASE}/costs?range=${range}`);
             if (!res.ok) {
                 const errData = await res.json().catch(() => ({}));
                 throw new Error(errData.error || `HTTP ${res.status}`);

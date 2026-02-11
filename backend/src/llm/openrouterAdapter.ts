@@ -73,6 +73,11 @@ export class OpenRouterAdapter implements LLMAdapter {
             return {
                 text: message.content || '',
                 toolCalls: toolCalls?.length ? toolCalls : undefined,
+                usage: response.usage ? {
+                    promptTokens: response.usage.prompt_tokens ?? 0,
+                    completionTokens: response.usage.completion_tokens ?? 0,
+                    totalTokens: response.usage.total_tokens ?? 0,
+                } : undefined,
             };
         } catch (error) {
             console.error('[openrouter-adapter] Error calling OpenRouter:', error);

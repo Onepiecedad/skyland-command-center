@@ -1,5 +1,18 @@
 // API wrapper for Skyland Command Center
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001/api/v1';
+export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001/api/v1';
+const SCC_API_TOKEN = import.meta.env.VITE_SCC_API_TOKEN || '';
+
+/**
+ * Wrapper around fetch that injects Bearer token auth header.
+ * Used for all SCC backend API calls.
+ */
+export async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+    const headers = new Headers(options.headers);
+    if (SCC_API_TOKEN) {
+        headers.set('Authorization', `Bearer ${SCC_API_TOKEN}`);
+    }
+    return fetch(url, { ...options, headers });
+}
 
 // ============================================================================
 // Types
@@ -73,7 +86,7 @@ export async function fetchCustomers(slug?: string): Promise<Customer[]> {
     const url = slug
         ? `${API_BASE}/customers?slug=${encodeURIComponent(slug)}`
         : `${API_BASE}/customers`;
-    const res = await fetch(url);
+    const res = await fetchWithAuth(url);
     const data = await res.json();
     return data.customers || [];
 }
@@ -95,7 +108,7 @@ export async function fetchActivities(params?: {
     if (params?.agent) searchParams.set('agent', params.agent);
 
     const url = `${API_BASE}/activities?${searchParams}`;
-    const res = await fetch(url);
+    const res = await fetchWithAuth(url);
     const data = await res.json();
     return data.activities || [];
 }
@@ -113,13 +126,13 @@ export async function fetchTasks(params?: {
     if (params?.customer_id) searchParams.set('customer_id', params.customer_id);
 
     const url = `${API_BASE}/tasks?${searchParams}`;
-    const res = await fetch(url);
+    const res = await fetchWithAuth(url);
     const data = await res.json();
     return data.tasks || [];
 }
 
 export async function approveTask(taskId: string, approvedBy: string): Promise<Task> {
-    const res = await fetch(`${API_BASE}/tasks/${taskId}/approve`, {
+    const res = await fetchWithAuth(`${API_BASE}/tasks/${taskId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ approved_by: approvedBy })
@@ -149,18 +162,18 @@ export async function fetchStatus(): Promise<{
     supabase: { ok: boolean };
     counts: { customers: number; tasks_open: number; suggest_pending: number };
 }> {
-    const res = await fetch(`${API_BASE}/status`);
+    const res = await fetchWithAuth(`${API_BASE}/status`);
     return res.json();
 }
 
 export async function fetchTaskChildren(taskId: string): Promise<Task[]> {
-    const res = await fetch(`${API_BASE}/tasks/${taskId}/children`);
+    const res = await fetchWithAuth(`${API_BASE}/tasks/${taskId}/children`);
     const data = await res.json();
     return data.children || [];
 }
 
 export async function fetchTaskRuns(taskId: string): Promise<TaskRun[]> {
-    const res = await fetch(`${API_BASE}/tasks/${taskId}/runs`);
+    const res = await fetchWithAuth(`${API_BASE}/tasks/${taskId}/runs`);
     const data = await res.json();
     return data.runs || [];
 }
@@ -174,7 +187,7 @@ export interface DispatchResult {
 }
 
 export async function dispatchTask(taskId: string, workerId?: string): Promise<DispatchResult> {
-    const res = await fetch(`${API_BASE}/tasks/${taskId}/dispatch`, {
+    const res = await fetchWithAuth(`${API_BASE}/tasks/${taskId}/dispatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ worker_id: workerId || 'backend-dispatcher-v0' })
@@ -199,7 +212,7 @@ export async function dispatchTask(taskId: string, workerId?: string): Promise<D
 }
 
 export async function fetchTask(taskId: string): Promise<Task | null> {
-    const res = await fetch(`${API_BASE}/tasks/${taskId}`);
+    const res = await fetchWithAuth(`${API_BASE}/tasks/${taskId}`);
     if (!res.ok) return null;
     const data = await res.json();
     return data.task || null;
@@ -216,7 +229,7 @@ export async function fetchRunsGlobal(params?: {
     if (params?.executorPrefix) searchParams.set('executorPrefix', params.executorPrefix);
 
     const url = `${API_BASE}/runs?${searchParams}`;
-    const res = await fetch(url);
+    const res = await fetchWithAuth(url);
     const data = await res.json();
     return data.runs || [];
 }
@@ -246,7 +259,7 @@ export async function fetchTaskProgress(taskId: string): Promise<{
     run_status: string | null;
 }> {
     try {
-        const res = await fetch(`${API_BASE}/tasks/${taskId}/progress`);
+        const res = await fetchWithAuth(`${API_BASE}/tasks/${taskId}/progress`);
         if (!res.ok) return { progress: null, run_status: null };
         const data = await res.json();
         return {
@@ -279,13 +292,13 @@ export interface Skill {
 }
 
 export async function fetchSkills(): Promise<{ skills: Skill[]; count: number; enabled_count?: number; disabled_count?: number }> {
-    const res = await fetch(`${API_BASE}/skills`);
+    const res = await fetchWithAuth(`${API_BASE}/skills`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
 
 export async function fetchSkillDetail(name: string): Promise<{ skill: Skill }> {
-    const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(name)}`);
+    const res = await fetchWithAuth(`${API_BASE}/skills/${encodeURIComponent(name)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -295,13 +308,13 @@ export async function fetchSkillDetail(name: string): Promise<{ skill: Skill }> 
 // ============================================================================
 
 export async function enableSkill(name: string): Promise<{ status: string; skill: string; enabled: boolean }> {
-    const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(name)}/enable`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/skills/${encodeURIComponent(name)}/enable`, { method: 'POST' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
 
 export async function disableSkill(name: string): Promise<{ status: string; skill: string; enabled: boolean }> {
-    const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(name)}/disable`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/skills/${encodeURIComponent(name)}/disable`, { method: 'POST' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -311,7 +324,7 @@ export async function dryRunSkill(name: string): Promise<{
     valid: boolean;
     checks: Array<{ check: string; passed: boolean; detail?: string }>;
 }> {
-    const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(name)}/dry-run`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/skills/${encodeURIComponent(name)}/dry-run`, { method: 'POST' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -334,7 +347,7 @@ export async function checkSkills(task: string, agentId?: string): Promise<{
     matches: SkillMatch[];
     match_count: number;
 }> {
-    const res = await fetch(`${API_BASE}/skills/check`, {
+    const res = await fetchWithAuth(`${API_BASE}/skills/check`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task, agent_id: agentId }),
@@ -348,7 +361,7 @@ export async function validateSkill(name: string): Promise<{
     usable: boolean;
     checks: Array<{ check: string; passed: boolean; detail?: string }>;
 }> {
-    const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(name)}/validate`);
+    const res = await fetchWithAuth(`${API_BASE}/skills/${encodeURIComponent(name)}/validate`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -377,7 +390,7 @@ export async function fetchGitStatus(): Promise<{
     file_count: number;
     last_commit: { hash: string; subject: string; date: string };
 }> {
-    const res = await fetch(`${API_BASE}/git/status`);
+    const res = await fetchWithAuth(`${API_BASE}/git/status`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -389,13 +402,13 @@ export async function fetchGitDiff(staged?: boolean): Promise<{
     staged: boolean;
 }> {
     const url = staged ? `${API_BASE}/git/diff?staged=true` : `${API_BASE}/git/diff`;
-    const res = await fetch(url);
+    const res = await fetchWithAuth(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
 
 export async function gitAdd(files: string[] = ['.']): Promise<{ success: boolean; staged_files: string[]; status: string }> {
-    const res = await fetch(`${API_BASE}/git/add`, {
+    const res = await fetchWithAuth(`${API_BASE}/git/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ files }),
@@ -410,7 +423,7 @@ export async function gitCommit(message: string): Promise<{
     message: string;
     result: string;
 }> {
-    const res = await fetch(`${API_BASE}/git/commit`, {
+    const res = await fetchWithAuth(`${API_BASE}/git/commit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message }),
@@ -423,12 +436,12 @@ export async function gitCommit(message: string): Promise<{
 }
 
 export async function gitPush(): Promise<{ success?: boolean; error?: string; message?: string; branch?: string }> {
-    const res = await fetch(`${API_BASE}/git/push`, { method: 'POST' });
+    const res = await fetchWithAuth(`${API_BASE}/git/push`, { method: 'POST' });
     return res.json(); // may be 403 for protected branches
 }
 
 export async function fetchGitLog(count = 10): Promise<{ branch: string; commits: GitCommitInfo[]; count: number }> {
-    const res = await fetch(`${API_BASE}/git/log?count=${count}`);
+    const res = await fetchWithAuth(`${API_BASE}/git/log?count=${count}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -462,7 +475,7 @@ export async function fetchAgentQueue(params?: {
     if (params?.limit) searchParams.set('limit', String(params.limit));
 
     const url = `${API_BASE}/agent-queue?${searchParams}`;
-    const res = await fetch(url);
+    const res = await fetchWithAuth(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -472,7 +485,7 @@ export async function updateQueueTask(taskId: string, updates: {
     status?: string;
     assigned_agent?: string;
 }): Promise<{ task: Task }> {
-    const res = await fetch(`${API_BASE}/agent-queue/${taskId}`, {
+    const res = await fetchWithAuth(`${API_BASE}/agent-queue/${taskId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
@@ -494,7 +507,7 @@ export async function fetchAgentContext(agentId: string): Promise<{
         system_status: { total_tasks: number; pending_approvals: number; errors_24h: number; timestamp: string };
     };
 }> {
-    const res = await fetch(`${API_BASE}/context/${encodeURIComponent(agentId)}`);
+    const res = await fetchWithAuth(`${API_BASE}/context/${encodeURIComponent(agentId)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -507,7 +520,7 @@ export async function fetchCustomerContext(slug: string): Promise<{
         related_agents: string[];
     };
 }> {
-    const res = await fetch(`${API_BASE}/context/customer/${encodeURIComponent(slug)}`);
+    const res = await fetchWithAuth(`${API_BASE}/context/customer/${encodeURIComponent(slug)}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -528,7 +541,7 @@ export async function fetchTools(): Promise<{
     count: number;
     categories: string[];
 }> {
-    const res = await fetch(`${API_BASE}/tools`);
+    const res = await fetchWithAuth(`${API_BASE}/tools`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -541,7 +554,7 @@ export async function invokeTool(tool: string, params?: Record<string, unknown>,
     agent_id: string;
     timestamp: string;
 }> {
-    const res = await fetch(`${API_BASE}/tools/invoke`, {
+    const res = await fetchWithAuth(`${API_BASE}/tools/invoke`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tool, params, agent_id: agentId }),
@@ -571,6 +584,9 @@ export function connectEventStream(
     if (filters?.agentId) params.set('agentId', filters.agentId);
     if (filters?.customerId) params.set('customerId', filters.customerId);
 
+
+    // EventSource doesn't support custom headers, pass token as query param
+    if (SCC_API_TOKEN) params.set('token', SCC_API_TOKEN);
     const qs = params.toString();
     const url = `${API_BASE}/events/stream${qs ? `?${qs}` : ''}`;
     const es = new EventSource(url);
@@ -594,7 +610,7 @@ export async function fetchRecentEvents(limit?: number, types?: string): Promise
     if (types) params.set('types', types);
 
     const qs = params.toString();
-    const res = await fetch(`${API_BASE}/events/recent${qs ? `?${qs}` : ''}`);
+    const res = await fetchWithAuth(`${API_BASE}/events/recent${qs ? `?${qs}` : ''}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -623,7 +639,7 @@ export async function fetchErrorPatterns(): Promise<{
     total_errors: number;
     period: string;
 }> {
-    const res = await fetch(`${API_BASE}/recovery/errors`);
+    const res = await fetchWithAuth(`${API_BASE}/recovery/errors`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -636,7 +652,7 @@ export async function analyzeError(activityId: string): Promise<{
     details: Record<string, unknown>;
     created_at: string;
 }> {
-    const res = await fetch(`${API_BASE}/recovery/analyze`, {
+    const res = await fetchWithAuth(`${API_BASE}/recovery/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activity_id: activityId }),
@@ -649,7 +665,7 @@ export async function retryFailedRun(taskId: string): Promise<{
     status: string;
     task: Task;
 }> {
-    const res = await fetch(`${API_BASE}/recovery/retry`, {
+    const res = await fetchWithAuth(`${API_BASE}/recovery/retry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task_id: taskId }),
@@ -674,7 +690,7 @@ export async function fetchRecoveryRules(): Promise<{
     rules: RecoveryRule[];
     count: number;
 }> {
-    const res = await fetch(`${API_BASE}/recovery/rules`);
+    const res = await fetchWithAuth(`${API_BASE}/recovery/rules`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -685,7 +701,7 @@ export async function createRecoveryRule(rule: {
     max_retries?: number;
     cooldown_minutes?: number;
 }): Promise<{ rule: RecoveryRule }> {
-    const res = await fetch(`${API_BASE}/recovery/rules`, {
+    const res = await fetchWithAuth(`${API_BASE}/recovery/rules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(rule),
@@ -718,7 +734,7 @@ export async function searchMemory(
     query: string;
     scope: string;
 }> {
-    const res = await fetch(`${API_BASE}/memory/search`, {
+    const res = await fetchWithAuth(`${API_BASE}/memory/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, scope, limit }),
@@ -753,7 +769,7 @@ export async function fetchMemoryTimeline(params?: {
     if (params?.until) qp.set('until', params.until);
 
     const qs = qp.toString();
-    const res = await fetch(`${API_BASE}/memory/timeline${qs ? `?${qs}` : ''}`);
+    const res = await fetchWithAuth(`${API_BASE}/memory/timeline${qs ? `?${qs}` : ''}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -763,7 +779,7 @@ export async function fetchMemoryStats(): Promise<{
     top_agents: Array<{ agent: string; count: number }>;
     top_event_types: Array<{ event_type: string; count: number }>;
 }> {
-    const res = await fetch(`${API_BASE}/memory/stats`);
+    const res = await fetchWithAuth(`${API_BASE}/memory/stats`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -781,7 +797,7 @@ export async function fetchStorageOverview(): Promise<{
     total_rows: number;
     generated_at: string;
 }> {
-    const res = await fetch(`${API_BASE}/memory/storage`);
+    const res = await fetchWithAuth(`${API_BASE}/memory/storage`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -797,7 +813,7 @@ export async function archiveRecords(
     records_to_delete?: number;
     deleted_count?: number;
 }> {
-    const res = await fetch(`${API_BASE}/memory/archive`, {
+    const res = await fetchWithAuth(`${API_BASE}/memory/archive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ table, before_date: beforeDate, dry_run: dryRun }),
@@ -816,7 +832,7 @@ export async function fetchRetentionPolicy(): Promise<{
     policy: RetentionPolicy;
     source: 'configured' | 'default';
 }> {
-    const res = await fetch(`${API_BASE}/memory/retention`);
+    const res = await fetchWithAuth(`${API_BASE}/memory/retention`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
@@ -825,7 +841,7 @@ export async function updateRetentionPolicy(policy: Partial<RetentionPolicy>): P
     policy: RetentionPolicy;
     status: string;
 }> {
-    const res = await fetch(`${API_BASE}/memory/retention`, {
+    const res = await fetchWithAuth(`${API_BASE}/memory/retention`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(policy),
@@ -840,7 +856,7 @@ export async function runMemoryCleanup(): Promise<{
     results: Record<string, number>;
     total_deleted: number;
 }> {
-    const res = await fetch(`${API_BASE}/memory/cleanup`, {
+    const res = await fetchWithAuth(`${API_BASE}/memory/cleanup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
     });
