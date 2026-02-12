@@ -10,8 +10,18 @@ const router = Router();
 const GIT_REPO_PATH = process.env.GIT_REPO_PATH;
 
 if (!GIT_REPO_PATH) {
-    throw new Error('GIT_REPO_PATH environment variable is required');
+    console.warn('GIT_REPO_PATH not set — git operations will be disabled');
 }
+
+// Middleware to check if git ops are available
+function requireGitConfig(_req: Request, res: Response, next: Function) {
+    if (!GIT_REPO_PATH) {
+        return res.status(503).json({ error: 'Git operations not available — GIT_REPO_PATH not configured' });
+    }
+    next();
+}
+
+router.use(requireGitConfig);
 
 const PROTECTED_BRANCHES = ['main', 'master'];
 
