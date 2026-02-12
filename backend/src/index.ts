@@ -37,6 +37,8 @@ import memoryManagementRouter from './routes/memoryManagement';
 import alexMemoryRouter from './routes/alexMemory';
 import openworkWebhookRouter from './routes/openworkWebhook';
 import archiveRouter from './routes/archive';
+import ideasRouter from './routes/ideas';
+import voiceRouter from './routes/voice';
 
 // --- Middleware ---
 import { authMiddleware } from './middleware/auth';
@@ -96,6 +98,8 @@ app.use('/api/v1/memory', memoryManagementRouter);
 app.use('/api/v1/alex', alexMemoryRouter);
 app.use('/api/v1/webhook', openworkWebhookRouter);
 app.use('/api/v1/archive', archiveRouter);
+app.use('/api/v1/ideas', ideasRouter);           // Project ideas management
+app.use('/api/v1/voice', voiceRouter);           // Voice chat via ElevenLabs
 
 // ============================================================================
 // Reaper Timer — timeouts stuck running task_runs

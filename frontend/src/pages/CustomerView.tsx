@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import {
     Search,
     X,
@@ -22,7 +22,9 @@ import { fetchCustomers } from '../api';
 import { CustomerCard } from '../components/CustomerCard';
 import { ActivityLog } from '../components/ActivityLog';
 import { PendingApprovals } from '../components/PendingApprovals';
-import { Realm3D } from '../components/Realm3D';
+
+// Lazy-load Realm3D to prevent Three.js version mismatch from crashing entire app
+const Realm3D = lazy(() => import('../components/Realm3D').then(m => ({ default: m.Realm3D })));
 
 /* ─── Config ─── */
 const STATUS_PRIORITY: Record<string, number> = {
@@ -195,10 +197,12 @@ export function CustomerView({ onTaskCreated }: Props) {
                     </div>
                 ) : (
                     <div className="cv-realm-area">
-                        <Realm3D
-                            selectedCustomerId={selectedCustomerId}
-                            onSelectCustomer={handleSelectCustomer}
-                        />
+                        <Suspense fallback={<div className="cv-loading">Laddar 3D…</div>}>
+                            <Realm3D
+                                selectedCustomerId={selectedCustomerId}
+                                onSelectCustomer={handleSelectCustomer}
+                            />
+                        </Suspense>
                     </div>
                 )}
 

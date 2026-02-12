@@ -1,7 +1,9 @@
 import { z } from 'zod';
+import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
 
-// Note: extendZodWithOpenApi should be called once at app initialization
-// The schemas below use standard Zod - OpenAPI extension happens in docs/openapi.ts
+extendZodWithOpenApi(z);
+
+// The schemas below use the .openapi() extension method
 
 /**
  * Reusable Schema Components
