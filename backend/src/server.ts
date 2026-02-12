@@ -262,6 +262,6 @@ const server = new Server();
 export default server;
 
 // Start server if this file is run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (require.main === module) {
   server.start();
 }
