@@ -7,6 +7,7 @@
 
 import { Router, Request, Response } from 'express';
 import { config } from '../config';
+import { supabase } from '../services/supabase';
 
 const router = Router();
 
@@ -145,8 +146,72 @@ router.post('/tools', async (req: Request, res: Response) => {
                 break;
             }
 
+            case 'query_customers': {
+                try {
+                    const { data, error } = await supabase
+                        .from('customer_status')
+                        .select('*');
+
+                    if (error) {
+                        result = `Kunde inte hämta kunddata: ${error.message}`;
+                        break;
+                    }
+
+                    if (!data || data.length === 0) {
+                        result = 'Det finns inga kunder registrerade i systemet just nu.';
+                        break;
+                    }
+
+                    const customerSummaries = data.map((c: Record<string, unknown>) => {
+                        const name = c.name as string || 'Okänd';
+                        const status = c.status as string || 'okänd';
+                        const openTasks = c.open_tasks as number || 0;
+                        const errors = c.errors_24h as number || 0;
+                        return `• ${name} — status: ${status}, ${openTasks} öppna uppgifter, ${errors} fel senaste 24h`;
+                    });
+
+                    result = `Du har ${data.length} kunder:\n${customerSummaries.join('\n')}`;
+                } catch (dbErr) {
+                    console.error('[voice/tools] DB error:', dbErr);
+                    result = 'Kunde inte ansluta till databasen just nu.';
+                }
+                break;
+            }
+
+            case 'query_tasks': {
+                try {
+                    const { data, error } = await supabase
+                        .from('tasks')
+                        .select('*')
+                        .order('created_at', { ascending: false })
+                        .limit(10);
+
+                    if (error) {
+                        result = `Kunde inte hämta uppgifter: ${error.message}`;
+                        break;
+                    }
+
+                    if (!data || data.length === 0) {
+                        result = 'Det finns inga uppgifter i systemet just nu.';
+                        break;
+                    }
+
+                    const taskSummaries = data.map((t: Record<string, unknown>) => {
+                        const title = t.title as string || t.name as string || 'Namnlös';
+                        const status = t.status as string || 'okänd';
+                        return `• ${title} — ${status}`;
+                    });
+
+                    result = `Senaste ${data.length} uppgifter:\n${taskSummaries.join('\n')}`;
+                } catch (dbErr) {
+                    console.error('[voice/tools] DB error:', dbErr);
+                    result = 'Kunde inte ansluta till databasen just nu.';
+                }
+                break;
+            }
+
             default: {
-                result = `Verktyget "${tool_name}" är inte implementerat ännu. Jag kan hjälpa med: web_search, get_status, get_time.`;
+                result = `Verktyget "${tool_name}" är inte implementerat ännu. Jag kan hjälpa med: web_search, get_status, get_time, query_customers, query_tasks.`;
                 console.warn('[voice/tools] Unknown tool:', tool_name);
             }
         }
