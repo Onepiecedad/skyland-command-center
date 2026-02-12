@@ -2,6 +2,63 @@
 
 ---
 
+## 2026-02-12 — Röst-Agent: SCC Data Tools & ElevenLabs MCP
+
+### 📋 Status: ✅ SLUTFÖRD (2026-02-12 22:05)
+
+**Mål:** Ge Alex (röst-agenten) tillgång till riktig SCC-data — kunder, uppgifter och systemstatus — via röstchat.
+
+### Problem
+
+Alex kunde bara svara med generell text. Frågor som "Vilka kunder har jag?" eller "Vad är status på mina tasks?" fick svaret "Jag har inte tillgång till den datan."
+
+### Lösning
+
+#### 1. Nya tool-handlers i `voice.ts`
+
+| Verktyg | Funktion |
+|---|---|
+| `query_customers` | Hämtar alla kunder från Supabase `customer_status` med namn, status, öppna uppgifter, fel |
+| `query_tasks` | Hämtar 10 senaste tasks från Supabase `tasks` med titel och status |
+
+#### 2. ElevenLabs Agent uppdaterad via REST API
+
+- Rensade stale `tool_ids` referens till borttaget tool
+- Patchade agenten med inline `scc_tools` definition
+- Lade till `enum` på `tool_name`: `["web_search", "query_customers", "query_tasks", "get_status", "get_time"]`
+- Uppdaterade system-prompten med tydliga instruktioner för när varje verktyg ska användas
+
+#### 3. ElevenLabs MCP tillagd
+
+- Lade till `elevenlabs-mcp` i `~/.gemini/antigravity/mcp_config.json`
+- Tillgänglig i framtida sessioner för programmatisk agentkonfiguration
+
+### Verifiering
+
+```bash
+# Live Render — query_customers
+curl -s -X POST https://scc-backend-f4fu.onrender.com/api/v1/voice/tools \
+  -H 'Content-Type: application/json' \
+  -d '{"tool_name":"query_customers","params":"{}"}'
+# → 3 kunder: Thomas, Axel, Gustav — alla active
+
+# Lokalt — query_tasks
+# → 10 senaste uppgifter med status
+```
+
+### Ändrade filer
+
+| Fil | Ändring |
+|---|---|
+| `backend/src/routes/voice.ts` | +66 rader: `query_customers`, `query_tasks` handlers + Supabase import |
+| `~/.gemini/antigravity/mcp_config.json` | +9 rader: ElevenLabs MCP-server |
+
+### Git
+
+- Commit `8ab6176`: `feat: add query_customers and query_tasks tools for voice agent`
+
+---
+
 ## 2026-02-12 — Backend Deploy till Render & ElevenLabs Integration
 
 ### 📋 Status: ✅ SLUTFÖRD (2026-02-12 21:30)
