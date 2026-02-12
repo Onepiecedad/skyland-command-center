@@ -17,6 +17,21 @@ import {
 const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'ws://127.0.0.1:18789';
 const GATEWAY_TOKEN = import.meta.env.VITE_GATEWAY_TOKEN || '';
 
+// Internal messages that should never appear in the chat UI
+const SYSTEM_MSG_PATTERNS = [
+    'HEARTBEAT',
+    'Read HEARTBEAT.md',
+    'HEARTBEAT_OK',
+    'Cron:',
+    'A scheduled reminder has been triggered',
+];
+
+function isSystemMessage(msg: { role?: string; content?: string }): boolean {
+    if (!msg.content) return false;
+    const c = msg.content.trim();
+    return SYSTEM_MSG_PATTERNS.some(p => c.includes(p));
+}
+
 export interface ThreadPreview {
     lastMessage: string;
     messageCount: number;
@@ -83,6 +98,10 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                 setIsStreaming(false);
                 setAlexState('idle');
                 currentRunId.current = null;
+
+                // Skip internal system messages
+                if (isSystemMessage({ content: finalText })) break;
+
                 setMessages(prev => [...prev, {
                     role: 'assistant',
                     content: finalText,
@@ -257,7 +276,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
         socketRef.current.getChatHistory(sessionKey)
             .then((result) => {
                 if (result.messages?.length) {
-                    setMessages(result.messages);
+                    setMessages(result.messages.filter(m => !isSystemMessage(m)));
                 } else {
                     setMessages([]);
                 }
