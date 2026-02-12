@@ -207,12 +207,15 @@ export class GatewaySocket {
         this.setStatus('disconnected');
     }
 
-    async sendChatMessage(sessionKey: string, message: string, attachments?: ChatAttachment[]): Promise<void> {
+    async sendChatMessage(sessionKey: string, message: string, attachments?: ChatAttachment[], model?: string): Promise<void> {
         const payload: Record<string, unknown> = {
             sessionKey,
             message,
             idempotencyKey: crypto.randomUUID(),
         };
+        if (model) {
+            payload.model = model;
+        }
         if (attachments?.length) {
             payload.attachments = attachments.map(a => ({
                 name: a.name,

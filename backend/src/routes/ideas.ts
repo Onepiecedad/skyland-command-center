@@ -5,28 +5,6 @@ import { supabase } from '../services/supabase';
 const router = Router();
 
 // ============================================================================
-// Types
-// ============================================================================
-interface Idea {
-    id: string;
-    title: string;
-    description?: string;
-    category: string;
-    status: 'new' | 'in-progress' | 'planned' | 'completed' | 'archived';
-    priority: 'low' | 'medium' | 'high' | 'critical';
-    tags: string[];
-    source?: string;
-    created_by: string;
-    assigned_to?: string;
-    due_date?: string;
-    created_at: string;
-    updated_at: string;
-    completed_at?: string;
-    notes?: string;
-    attachments: unknown[];
-}
-
-// ============================================================================
 // Validation Schemas
 // ============================================================================
 const createIdeaSchema = z.object({
@@ -224,25 +202,40 @@ router.delete('/:id', async (req: Request, res: Response) => {
 // ============================================================================
 router.get('/stats/overview', async (_req: Request, res: Response) => {
     try {
-        const { data: byStatus } = await supabase
+        const { data: allIdeas, error } = await supabase
             .from('ideas')
-            .select('status', { count: 'exact' })
-            .group('status');
+            .select('status, priority, category');
 
-        const { data: byPriority } = await supabase
-            .from('ideas')
-            .select('priority', { count: 'exact' })
-            .group('priority');
+        if (error) {
+            console.error('Stats error:', error);
+            return res.status(500).json({ error: 'Database error' });
+        }
 
-        const { data: byCategory } = await supabase
-            .from('ideas')
-            .select('category', { count: 'exact' })
-            .group('category');
+        const ideas = allIdeas || [];
+
+        // Aggregate by status
+        const byStatus: Record<string, number> = {};
+        for (const idea of ideas) {
+            byStatus[idea.status] = (byStatus[idea.status] || 0) + 1;
+        }
+
+        // Aggregate by priority
+        const byPriority: Record<string, number> = {};
+        for (const idea of ideas) {
+            byPriority[idea.priority] = (byPriority[idea.priority] || 0) + 1;
+        }
+
+        // Aggregate by category
+        const byCategory: Record<string, number> = {};
+        for (const idea of ideas) {
+            byCategory[idea.category] = (byCategory[idea.category] || 0) + 1;
+        }
 
         return res.json({
             byStatus,
             byPriority,
             byCategory,
+            total: ideas.length,
         });
     } catch (err) {
         console.error('Stats error:', err);

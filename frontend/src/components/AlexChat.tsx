@@ -13,7 +13,7 @@ import {
     Paperclip,
     Image,
     FileCode,
-    Lightbulb,
+
     SendHorizontal,
     Square,
     X,
@@ -57,18 +57,17 @@ interface Model {
 }
 
 const MODELS: Model[] = [
-    { id: 'gpt-4o', name: 'GPT-4o', description: 'OpenAI flagship', icon: <Sparkles size={14} className="bolt-model-icon bolt-icon-green" />, badge: 'Default' },
-    { id: 'sonnet-4', name: 'Sonnet 4', description: 'Fast & intelligent', icon: <Zap size={14} className="bolt-model-icon bolt-icon-blue" /> },
-    { id: 'opus-4', name: 'Opus 4', description: 'Most capable', icon: <Sparkles size={14} className="bolt-model-icon bolt-icon-purple" />, badge: 'Pro' },
-    { id: 'gemini-2.5', name: 'Gemini 2.5', description: 'Google AI', icon: <Brain size={14} className="bolt-model-icon bolt-icon-cyan" /> },
+    { id: 'openai/gpt-4o', name: 'GPT-4o', description: 'OpenAI flagship', icon: <Sparkles size={14} className="bolt-model-icon bolt-icon-green" />, badge: 'Default' },
+    { id: 'anthropic/claude-sonnet-4', name: 'Sonnet 4', description: 'Fast & intelligent', icon: <Zap size={14} className="bolt-model-icon bolt-icon-blue" /> },
+    { id: 'anthropic/claude-opus-4', name: 'Opus 4', description: 'Most capable', icon: <Sparkles size={14} className="bolt-model-icon bolt-icon-purple" />, badge: 'Pro' },
+    { id: 'google/gemini-2.5-pro-preview', name: 'Gemini 2.5', description: 'Google AI', icon: <Brain size={14} className="bolt-model-icon bolt-icon-cyan" /> },
 ];
 
-function ModelSelector() {
+function ModelSelector({ selected, onSelect }: { selected: Model; onSelect: (m: Model) => void }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [selected, setSelected] = useState(MODELS[0]);
 
     const handleSelect = (model: Model) => {
-        setSelected(model);
+        onSelect(model);
         setIsOpen(false);
     };
 
@@ -183,6 +182,7 @@ const MemoMessage = memo(function ChatMessage({ msg }: { msg: { role: string; co
 /* ─── Main Component ─── */
 export function AlexChat({ gateway: externalGateway }: Props) {
     const [input, setInput] = useState('');
+    const [selectedModel, setSelectedModel] = useState(MODELS[0]);
 
     // Alex state (WebSocket) — use external gateway if provided, otherwise internal
     const internalGateway = useGateway('agent:skyland:main', { disabled: !!externalGateway });
@@ -263,7 +263,7 @@ export function AlexChat({ gateway: externalGateway }: Props) {
         const atts = attachments.length ? [...attachments] : undefined;
         setInput('');
         setAttachments([]);
-        gateway.sendMessage(text, atts);
+        gateway.sendMessage(text, atts, selectedModel.id);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -412,15 +412,10 @@ export function AlexChat({ gateway: externalGateway }: Props) {
                                 onImageSelect={() => imageInputRef.current?.click()}
                                 onFileSelect={() => fileInputRef.current?.click()}
                             />
-                            <ModelSelector />
+                            <ModelSelector selected={selectedModel} onSelect={setSelectedModel} />
                         </div>
 
                         <div className="bolt-toolbar-right">
-                            <button className="bolt-plan-btn" title="Plan">
-                                <Lightbulb size={14} />
-                                <span>Plan</span>
-                            </button>
-
                             {alexBusy ? (
                                 <button
                                     className="bolt-abort-btn"
