@@ -1,27 +1,8 @@
 # Backend Dockerfile
-# Multi-stage build for optimized production image
-
-# Build stage
-FROM node:20-alpine AS builder
-
-# Set working directory
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY src ./src
-
-# Build TypeScript
-RUN npm run build
+# Single-stage build — tsx compiles TypeScript at runtime
 
 # Production stage
-FROM node:20-alpine AS production
+FROM node:20-alpine
 
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
@@ -36,11 +17,12 @@ ENV PORT=3001
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production && npm cache clean --force
+# Install all dependencies (tsx needed at runtime for ESM resolution)
+RUN npm ci && npm cache clean --force
 
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
+# Copy source code (tsx runs TypeScript directly, no build step needed)
+COPY src ./src
+COPY tsconfig.json ./
 
 # Create logs directory
 RUN mkdir -p logs
@@ -65,5 +47,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start the application
-CMD ["node", "dist/server.js"]
+# Start the application using tsx (handles ESM imports without .js extensions)
+CMD ["npx", "tsx", "src/server.ts"]
