@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useGateway, type UseGatewayResult } from '../gateway/useGateway';
@@ -156,6 +156,30 @@ function AttachMenu({ onImageSelect, onFileSelect }: {
     );
 }
 
+/* ─── Memoized Message (prevents ReactMarkdown re-renders on input change) ─── */
+const remarkPlugins = [remarkGfm];
+const MemoMessage = memo(function ChatMessage({ msg }: { msg: { role: string; content: string; timestamp?: string; attachments?: ChatAttachment[] } }) {
+    return (
+        <div className={`chat-message ${msg.role} ${msg.role === 'assistant' ? 'alex' : ''}`}>
+            {msg.attachments && msg.attachments.length > 0 && (
+                <div className="msg-attachments">
+                    {msg.attachments.filter(a => a.preview).map(a => (
+                        <img key={a.id} src={a.preview} alt={a.name} className="msg-attachment-img" />
+                    ))}
+                    {msg.attachments.filter(a => !a.preview).map(a => (
+                        <div key={a.id} className="msg-attachment-file">
+                            <FileIcon size={12} />
+                            <span>{a.name}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+            <div className="message-content markdown-body"><ReactMarkdown remarkPlugins={remarkPlugins}>{msg.content}</ReactMarkdown></div>
+            {msg.timestamp && <span className="msg-timestamp">{formatTime(msg.timestamp)}</span>}
+        </div>
+    );
+});
+
 /* ─── Main Component ─── */
 export function AlexChat({ gateway: externalGateway }: Props) {
     const [input, setInput] = useState('');
@@ -265,7 +289,10 @@ export function AlexChat({ gateway: externalGateway }: Props) {
         return false;
     }, []);
 
-    const filteredGatewayMessages = gateway.messages.filter(msg => !isNoiseMessage(msg));
+    const filteredGatewayMessages = useMemo(
+        () => gateway.messages.filter(msg => !isNoiseMessage(msg)),
+        [gateway.messages, isNoiseMessage]
+    );
 
     return (
         <div className="panel chat-panel chat-alex-mode">
@@ -300,23 +327,7 @@ export function AlexChat({ gateway: externalGateway }: Props) {
                 ) : (
                     <>
                         {filteredGatewayMessages.map((msg, i) => (
-                            <div key={i} className={`chat-message ${msg.role} ${msg.role === 'assistant' ? 'alex' : ''}`}>
-                                {msg.attachments && msg.attachments.length > 0 && (
-                                    <div className="msg-attachments">
-                                        {msg.attachments.filter(a => a.preview).map(a => (
-                                            <img key={a.id} src={a.preview} alt={a.name} className="msg-attachment-img" />
-                                        ))}
-                                        {msg.attachments.filter(a => !a.preview).map(a => (
-                                            <div key={a.id} className="msg-attachment-file">
-                                                <FileIcon size={12} />
-                                                <span>{a.name}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                <div className="message-content markdown-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown></div>
-                                {msg.timestamp && <span className="msg-timestamp">{formatTime(msg.timestamp)}</span>}
-                            </div>
+                            <MemoMessage key={i} msg={msg} />
                         ))}
                         {gateway.isStreaming && gateway.streamingContent && (
                             <div className="chat-message assistant alex streaming">

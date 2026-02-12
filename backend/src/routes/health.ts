@@ -1,110 +1,55 @@
-import { Router, Request, Response } from 'express';
-import { supabase } from '../services/supabase';
+import { Router } from 'express';
+import gatewaySocket from '../services/gatewaySocket.js';
 
 const router = Router();
 
-// GET /health - checks if Supabase is reachable
-router.get('/health', async (_req: Request, res: Response) => {
-    const time = new Date().toISOString();
-
-    try {
-        const { error } = await supabase
-            .from('customers')
-            .select('id')
-            .limit(1);
-
-        if (error) {
-            console.error('Health check: Supabase query failed:', error);
-            return res.json({
-                ok: false,
-                supabase: { ok: false },
-                time
-            });
-        }
-
-        return res.json({
-            ok: true,
-            supabase: { ok: true },
-            time
-        });
-    } catch (err) {
-        console.error('Health check: Unexpected error:', err);
-        return res.json({
-            ok: false,
-            supabase: { ok: false },
-            time
-        });
+/**
+ * GET /health - Health check endpoint
+ */
+router.get('/', (_req, res) => {
+  const wsStats = gatewaySocket.getStats();
+  
+  const health = {
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.npm_package_version || '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    services: {
+      websocket: {
+        status: wsStats.activeConnections >= 0 ? 'up' : 'down',
+        connections: wsStats.activeConnections,
+        stats: wsStats
+      }
+    },
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024),
+      unit: 'MB'
     }
+  };
+
+  res.json(health);
 });
 
-// GET /status - system summary with counts
-router.get('/status', async (_req: Request, res: Response) => {
-    const time = new Date().toISOString();
-    let supabaseOk = false;
-    let customersCount = 0;
-    let tasksOpenCount = 0;
-    let suggestPendingCount = 0;
+/**
+ * GET /health/ready - Readiness check for Kubernetes/Docker
+ */
+router.get('/ready', (_req, res) => {
+  res.status(200).json({
+    status: 'ready',
+    timestamp: new Date().toISOString()
+  });
+});
 
-    try {
-        // Count customers
-        const { count: customerCount, error: customerError } = await supabase
-            .from('customers')
-            .select('*', { count: 'exact', head: true });
-
-        if (customerError) {
-            console.error('Status: Failed to count customers:', customerError);
-        } else {
-            customersCount = customerCount ?? 0;
-            supabaseOk = true;
-        }
-
-        // Count open tasks (status IN created, assigned, in_progress, review)
-        const { count: openCount, error: openError } = await supabase
-            .from('tasks')
-            .select('*', { count: 'exact', head: true })
-            .in('status', ['created', 'assigned', 'in_progress', 'review']);
-
-        if (openError) {
-            console.error('Status: Failed to count open tasks:', openError);
-            supabaseOk = false;
-        } else {
-            tasksOpenCount = openCount ?? 0;
-        }
-
-        // Count pending suggestions (status = 'review')
-        const { count: pendingCount, error: pendingError } = await supabase
-            .from('tasks')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'review');
-
-        if (pendingError) {
-            console.error('Status: Failed to count pending suggestions:', pendingError);
-            supabaseOk = false;
-        } else {
-            suggestPendingCount = pendingCount ?? 0;
-        }
-
-        return res.json({
-            time,
-            supabase: { ok: supabaseOk },
-            counts: {
-                customers: customersCount,
-                tasks_open: tasksOpenCount,
-                suggest_pending: suggestPendingCount
-            }
-        });
-    } catch (err) {
-        console.error('Status: Unexpected error:', err);
-        return res.json({
-            time,
-            supabase: { ok: false },
-            counts: {
-                customers: 0,
-                tasks_open: 0,
-                suggest_pending: 0
-            }
-        });
-    }
+/**
+ * GET /health/live - Liveness check for Kubernetes/Docker
+ */
+router.get('/live', (_req, res) => {
+  res.status(200).json({
+    status: 'alive',
+    timestamp: new Date().toISOString()
+  });
 });
 
 export default router;

@@ -1,0 +1,42 @@
+# Dependencies
+node_modules
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Build output
+dist
+build
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Development files
+*.md
+.git
+.gitignore
+.eslintrc
+.prettierrc
+.vscode
+.idea
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+coverage
+tests
+
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.cache
+
+# Nginx (will be copied separately)
+nginx.conf

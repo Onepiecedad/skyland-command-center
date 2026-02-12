@@ -4,7 +4,7 @@
  */
 
 import OpenAI from 'openai';
-import type { LLMAdapter, ChatInput, ChatOutput, ToolDefinition } from './adapter';
+import type { LLMAdapter, ChatInput, ChatOutput } from './adapter';
 import { config } from '../config';
 import { logger } from '../services/logger';
 

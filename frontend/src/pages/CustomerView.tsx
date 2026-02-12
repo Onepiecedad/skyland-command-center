@@ -14,7 +14,7 @@ import {
     Phone,
     MapPin,
     FileText,
-    Handshake,
+    HandMetal as Handshake,
     Inbox,
 } from 'lucide-react';
 import type { Customer } from '../api';

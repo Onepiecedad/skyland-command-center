@@ -15,7 +15,7 @@ const ALLOWED_TYPES = ['dokument', 'bilder', 'video', 'rapporter', 'referenser']
 // ============================================================================
 // Types
 // ============================================================================
-interface ArchiveFile {
+export interface ArchiveFile {
     id: string;
     filename: string;
     original_name?: string;
@@ -377,7 +377,7 @@ router.delete('/files/:id', async (req: Request, res: Response) => {
 // ============================================================================
 // GET /scan — Scan local archive folder and sync
 // ============================================================================
-router.get('/scan', async (req: Request, res: Response) => {
+router.get('/scan', async (_req: Request, res: Response) => {
     try {
         const stats = {
             scanned: 0,

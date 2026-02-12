@@ -11,6 +11,7 @@ interface ProviderSummary {
     provider: string;
     total: number;
     percentage: number;
+    color: string;
 }
 
 interface AgentCost {

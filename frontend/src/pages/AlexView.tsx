@@ -1,520 +1,473 @@
-import { useState, useCallback, useEffect } from 'react';
-import {
-    ListTodo,
-    Puzzle,
-    Wallet,
-    Zap,
-    Clock,
-    Search,
-    Globe,
-    Bot,
-    Shield,
-    BarChart3,
-    FileText,
-    Megaphone,
-    X,
-    Cpu,
-    Activity,
-    Layers,
-    ArrowUpRight,
-    Heart,
-    Users,
-    User,
-    Database,
-    Plug,
-    ChevronDown,
-    Plus,
+import { useEffect, useState } from 'react';
+import { 
+  Brain, 
+  Plus, 
+  Edit2, 
+  Trash2, 
+  Star,
+  Filter,
+  Search,
+  LayoutGrid,
+  List
 } from 'lucide-react';
-import { AlexChat } from '../components/AlexChat';
-import { ThreadSidebar } from '../components/chat/ThreadSidebar';
-import { ThreadMemoryPanel } from '../components/chat/ThreadMemoryPanel';
-import { useGateway } from '../gateway/useGateway';
-import { API_URL } from '../config';
+import { 
+  useSkills, 
+  useCreateSkill, 
+  useUpdateSkill, 
+  useDeleteSkill,
+  Skill 
+} from '@/hooks/useApi';
+import { SkeletonLoading } from '@/components/Loading';
+import { realtimeService } from '@/services/realtime';
+import { queryClient, queryKeys } from '@/utils/queryClient';
 
-/* ─── Types ─── */
-interface Skill {
-    id: string;
+/**
+ * AlexView Component
+ * Knowledge/Skills management interface with React Query
+ * Refactored to use React Query for global state management
+ */
+export default function AlexView() {
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [isCreating, setIsCreating] = useState(false);
+  const [editingSkill, setEditingSkill] = useState<Skill | null>(null);
+
+  // React Query hooks for data fetching
+  const { 
+    data: skills = [], 
+    isLoading, 
+    isError, 
+    error,
+    refetch 
+  } = useSkills();
+
+  // Mutations
+  const createSkillMutation = useCreateSkill({
+    onSuccess: () => {
+      setIsCreating(false);
+      setEditingSkill(null);
+    }
+  });
+
+  const updateSkillMutation = useUpdateSkill({
+    onSuccess: () => {
+      setEditingSkill(null);
+    }
+  });
+
+  const deleteSkillMutation = useDeleteSkill();
+
+  // Subscribe to realtime updates
+  useEffect(() => {
+    const unsubscribe = realtimeService.subscribeToSkills((payload) => {
+      console.log('Realtime skill update:', payload);
+      
+      // Invalidate skills query to refetch latest data
+      queryClient.invalidateQueries({ queryKey: queryKeys.skills.lists() });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  // Filter skills based on search and category
+  const filteredSkills = skills.filter(skill => {
+    const matchesSearch = skill.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         skill.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || skill.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Get unique categories
+  const categories = ['all', ...new Set(skills.map(skill => skill.category))];
+
+  // Handle skill creation/update
+  const handleSaveSkill = (skillData: {
     name: string;
     description: string;
-    category: 'search' | 'automation' | 'content' | 'monitor' | 'system' | 'data' | 'integration';
-    source?: 'workspace' | 'standalone' | 'subagent' | 'mcp';
-}
+    category: string;
+    level: number;
+  }) => {
+    if (editingSkill) {
+      updateSkillMutation.mutate({ id: editingSkill.id, data: skillData });
+    } else {
+      createSkillMutation.mutate(skillData);
+    }
+  };
 
-interface RoleFile {
-    key: string;
-    label: string;
-    description: string;
-    icon: string;
-    filename: string;
-    content: string | null;
-    size?: number;
-    modified?: string;
-    error?: string;
-}
+  // Handle skill deletion
+  const handleDeleteSkill = (skillId: string) => {
+    if (window.confirm('Are you sure you want to delete this skill?')) {
+      deleteSkillMutation.mutate(skillId);
+    }
+  };
 
-type SidebarTab = 'chat' | 'tasks' | 'skills' | 'costs';
-
-const ROLE_ICON_MAP: Record<string, React.ReactNode> = {
-    user: <User size={14} />,
-    heart: <Heart size={14} />,
-    users: <Users size={14} />,
-    shield: <Shield size={14} />,
-    activity: <Activity size={14} />,
-};
-
-/* ─── Config ─── */
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-    search: <Globe size={14} />,
-    automation: <Zap size={14} />,
-    content: <FileText size={14} />,
-    monitor: <BarChart3 size={14} />,
-    system: <Shield size={14} />,
-    data: <Database size={14} />,
-    integration: <Plug size={14} />,
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-    search: 'Sök & Research',
-    automation: 'Automation',
-    content: 'Innehåll',
-    monitor: 'Övervakning',
-    system: 'System',
-    data: 'Data & Lagring',
-    integration: 'Integrationer',
-};
-
-type SourceFilter = 'all' | 'skills' | 'agents' | 'mcp';
-
-/* Sidebar sections removed — now rendered as collapsible groups */
-
-const SKILLS_API = `${API_URL}/api/v1/skills`;
-
-interface Props {
-    onTaskCreated: () => void;
-}
-
-export function AlexView({ onTaskCreated }: Props) {
-    const [activeTab, setActiveTab] = useState<SidebarTab>('chat');
-    const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
-    const [skillSearch, setSkillSearch] = useState('');
-    const [skills, setSkills] = useState<Skill[]>([]);
-    const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
-    const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
-
-    const toggleSection = useCallback((section: string) => {
-        setCollapsedSections(prev => {
-            const next = new Set(prev);
-            if (next.has(section)) next.delete(section);
-            else next.add(section);
-            return next;
-        });
-    }, []);
-
-    /* ─── Gateway (lifted for multi-thread support) ─── */
-    const gateway = useGateway('agent:skyland:main');
-
-    /* ─── Fetch real skills from backend ─── */
-    useEffect(() => {
-        fetch(SKILLS_API)
-            .then(r => r.json())
-            .then(data => setSkills(data.skills || []))
-            .catch(err => console.error('Failed to fetch skills:', err));
-    }, []);
-
-    /* ─── Role Inspector State ─── */
-    const [roleOpen, setRoleOpen] = useState(false);
-    const [roleFiles, setRoleFiles] = useState<RoleFile[]>([]);
-    const [roleTab, setRoleTab] = useState('identity');
-    const [roleLoading, setRoleLoading] = useState(false);
-
-    const fetchRoleFiles = useCallback(async () => {
-        setRoleLoading(true);
-        try {
-            const res = await fetch('/api/v1/alex/role-files');
-            const data = await res.json();
-            setRoleFiles(data.files || []);
-        } catch (err) {
-            console.error('Failed to fetch role files:', err);
-        } finally {
-            setRoleLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (roleOpen && roleFiles.length === 0) {
-            fetchRoleFiles();
-        }
-    }, [roleOpen, roleFiles.length, fetchRoleFiles]);
-
-    /* ─── Derived: filter + group ─── */
-    const skillsBySource = (filter: SourceFilter) => {
-        if (filter === 'skills') return skills.filter(s => s.source === 'workspace' || s.source === 'standalone');
-        if (filter === 'agents') return skills.filter(s => s.source === 'subagent');
-        if (filter === 'mcp') return skills.filter(s => s.source === 'mcp');
-        return skills;
-    };
-
-    const sourceCounts = {
-        all: skills.length,
-        skills: skills.filter(s => s.source === 'workspace' || s.source === 'standalone').length,
-        agents: skills.filter(s => s.source === 'subagent').length,
-        mcp: skills.filter(s => s.source === 'mcp').length,
-    };
-
-    const filteredSkills = skillsBySource(sourceFilter).filter(s =>
-        (s.name || '').toLowerCase().includes(skillSearch.toLowerCase()) ||
-        (s.description || '').toLowerCase().includes(skillSearch.toLowerCase())
-    );
-
-    // Group by category for display
-    const categoryGroups = Object.keys(CATEGORY_LABELS)
-        .map(cat => ({
-            key: cat,
-            label: CATEGORY_LABELS[cat],
-            icon: CATEGORY_ICONS[cat],
-            items: filteredSkills.filter(s => s.category === cat),
-        }))
-        .filter(g => g.items.length > 0);
-
-    const handleSkillClick = useCallback((skill: Skill) => {
-        setSelectedSkill(prev => prev?.id === skill.id ? null : skill);
-    }, []);
-
+  if (isLoading) {
     return (
-        <div className="alex-view">
-            {/* ─── Left Sidebar ─── */}
-            <aside className="alex-sidebar">
-                {/* Alex Profile Card */}
-                <div className="alex-profile-card">
-                    <button
-                        className="alex-profile-avatar alex-role-trigger"
-                        onClick={() => setRoleOpen(true)}
-                        title="Visa rollfiler"
-                    >
-                        <div className="alex-avatar-ring" />
-                        <Bot size={22} strokeWidth={1.8} />
-                    </button>
-                    <div className="alex-profile-info">
-                        <span className="alex-profile-name">Alex</span>
-                        <span className="alex-profile-role">AI Assistent</span>
-                    </div>
-                    <div className="alex-profile-stats">
-                        <div className="alex-stat">
-                            <Cpu size={11} />
-                            <span>GPT-4o</span>
-                        </div>
-                        <div className="alex-stat">
-                            <Activity size={11} />
-                            <span>Online</span>
-                        </div>
-                        <div className="alex-stat">
-                            <Layers size={11} />
-                            <span>{skills.length} skills</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ─── Collapsible Sidebar Sections (OpenClaw-style) ─── */}
-                <nav className="alex-sidebar-sections">
-
-                    {/* ── Chat Section ── */}
-                    <div className="alex-section">
-                        <button
-                            className={`alex-section-header ${collapsedSections.has('chat') ? 'collapsed' : ''}`}
-                            onClick={() => toggleSection('chat')}
-                        >
-                            <ChevronDown size={14} className="alex-section-chevron" />
-                            <span>Chat</span>
-                        </button>
-                        {!collapsedSections.has('chat') && (
-                            <div className="alex-section-items">
-                                <button
-                                    className="alex-section-item new-thread-btn"
-                                    onClick={() => gateway.createNewSession().catch(console.error)}
-                                >
-                                    <Plus size={13} />
-                                    <span>Ny tråd</span>
-                                </button>
-                                <ThreadSidebar
-                                    sessions={gateway.sessions}
-                                    activeSessionKey={gateway.sessionKey}
-                                    threadPreviews={gateway.threadPreviews}
-                                    onSelectSession={(key) => {
-                                        gateway.setSessionKey(key);
-                                        setActiveTab('chat');
-                                    }}
-                                    onNewThread={() => {
-                                        gateway.createNewSession().catch(console.error);
-                                    }}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                    {/* ── Uppgifter Section ── */}
-                    <div className="alex-section">
-                        <button
-                            className={`alex-section-header ${collapsedSections.has('tasks') ? 'collapsed' : ''}`}
-                            onClick={() => toggleSection('tasks')}
-                        >
-                            <ChevronDown size={14} className="alex-section-chevron" />
-                            <span>Uppgifter</span>
-                        </button>
-                        {!collapsedSections.has('tasks') && (
-                            <div className="alex-section-items">
-                                <button
-                                    className={`alex-section-item ${activeTab === 'tasks' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('tasks')}
-                                >
-                                    <ListTodo size={13} />
-                                    <span>Aktiva uppgifter</span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* ── Agent Section ── */}
-                    <div className="alex-section">
-                        <button
-                            className={`alex-section-header ${collapsedSections.has('agent') ? 'collapsed' : ''}`}
-                            onClick={() => toggleSection('agent')}
-                        >
-                            <ChevronDown size={14} className="alex-section-chevron" />
-                            <span>Agent</span>
-                        </button>
-                        {!collapsedSections.has('agent') && (
-                            <div className="alex-section-items">
-                                <button
-                                    className={`alex-section-item ${activeTab === 'skills' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('skills')}
-                                >
-                                    <Puzzle size={13} />
-                                    <span>Capabilities</span>
-                                    <span className="alex-section-count">{skills.length}</span>
-                                </button>
-                                <button
-                                    className={`alex-section-item ${activeTab === 'costs' ? 'active' : ''}`}
-                                    onClick={() => setActiveTab('costs')}
-                                >
-                                    <Wallet size={13} />
-                                    <span>Kostnader</span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* ── Minne Section ── */}
-                    <div className="alex-section">
-                        <button
-                            className={`alex-section-header ${collapsedSections.has('memory') ? 'collapsed' : ''}`}
-                            onClick={() => toggleSection('memory')}
-                        >
-                            <ChevronDown size={14} className="alex-section-chevron" />
-                            <span>Alex Minne</span>
-                        </button>
-                        {!collapsedSections.has('memory') && (
-                            <div className="alex-section-items">
-                                <ThreadMemoryPanel
-                                    memoryEntries={gateway.memoryEntries}
-                                    onSearch={gateway.searchMemory}
-                                />
-                            </div>
-                        )}
-                    </div>
-
-                </nav>
-            </aside>
-
-            {/* ─── Main Content Area ─── */}
-            <section className="alex-content">
-                {activeTab === 'chat' && (
-                    <AlexChat onTaskCreated={onTaskCreated} gateway={gateway} />
-                )}
-
-                {activeTab === 'tasks' && (
-                    <div className="alex-panel-glass">
-                        <div className="alex-panel-header">
-                            <ListTodo size={16} />
-                            <span>Aktiva uppgifter</span>
-                        </div>
-                        <div className="alex-panel-empty">
-                            <Clock size={24} strokeWidth={1.5} />
-                            <p>Inga aktiva uppgifter just nu</p>
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'skills' && (
-                    <div className="alex-skills-panel">
-                        {/* ─── Segmented Control ─── */}
-                        <div className="skills-segment-bar">
-                            {(['all', 'skills', 'agents', 'mcp'] as SourceFilter[]).map(seg => (
-                                <button
-                                    key={seg}
-                                    className={`skills-segment-btn ${sourceFilter === seg ? 'active' : ''}`}
-                                    onClick={() => setSourceFilter(seg)}
-                                >
-                                    {seg === 'all' ? 'Alla' : seg === 'skills' ? 'Skills' : seg === 'agents' ? 'Agenter' : 'MCP'}
-                                    <span className="skills-segment-count">{sourceCounts[seg]}</span>
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* ─── Search ─── */}
-                        <div className="alex-skills-search">
-                            <Search size={14} />
-                            <input
-                                type="text"
-                                placeholder="Sök capabilities..."
-                                value={skillSearch}
-                                onChange={e => setSkillSearch(e.target.value)}
-                            />
-                        </div>
-
-                        {/* ─── Card Grid ─── */}
-                        <div className="skills-card-scroll">
-                            {categoryGroups.map(group => (
-                                <div key={group.key} className="skills-category-section">
-                                    <div className="skills-category-label">
-                                        {group.icon}
-                                        <span>{group.label}</span>
-                                        <span className="skills-category-count">{group.items.length}</span>
-                                    </div>
-                                    <div className="skills-card-grid">
-                                        {group.items.map(skill => (
-                                            <button
-                                                key={skill.id}
-                                                className={`skills-card ${selectedSkill?.id === skill.id ? 'active' : ''}`}
-                                                onClick={() => handleSkillClick(skill)}
-                                            >
-                                                <div className="skills-card-icon">
-                                                    {CATEGORY_ICONS[skill.category] || <Puzzle size={14} />}
-                                                </div>
-                                                <div className="skills-card-body">
-                                                    <span className="skills-card-name">{skill.name}</span>
-                                                    <span className="skills-card-desc">{skill.description}</span>
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                            {filteredSkills.length === 0 && (
-                                <div className="alex-panel-empty">
-                                    <Search size={24} strokeWidth={1.5} />
-                                    <p>Inga resultat</p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* ─── Skill Detail Overlay ─── */}
-                        {selectedSkill && (
-                            <div className="alex-skill-detail-overlay" onClick={() => setSelectedSkill(null)}>
-                                <div
-                                    className="alex-skill-detail"
-                                    onClick={e => e.stopPropagation()}
-                                >
-                                    <button className="alex-skill-detail-close" onClick={() => setSelectedSkill(null)} aria-label="Stäng">
-                                        <X size={16} />
-                                    </button>
-                                    <div className="alex-skill-detail-header">
-                                        {CATEGORY_ICONS[selectedSkill.category]}
-                                        <h3>{selectedSkill.name}</h3>
-                                    </div>
-                                    <p className="alex-skill-detail-desc">{selectedSkill.description}</p>
-                                    <div className="alex-skill-detail-meta">
-                                        <span className="alex-skill-detail-badge">
-                                            {CATEGORY_LABELS[selectedSkill.category]}
-                                        </span>
-                                        {selectedSkill.source && (
-                                            <span className="alex-skill-detail-badge source">
-                                                {selectedSkill.source === 'subagent' ? 'Agent' : selectedSkill.source === 'mcp' ? 'MCP' : 'Skill'}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <button className="alex-skill-run-btn">
-                                        <ArrowUpRight size={14} />
-                                        Kör
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {activeTab === 'costs' && (
-                    <div className="alex-panel-glass">
-                        <div className="alex-panel-header">
-                            <Wallet size={16} />
-                            <span>Kostnadsöversikt</span>
-                        </div>
-                        <div className="alex-panel-empty">
-                            <Megaphone size={24} strokeWidth={1.5} />
-                            <p>Kostnadsspårning kommer snart</p>
-                        </div>
-                    </div>
-                )}
-            </section>
-
-            {/* ─── Role Inspector Modal ─── */}
-            {roleOpen && (
-                <div className="role-inspector-overlay" onClick={() => setRoleOpen(false)}>
-                    <div className="role-inspector" onClick={e => e.stopPropagation()}>
-                        <div className="role-inspector-header">
-                            <div className="role-inspector-title">
-                                <Bot size={18} strokeWidth={1.8} />
-                                <h2>Alex — Rollfiler</h2>
-                            </div>
-                            <button className="role-inspector-close" onClick={() => setRoleOpen(false)} aria-label="Stäng">
-                                <X size={16} />
-                            </button>
-                        </div>
-
-                        <nav className="role-inspector-tabs">
-                            {roleFiles.map(f => (
-                                <button
-                                    key={f.key}
-                                    className={`role-tab ${roleTab === f.key ? 'active' : ''}`}
-                                    onClick={() => setRoleTab(f.key)}
-                                >
-                                    {ROLE_ICON_MAP[f.icon] || <FileText size={14} />}
-                                    <span>{f.label}</span>
-                                </button>
-                            ))}
-                        </nav>
-
-                        <div className="role-inspector-body">
-                            {roleLoading ? (
-                                <div className="role-inspector-loading">
-                                    <Activity size={20} className="role-spin" />
-                                    <span>Laddar filer…</span>
-                                </div>
-                            ) : (
-                                roleFiles
-                                    .filter(f => f.key === roleTab)
-                                    .map(f => (
-                                        <div key={f.key} className="role-file-content">
-                                            <div className="role-file-meta">
-                                                <span className="role-file-name">{f.filename}</span>
-                                                {f.size && <span className="role-file-size">{(f.size / 1024).toFixed(1)} KB</span>}
-                                                {f.modified && (
-                                                    <span className="role-file-date">
-                                                        Ändrad {new Date(f.modified).toLocaleDateString('sv-SE')}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            {f.content ? (
-                                                <pre className="role-file-pre">{f.content}</pre>
-                                            ) : (
-                                                <p className="role-file-missing">{f.error || 'Fil saknas'}</p>
-                                            )}
-                                        </div>
-                                    ))
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+      <div className="p-6">
+        <SkeletonLoading count={6} />
+      </div>
     );
+  }
+
+  if (isError) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <p className="text-red-600 mb-4">
+            Error loading skills: {error?.message || 'Unknown error'}
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <Brain className="w-8 h-8 text-blue-600" />
+          <h1 className="text-3xl font-bold text-gray-900">Alex Knowledge Base</h1>
+        </div>
+        <p className="text-gray-600">
+          Manage AI skills, capabilities, and knowledge domains
+        </p>
+      </div>
+
+      {/* Controls */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search skills..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        {/* Category Filter */}
+        <div className="flex items-center gap-2">
+          <Filter className="w-5 h-5 text-gray-400" />
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {categories.map(category => (
+              <option key={category} value={category}>
+                {category === 'all' ? 'All Categories' : category}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white shadow' : 'text-gray-500'}`}
+          >
+            <LayoutGrid className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setViewMode('list')}
+            className={`p-2 rounded ${viewMode === 'list' ? 'bg-white shadow' : 'text-gray-500'}`}
+          >
+            <List className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Add Skill Button */}
+        <button
+          onClick={() => setIsCreating(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-5 h-5" />
+          Add Skill
+        </button>
+      </div>
+
+      {/* Skills Count */}
+      <div className="mb-4 text-sm text-gray-500">
+        Showing {filteredSkills.length} of {skills.length} skills
+      </div>
+
+      {/* Skills Grid/List */}
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredSkills.map(skill => (
+            <SkillCard
+              key={skill.id}
+              skill={skill}
+              onEdit={() => setEditingSkill(skill)}
+              onDelete={() => handleDeleteSkill(skill.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredSkills.map(skill => (
+            <SkillRow
+              key={skill.id}
+              skill={skill}
+              onEdit={() => setEditingSkill(skill)}
+              onDelete={() => handleDeleteSkill(skill.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Create/Edit Modal */}
+      {(isCreating || editingSkill) && (
+        <SkillModal
+          skill={editingSkill}
+          onClose={() => {
+            setIsCreating(false);
+            setEditingSkill(null);
+          }}
+          onSave={handleSaveSkill}
+          isLoading={createSkillMutation.isPending || updateSkillMutation.isPending}
+        />
+      )}
+
+      {/* Empty State */}
+      {filteredSkills.length === 0 && !isLoading && (
+        <div className="text-center py-16">
+          <Brain className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No skills found</h3>
+          <p className="text-gray-500 mb-4">
+            {searchQuery || selectedCategory !== 'all'
+              ? 'Try adjusting your filters'
+              : 'Get started by adding your first skill'}
+          </p>
+          {(searchQuery || selectedCategory !== 'all') && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategory('all');
+              }}
+              className="text-blue-600 hover:text-blue-700"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Skill Card Component
+function SkillCard({ skill, onEdit, onDelete }: { 
+  skill: Skill; 
+  onEdit: () => void; 
+  onDelete: () => void;
+}) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
+      <div className="flex justify-between items-start mb-4">
+        <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+          {skill.category}
+        </span>
+        <div className="flex gap-2">
+          <button
+            onClick={onEdit}
+            className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onDelete}
+            className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">{skill.name}</h3>
+      <p className="text-gray-600 text-sm mb-4 line-clamp-2">{skill.description}</p>
+
+      <div className="flex items-center gap-1">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <Star
+            key={i}
+            className={`w-4 h-4 ${
+              i < skill.level ? 'text-yellow-400 fill-yellow-400' : 'text-gray-200'
+            }`}
+          />
+        ))}
+        <span className="ml-2 text-sm text-gray-500">{skill.level}/10</span>
+      </div>
+    </div>
+  );
+}
+
+// Skill Row Component
+function SkillRow({ skill, onEdit, onDelete }: { 
+  skill: Skill; 
+  onEdit: () => void; 
+  onDelete: () => void;
+}) {
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:shadow-md transition-shadow">
+      <div className="flex-1">
+        <div className="flex items-center gap-3 mb-1">
+          <h3 className="font-semibold text-gray-900">{skill.name}</h3>
+          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded">
+            {skill.category}
+          </span>
+        </div>
+        <p className="text-gray-600 text-sm">{skill.description}</p>
+      </div>
+
+      <div className="flex items-center gap-6">
+        <div className="flex items-center gap-1">
+          {Array.from({ length: skill.level }).map((_, i) => (
+            <Star key={i} className="w-4 h-4 text-yellow-400 fill-yellow-400" />
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={onEdit}
+            className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onDelete}
+            className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Skill Modal Component
+function SkillModal({ 
+  skill, 
+  onClose, 
+  onSave, 
+  isLoading 
+}: { 
+  skill: Skill | null; 
+  onClose: () => void; 
+  onSave: (data: {
+    name: string;
+    description: string;
+    category: string;
+    level: number;
+  }) => void;
+  isLoading: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    name: skill?.name || '',
+    description: skill?.description || '',
+    category: skill?.category || '',
+    level: skill?.level || 5
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg max-w-md w-full p-6">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">
+          {skill ? 'Edit Skill' : 'Add New Skill'}
+        </h2>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <textarea
+              required
+              rows={3}
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Category
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.category}
+              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Level ({formData.level}/10)
+            </label>
+            <input
+              type="range"
+              min="1"
+              max="10"
+              value={formData.level}
+              onChange={(e) => setFormData({ ...formData, level: parseInt(e.target.value) })}
+              className="w-full"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={isLoading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              {isLoading ? 'Saving...' : skill ? 'Update' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 }

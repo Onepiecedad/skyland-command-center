@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # Backend API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: skyland-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+      - LOG_LEVEL=info
+    ports:
+      - "3001:3001"
+    networks:
+      - skyland-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health/live', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # Frontend Web Server
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+    container_name: skyland-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - skyland-network
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # Redis (optional - for caching and session management)
+  # Uncomment if needed
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: skyland-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379"
+  #   networks:
+  #     - skyland-network
+  #   volumes:
+  #     - redis-data:/data
+  #   command: redis-server --appendonly yes
+
+  # PostgreSQL (optional - if not using Supabase)
+  # Uncomment if needed
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: skyland-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     - POSTGRES_USER=${DB_USER:-skyland}
+  #     - POSTGRES_PASSWORD=${DB_PASSWORD:-changeme}
+  #     - POSTGRES_DB=${DB_NAME:-skyland}
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - skyland-network
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+
+networks:
+  skyland-network:
+    driver: bridge
+
+volumes:
+  # redis-data:
+  # postgres-data:

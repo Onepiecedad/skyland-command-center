@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Node modules
+**/node_modules
+
+# Build outputs
+**/dist
+**/build
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Documentation
+*.md
+docs
+
+# Development files
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+coverage
+tests
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.docker
