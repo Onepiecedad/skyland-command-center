@@ -99,7 +99,7 @@ app.use('/api/v1/alex', alexMemoryRouter);
 app.use('/api/v1/webhook', openworkWebhookRouter);
 app.use('/api/v1/archive', archiveRouter);
 app.use('/api/v1/ideas', ideasRouter);           // Project ideas management
-app.use('/api/v1/voice', voiceRouter);           // Voice chat via ElevenLabs
+app.use('/api/v1/voice', voiceRouter);
 
 // ============================================================================
 // Reaper Timer — timeouts stuck running task_runs

@@ -32,165 +32,456 @@
     margin: 0;
 }
 
-/* ─── Orb Container ─── */
-.voicechat-orb-area {
+/* ═══════════════════════════════════════════════════════════════════════════
+   Voice Chat Component
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.vc-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+    max-width: 500px;
+}
+
+/* ─── Not Configured ─── */
+.vc-not-configured {
+    text-align: center;
+    padding: 3rem 1.5rem;
+}
+
+.vc-not-configured-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.vc-not-configured h3 {
+    color: #fff;
+    font-size: 1.1rem;
+    margin: 0 0 0.5rem;
+}
+
+.vc-not-configured p {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.78rem;
+    line-height: 1.6;
+}
+
+.vc-not-configured code {
+    background: rgba(255, 255, 255, 0.08);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+}
+
+/* ─── Orb ─── */
+.vc-orb-area {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 220px;
-    height: 220px;
+    width: 200px;
+    height: 200px;
     border-radius: 50%;
-    background: rgba(30, 30, 45, 0.4);
+    background: rgba(30, 30, 45, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.06);
     position: relative;
-    cursor: pointer;
-    transition: all 0.4s ease;
+    transition: all 0.5s ease;
 }
 
-.voicechat-orb-area:hover {
-    border-color: rgba(10, 132, 255, 0.2);
-    box-shadow:
-        0 0 40px rgba(10, 132, 255, 0.08),
-        0 0 80px rgba(94, 92, 230, 0.05);
+.vc-orb-area--active {
+    background: rgba(30, 30, 45, 0.5);
+    border-color: rgba(10, 132, 255, 0.15);
 }
 
-.voicechat-orb {
-    width: 100px;
-    height: 100px;
+.vc-orb {
+    width: 90px;
+    height: 90px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(10, 132, 255, 0.6), rgba(94, 92, 230, 0.6));
-    box-shadow: 0 0 40px rgba(10, 132, 255, 0.3);
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.5), rgba(94, 92, 230, 0.5));
+    box-shadow: 0 0 30px rgba(10, 132, 255, 0.25);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    position: relative;
     transition: all 0.4s ease;
-    animation: orbPulse 3s ease-in-out infinite;
+    animation: orbIdle 3s ease-in-out infinite;
 }
 
-.voicechat-orb-area:hover .voicechat-orb {
-    transform: scale(1.08);
-    box-shadow: 0 0 60px rgba(10, 132, 255, 0.45);
+.vc-orb--connecting {
+    animation: orbConnecting 1.2s ease-in-out infinite;
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.5), rgba(251, 146, 60, 0.5));
+    box-shadow: 0 0 30px rgba(251, 191, 36, 0.25);
 }
 
-@keyframes orbPulse {
+.vc-orb--listening {
+    animation: orbListening 2s ease-in-out infinite;
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.6), rgba(94, 92, 230, 0.6));
+    box-shadow: 0 0 40px rgba(10, 132, 255, 0.35);
+}
+
+.vc-orb--speaking {
+    animation: orbSpeaking 0.8s ease-in-out infinite;
+    background: linear-gradient(135deg, rgba(52, 199, 89, 0.6), rgba(10, 132, 255, 0.6));
+    box-shadow: 0 0 50px rgba(52, 199, 89, 0.3);
+}
+
+.vc-orb-inner {
+    color: #fff;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ─── Audio Rings ─── */
+.vc-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(10, 132, 255, 0.3);
+    transition: opacity 0.15s ease;
+}
+
+.vc-ring--1 {
+    width: 120px;
+    height: 120px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.vc-ring--2 {
+    width: 150px;
+    height: 150px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.vc-ring--3 {
+    width: 180px;
+    height: 180px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* ─── Spinner ─── */
+.vc-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* ─── Orb Animations ─── */
+@keyframes orbIdle {
 
     0%,
     100% {
-        box-shadow: 0 0 40px rgba(10, 132, 255, 0.3);
+        box-shadow: 0 0 30px rgba(10, 132, 255, 0.25);
     }
 
     50% {
-        box-shadow: 0 0 60px rgba(10, 132, 255, 0.45), 0 0 20px rgba(94, 92, 230, 0.2);
+        box-shadow: 0 0 45px rgba(10, 132, 255, 0.35), 0 0 15px rgba(94, 92, 230, 0.15);
     }
 }
 
-.voicechat-label {
-    font-size: 0.78rem;
-    color: rgba(255, 255, 255, 0.3);
-    text-align: center;
-    margin: 0;
+@keyframes orbConnecting {
+
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 30px rgba(251, 191, 36, 0.25);
+    }
+
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 50px rgba(251, 191, 36, 0.4);
+    }
 }
 
-/* ─── Status Card ─── */
-.voicechat-status {
-    background: rgba(30, 30, 45, 0.55);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+@keyframes orbListening {
+
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 40px rgba(10, 132, 255, 0.35);
+    }
+
+    50% {
+        transform: scale(1.03);
+        box-shadow: 0 0 55px rgba(10, 132, 255, 0.45);
+    }
+}
+
+@keyframes orbSpeaking {
+
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 50px rgba(52, 199, 89, 0.3);
+    }
+
+    50% {
+        transform: scale(1.06);
+        box-shadow: 0 0 65px rgba(52, 199, 89, 0.45), 0 0 30px rgba(10, 132, 255, 0.2);
+    }
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ─── Status Label ─── */
+.vc-status-label {
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-align: center;
+    min-height: 1.2em;
+}
+
+/* ─── Controls ─── */
+.vc-controls {
+    display: flex;
+    justify-content: center;
+}
+
+.vc-controls-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.vc-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all 0.25s ease;
+}
+
+.vc-btn--call {
+    background: linear-gradient(135deg, rgba(52, 199, 89, 0.8), rgba(48, 176, 80, 0.8));
+    color: #fff;
+    padding: 12px 28px;
+    box-shadow: 0 4px 20px rgba(52, 199, 89, 0.3);
+}
+
+.vc-btn--call:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(52, 199, 89, 0.4);
+}
+
+.vc-btn--hangup {
+    background: linear-gradient(135deg, rgba(255, 69, 58, 0.8), rgba(220, 53, 48, 0.8));
+    color: #fff;
+    padding: 10px 24px;
+    box-shadow: 0 4px 20px rgba(255, 69, 58, 0.3);
+}
+
+.vc-btn--hangup:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 28px rgba(255, 69, 58, 0.4);
+}
+
+.vc-btn--icon {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.vc-btn--icon:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.vc-btn--muted {
+    background: rgba(255, 69, 58, 0.15);
+    border-color: rgba(255, 69, 58, 0.3);
+    color: rgba(255, 69, 58, 0.8);
+}
+
+/* ─── Volume Slider ─── */
+.vc-volume-slider {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: rgba(255, 255, 255, 0.4);
+    width: 180px;
+}
+
+.vc-volume-slider input[type="range"] {
+    flex: 1;
+    appearance: none;
+    -webkit-appearance: none;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    outline: none;
+}
+
+.vc-volume-slider input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(10, 132, 255, 0.8);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+}
+
+/* ─── Error ─── */
+.vc-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    background: rgba(255, 69, 58, 0.1);
+    border: 1px solid rgba(255, 69, 58, 0.2);
+    border-radius: 10px;
+    padding: 0.65rem 1rem;
+    width: 100%;
+    font-size: 0.75rem;
+    color: rgba(255, 69, 58, 0.9);
+}
+
+.vc-error button {
+    background: none;
+    border: none;
+    color: rgba(255, 69, 58, 0.6);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 2px 4px;
+}
+
+/* ─── Transcript ─── */
+.vc-transcript {
+    width: 100%;
+    background: rgba(30, 30, 45, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 14px;
     -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
-    padding: 1.1rem 1.3rem;
-    width: 100%;
-    max-width: 500px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
+    overflow: hidden;
 }
 
-.voicechat-status-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.voicechat-status-label {
-    font-size: 0.72rem;
-    color: rgba(255, 255, 255, 0.4);
-    font-weight: 500;
-}
-
-.voicechat-status-value {
-    font-size: 0.72rem;
+.vc-transcript-title {
+    font-size: 0.68rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.voicechat-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.65rem;
-    font-weight: 600;
-    padding: 3px 10px;
-    border-radius: 999px;
-}
-
-.voicechat-badge--coming-soon {
-    background: rgba(251, 191, 36, 0.12);
-    color: #fbbf24;
-    border: 1px solid rgba(251, 191, 36, 0.15);
-}
-
-/* ─── Features List ─── */
-.voicechat-features {
-    width: 100%;
-    max-width: 500px;
-}
-
-.voicechat-features h3 {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.35);
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    margin: 0 0 0.7rem;
-    padding-bottom: 0.4rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 0.8rem 1rem 0.4rem;
+    margin: 0;
 }
 
-.voicechat-feature {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    padding: 0.55rem 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-.voicechat-feature-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.04);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(10, 132, 255, 0.7);
-    flex-shrink: 0;
-}
-
-.voicechat-feature-text {
+.vc-transcript-messages {
+    max-height: 250px;
+    overflow-y: auto;
+    padding: 0 1rem 0.8rem;
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 0.5rem;
 }
 
-.voicechat-feature-title {
-    font-size: 0.82rem;
+.vc-msg {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.vc-msg--user {
+    align-items: flex-end;
+}
+
+.vc-msg--agent {
+    align-items: flex-start;
+}
+
+.vc-msg-role {
+    font-size: 0.6rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
-.voicechat-feature-desc {
-    font-size: 0.68rem;
-    color: rgba(255, 255, 255, 0.35);
+.vc-msg-text {
+    font-size: 0.78rem;
+    line-height: 1.5;
+    max-width: 85%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 12px;
+}
+
+.vc-msg--user .vc-msg-text {
+    background: rgba(10, 132, 255, 0.15);
+    color: rgba(255, 255, 255, 0.85);
+    border-bottom-right-radius: 4px;
+}
+
+.vc-msg--agent .vc-msg-text {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.75);
+    border-bottom-left-radius: 4px;
+}
+
+/* ─── Scrollbar ─── */
+.vc-transcript-messages::-webkit-scrollbar {
+    width: 4px;
+}
+
+.vc-transcript-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.vc-transcript-messages::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 640px) {
+    .voicechat-view {
+        padding: 1rem;
+        gap: 1.5rem;
+    }
+
+    .vc-orb-area {
+        width: 170px;
+        height: 170px;
+    }
+
+    .vc-orb {
+        width: 75px;
+        height: 75px;
+    }
+
+    .vc-ring--1 {
+        width: 100px;
+        height: 100px;
+    }
+
+    .vc-ring--2 {
+        width: 125px;
+        height: 125px;
+    }
+
+    .vc-ring--3 {
+        width: 150px;
+        height: 150px;
+    }
 }

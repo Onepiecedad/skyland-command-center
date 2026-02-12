@@ -7,6 +7,10 @@
  */
 
 import { z } from 'zod';
+import dotenv from 'dotenv';
+
+// Ensure env vars are loaded before validation (handles ES module import ordering)
+dotenv.config();
 
 // ============================================================================
 // Schema
@@ -43,6 +47,10 @@ const envSchema = z.object({
     OPENCLAW_WORKSPACE: z.string().optional(),
     ARCHIVE_PATH: z.string().optional(),
     SKILLS_DIR: z.string().optional(),
+
+    // --- ElevenLabs Voice ---
+    ELEVENLABS_API_KEY: z.string().optional(),
+    ELEVENLABS_AGENT_ID: z.string().optional(),
 
     // --- Rate limiting ---
     CLAW_MAX_CONCURRENT_PER_CUSTOMER: z.coerce.number().default(3),

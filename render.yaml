@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: scc-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health/live
+    envVars:
+      - key: PORT
+        value: "3001"
+      - key: NODE_ENV
+        value: "production"
+      # All secrets (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+      # SCC_API_TOKEN, ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID,
+      # LLM_PROVIDER, LLM_MODEL, OPENROUTER_API_KEY, etc.)
+      # are set manually in the Render Dashboard as secrets.

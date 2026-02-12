@@ -16,6 +16,31 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import skillsRouter from './routes/skills.js';
 import activitiesRouter from './routes/activities.js';
 import healthRouter from './routes/health.js';
+import customersRouter from './routes/customers.js';
+import tasksRouter from './routes/tasks.js';
+import runsRouter from './routes/runs.js';
+import chatRouter from './routes/chat.js';
+import archiveRouter from './routes/archive.js';
+import costsRouter from './routes/costs.js';
+import ideasRouter from './routes/ideas.js';
+import skillRegistryRouter from './routes/skillRegistry.js';
+import skillsAggregatorRouter from './routes/skillsAggregator.js';
+import skillCheckerRouter from './routes/skillChecker.js';
+import gitOpsRouter from './routes/gitOps.js';
+import agentQueueRouter from './routes/agentQueue.js';
+import contextDataRouter from './routes/contextData.js';
+import toolCallsRouter from './routes/toolCalls.js';
+import eventStreamRouter from './routes/eventStream.js';
+import dispatchRouter from './routes/dispatch.js';
+import progressRouter from './routes/progress.js';
+import reportsRouter from './routes/reports.js';
+import errorRecoveryRouter from './routes/errorRecovery.js';
+import memoryManagementRouter from './routes/memoryManagement.js';
+import memorySearchRouter from './routes/memorySearch.js';
+import alexMemoryRouter from './routes/alexMemory.js';
+import adminRouter from './routes/admin.js';
+import openworkWebhookRouter from './routes/openworkWebhook.js';
+import voiceRouter from './routes/voice.js';
 
 // Import services
 import gatewaySocket from './services/gatewaySocket.js';
@@ -38,7 +63,7 @@ class Server {
   constructor() {
     this.app = express();
     this.port = parseInt(process.env.PORT || '3001', 10);
-    
+
     this.initializeMiddleware();
     this.initializeRoutes();
     this.initializeErrorHandling();
@@ -95,7 +120,7 @@ class Server {
     // API Documentation (Swagger UI)
     const openApiDoc = generateOpenApiDoc();
     this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiDoc));
-    
+
     // Serve OpenAPI spec as JSON
     this.app.get('/api-docs.json', (_req, res) => {
       res.setHeader('Content-Type', 'application/json');
@@ -105,9 +130,40 @@ class Server {
     // Health check
     this.app.use('/health', healthRouter);
 
-    // API routes
+    // Legacy API routes (used by Alex tab via axiosConfig baseURL: '/api')
     this.app.use('/api/skills', skillsRouter);
     this.app.use('/api/activities', activitiesRouter);
+
+    // ================================================================
+    // API v1 routes (used by frontend api.ts with API_BASE /api/v1)
+    // ================================================================
+    this.app.use('/api/v1/skills', skillRegistryRouter);       // File-based skill registry
+    this.app.use('/api/v1/skills-db', skillsRouter);           // DB-backed skills (fallback)
+    this.app.use('/api/v1/activities', activitiesRouter);
+    this.app.use('/api/v1/customers', customersRouter);
+    this.app.use('/api/v1/tasks', tasksRouter);
+    this.app.use('/api/v1/runs', runsRouter);
+    this.app.use('/api/v1/chat', chatRouter);
+    this.app.use('/api/v1/archive', archiveRouter);
+    this.app.use('/api/v1/costs', costsRouter);
+    this.app.use('/api/v1/ideas', ideasRouter);
+    this.app.use('/api/v1/skills-aggregator', skillsAggregatorRouter);
+    this.app.use('/api/v1/skill-checker', skillCheckerRouter);
+    this.app.use('/api/v1/git', gitOpsRouter);
+    this.app.use('/api/v1/agent-queue', agentQueueRouter);
+    this.app.use('/api/v1/context', contextDataRouter);
+    this.app.use('/api/v1/tools', toolCallsRouter);
+    this.app.use('/api/v1/events', eventStreamRouter);
+    this.app.use('/api/v1/dispatch', dispatchRouter);
+    this.app.use('/api/v1/progress', progressRouter);
+    this.app.use('/api/v1/reports', reportsRouter);
+    this.app.use('/api/v1/recovery', errorRecoveryRouter);
+    this.app.use('/api/v1/memory', memoryManagementRouter);
+    this.app.use('/api/v1/memory', memorySearchRouter);
+    this.app.use('/api/v1/alex-memory', alexMemoryRouter);
+    this.app.use('/api/v1/admin', adminRouter);
+    this.app.use('/api/v1/webhooks/openwork', openworkWebhookRouter);
+    this.app.use('/api/v1/voice', voiceRouter);
 
     // Root endpoint
     this.app.get('/', (_req, res) => {
@@ -127,7 +183,7 @@ class Server {
   private initializeErrorHandling(): void {
     // 404 handler
     this.app.use(notFoundHandler);
-    
+
     // Global error handler
     this.app.use(errorHandler);
   }
