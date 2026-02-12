@@ -1,4 +1,4 @@
-/* Ideas View Styles */
+/* ── Ideas View — Dark Glassmorphism ── */
 
 .ideas-view {
     padding: 1.5rem;
@@ -6,6 +6,7 @@
     margin: 0 auto;
 }
 
+/* ─── Header ─── */
 .ideas-header {
     display: flex;
     justify-content: space-between;
@@ -13,320 +14,441 @@
     margin-bottom: 1.5rem;
 }
 
-.ideas-header h1 {
+.ideas-header-left {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #1f2937;
+    color: rgba(255, 255, 255, 0.4);
 }
 
+.ideas-header-left h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+}
+
+.ideas-subtitle {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin: 0.15rem 0 0;
+}
+
+.ideas-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 1.1rem;
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.85), rgba(94, 92, 230, 0.85));
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    box-shadow: 0 0 20px rgba(10, 132, 255, 0.2);
+}
+
+.ideas-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 24px rgba(10, 132, 255, 0.35);
+}
+
+.ideas-btn-primary:active {
+    transform: scale(0.97);
+}
+
+.ideas-btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* ─── Filters ─── */
 .ideas-filters {
     display: flex;
     gap: 1rem;
+    align-items: center;
     margin-bottom: 1.5rem;
     flex-wrap: wrap;
 }
 
-.search-box {
+.ideas-search {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
+    background: rgba(30, 30, 45, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
     padding: 0.5rem 0.75rem;
     flex: 1;
     min-width: 250px;
+    color: rgba(255, 255, 255, 0.3);
+    transition: border-color 0.3s;
 }
 
-.search-box input {
+.ideas-search:focus-within {
+    border-color: rgba(10, 132, 255, 0.4);
+}
+
+.ideas-search input {
     border: none;
     outline: none;
     flex: 1;
-    font-size: 0.875rem;
+    font-size: 0.82rem;
+    background: transparent;
+    color: #fff;
+    font-family: inherit;
 }
 
-.search-box:focus-within {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+.ideas-search input::placeholder {
+    color: rgba(255, 255, 255, 0.25);
 }
 
-.ideas-filters select {
-    padding: 0.5rem 0.75rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
-    background: white;
-    font-size: 0.875rem;
-    cursor: pointer;
-}
-
-.ideas-board {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.5rem;
-}
-
-.ideas-column {
-    background: #f9fafb;
-    border-radius: 0.75rem;
-    padding: 1rem;
-    min-height: 400px;
-}
-
-.column-header {
+.ideas-filter-tabs {
     display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding-bottom: 0.75rem;
-    margin-bottom: 0.75rem;
-    border-bottom: 2px solid;
-    font-weight: 600;
-    color: #374151;
+    gap: 4px;
 }
 
-.column-header .count {
-    color: #6b7280;
-    font-weight: 400;
-    font-size: 0.875rem;
+.ideas-filter-tab {
+    font-size: 0.72rem;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.02);
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 500;
+    transition: all 0.2s;
 }
 
-.ideas-list {
+.ideas-filter-tab:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.ideas-filter-tab.active {
+    background: rgba(10, 132, 255, 0.12);
+    color: rgba(10, 132, 255, 0.9);
+    border-color: rgba(10, 132, 255, 0.2);
+}
+
+/* ─── Content ─── */
+.ideas-content {
+    min-height: 300px;
+}
+
+/* ─── Empty State ─── */
+.ideas-empty {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
     gap: 0.75rem;
+    padding: 3rem;
+    color: rgba(255, 255, 255, 0.25);
+    text-align: center;
 }
 
+.ideas-empty p {
+    font-size: 0.88rem;
+    margin: 0;
+}
+
+/* ─── Ideas Grid ─── */
+.ideas-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 0.8rem;
+}
+
+/* ─── Idea Card — Frosted Glass ─── */
 .idea-card {
-    background: white;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    transition: all 0.2s;
-    position: relative;
+    background: rgba(30, 30, 45, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px;
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    transition: all 0.3s ease;
 }
 
 .idea-card:hover {
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
     transform: translateY(-2px);
 }
 
-.idea-priority {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 4px;
-    height: 100%;
-    border-radius: 0.5rem 0 0 0.5rem;
+.idea-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
-.idea-card h3 {
+.idea-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 0.62rem;
     font-weight: 600;
-    color: #1f2937;
-    margin-bottom: 0.5rem;
-    padding-left: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #fff;
+    opacity: 0.85;
 }
 
-.idea-card p {
-    font-size: 0.875rem;
-    color: #6b7280;
-    margin-bottom: 0.75rem;
-    padding-left: 0.5rem;
-    line-height: 1.4;
+.idea-priority {
+    font-weight: 700;
+    font-size: 0.78rem;
 }
 
+.idea-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+}
+
+.idea-description {
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.45);
+    line-height: 1.5;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ─── Tags ─── */
 .idea-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.375rem;
-    margin-bottom: 0.75rem;
-    padding-left: 0.5rem;
+    gap: 0.35rem;
 }
 
-.tag {
+.idea-tag {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.5rem;
-    background: #e5e7eb;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    color: #374151;
+    gap: 3px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.5);
+    font-weight: 500;
 }
 
-.idea-meta {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    color: #9ca3af;
-    padding-left: 0.5rem;
-    margin-bottom: 0.75rem;
-}
-
-.idea-meta span {
+/* ─── Card Footer ─── */
+.idea-card-footer {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    justify-content: space-between;
+    margin-top: auto;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
-.idea-notes {
-    font-size: 0.875rem;
-    color: #4b5563;
-    background: #fef3c7;
-    padding: 0.5rem;
-    border-radius: 0.375rem;
-    margin-bottom: 0.75rem;
-    margin-left: 0.5rem;
-    border-left: 3px solid #f59e0b;
+.idea-category {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
 }
 
 .idea-actions {
     display: flex;
-    gap: 0.5rem;
-    padding-left: 0.5rem;
+    gap: 0.35rem;
 }
 
-.btn-primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1rem;
-    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-    color: white;
-    border: none;
-    border-radius: 0.5rem;
-    font-weight: 500;
+.idea-action-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.03);
+    color: rgba(255, 255, 255, 0.35);
     cursor: pointer;
-    transition: all 0.2s;
-}
-
-.btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-}
-
-.btn-small {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    padding: 0.375rem 0.75rem;
-    background: #e5e7eb;
-    color: #374151;
-    border: none;
-    border-radius: 0.375rem;
-    font-size: 0.75rem;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.btn-small:hover {
-    background: #d1d5db;
-}
-
-/* Modal Styles */
-.modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 50;
-    padding: 1rem;
+    transition: all 0.2s;
 }
 
-.modal {
-    background: white;
-    border-radius: 0.75rem;
-    padding: 1.5rem;
+.idea-action-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.idea-action-btn.danger:hover {
+    background: rgba(248, 113, 113, 0.12);
+    color: #f87171;
+    border-color: rgba(248, 113, 113, 0.2);
+}
+
+/* ─── Modal — Glassmorphism ─── */
+.ideas-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 1rem;
+    animation: ideasModalFadeIn 0.2s ease-out;
+}
+
+@keyframes ideasModalFadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.ideas-modal {
+    background: rgba(20, 20, 28, 0.92);
+    -webkit-backdrop-filter: blur(40px) saturate(1.4);
+    backdrop-filter: blur(40px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 1.75rem;
     width: 100%;
     max-width: 500px;
     max-height: 90vh;
     overflow-y: auto;
+    box-shadow:
+        0 32px 80px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    animation: ideasModalSlideUp 0.3s ease-out;
 }
 
-.modal h2 {
-    font-size: 1.25rem;
+@keyframes ideasModalSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.ideas-modal h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 1.25rem;
+}
+
+.ideas-form-group {
+    margin-bottom: 0.85rem;
+}
+
+.ideas-form-group label {
+    display: block;
+    font-size: 0.72rem;
     font-weight: 600;
-    margin-bottom: 1rem;
-    color: #1f2937;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.4rem;
 }
 
-.modal form {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.modal input,
-.modal select,
-.modal textarea {
-    padding: 0.625rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
-    font-size: 0.875rem;
+.ideas-form-group input,
+.ideas-form-group select,
+.ideas-form-group textarea {
     width: 100%;
-}
-
-.modal input:focus,
-.modal select:focus,
-.modal textarea:focus {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: rgba(30, 30, 45, 0.6);
+    color: #fff;
+    font-size: 0.82rem;
+    font-family: inherit;
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    transition: border-color 0.25s;
 }
 
-.modal-actions {
+.ideas-form-group input::placeholder,
+.ideas-form-group textarea::placeholder {
+    color: rgba(255, 255, 255, 0.2);
+}
+
+.ideas-form-group input:focus,
+.ideas-form-group select:focus,
+.ideas-form-group textarea:focus {
+    border-color: rgba(10, 132, 255, 0.4);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.08);
+}
+
+.ideas-form-group select option {
+    background: #1a1a2e;
+    color: #fff;
+}
+
+.ideas-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.ideas-form-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 0.75rem;
-    margin-top: 1rem;
+    gap: 0.65rem;
+    margin-top: 1.25rem;
 }
 
-.modal-actions button {
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
+.ideas-btn-secondary {
+    padding: 0.55rem 1rem;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.82rem;
     font-weight: 500;
+    font-family: inherit;
     cursor: pointer;
+    transition: all 0.2s;
 }
 
-.modal-actions button[type="button"] {
-    background: #e5e7eb;
-    border: none;
-    color: #374151;
+.ideas-btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
 }
 
-.modal-actions button[type="submit"] {
-    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-    border: none;
-    color: white;
-}
-
-.modal-actions button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.ideas-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 400px;
-    color: #6b7280;
-}
-
-/* Responsive */
+/* ─── Responsive ─── */
 @media (max-width: 768px) {
-    .ideas-board {
+    .ideas-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .ideas-filters {
         flex-direction: column;
     }
-    
-    .search-box {
+
+    .ideas-search {
         min-width: 100%;
+    }
+
+    .ideas-form-row {
+        grid-template-columns: 1fr;
     }
 }
