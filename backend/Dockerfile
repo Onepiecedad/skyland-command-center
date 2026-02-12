@@ -1,7 +1,6 @@
 # Backend Dockerfile
 # Single-stage build — tsx compiles TypeScript at runtime
 
-# Production stage
 FROM node:20-alpine
 
 # Install dumb-init for proper signal handling
@@ -10,17 +9,19 @@ RUN apk add --no-cache dumb-init
 # Set working directory
 WORKDIR /app
 
-# Set node environment
-ENV NODE_ENV=production
+# Set port (NODE_ENV set after npm ci so devDeps like tsx are installed)
 ENV PORT=3001
 
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies (tsx needed at runtime for ESM resolution)
+# Install ALL dependencies first (tsx is needed at runtime)
 RUN npm ci && npm cache clean --force
 
-# Copy source code (tsx runs TypeScript directly, no build step needed)
+# Now set production mode
+ENV NODE_ENV=production
+
+# Copy source code (tsx runs TypeScript directly)
 COPY src ./src
 COPY tsconfig.json ./
 
