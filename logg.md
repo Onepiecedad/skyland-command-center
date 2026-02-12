@@ -2,6 +2,61 @@
 
 ---
 
+## 2026-02-12 — Backend Deploy till Render & ElevenLabs Integration
+
+### 📋 Status: ✅ SLUTFÖRD (2026-02-12 21:30)
+
+**Mål:** Deploya SCC backend till Render och konfigurera ElevenLabs röst-agent med korrekt webhook-URL.
+
+### Render Deployment
+
+| Problem | Orsak | Fix |
+|---------|-------|-----|
+| TS build errors | Ocommittade lokala ändringar (`ideas.ts`) | Committade TS-fixen |
+| ESM resolution | `"type": "module"` kräver `.js` extensions | Bytte till CommonJS: `"module": "CommonJS"` i tsconfig |
+| `import.meta` i CJS | `import.meta.url` osupporterat i CommonJS | Bytte till `require.main === module` |
+| Startup crash | `gitOps.ts` kastar vid module load om `GIT_REPO_PATH` saknas | Ändrade till varning + 503-middleware |
+| TS7030 | `requireGitConfig` returnerade inte på alla kodvägar | Lade till explicit `void` return |
+| Saknad env var | `OPENAI_API_KEY` ej i Render | Lade till via Render dashboard |
+| Dockerfile | Använde tsx runtime | Multi-stage: tsc build → `node dist/server.js` |
+
+**Resultat:** `https://scc-backend-f4fu.onrender.com/health/live` → `{"status":"alive"}` (HTTP 200)
+
+### ElevenLabs Röst-Agent (Alex the ClawdBot)
+
+- [x] Skapade `POST /api/v1/voice/tools` endpoint för tool-call webhooks
+- [x] Stödjer `web_search` (via OpenAI), `get_status`, `get_time`
+- [x] Okända verktyg → graceful fallback-meddelande
+- [x] Uppdaterade webhook-URL från `https://din-gateway-url.com/...` → `https://scc-backend-f4fu.onrender.com/api/v1/voice/tools`
+- [x] Publicerade agent-ändringar på ElevenLabs
+
+### Filer ändrade
+
+| Fil | Ändring |
+|-----|---------|
+| `backend/Dockerfile` | Multi-stage build, CommonJS, `node dist/server.js` |
+| `backend/tsconfig.json` | `"module": "CommonJS"`, `"moduleResolution": "node"` |
+| `backend/package.json` | Borttagen `"type": "module"`, lade till `tsx` i deps |
+| `backend/src/server.ts` | `require.main === module` istället för `import.meta` |
+| `backend/src/routes/gitOps.ts` | Graceful hantering av saknad `GIT_REPO_PATH` |
+| `backend/src/routes/voice.ts` | Ny `POST /tools` endpoint |
+
+### Verifiering
+
+```bash
+curl https://scc-backend-f4fu.onrender.com/health/live
+# → {"status":"alive","timestamp":"2026-02-12T20:11:55.619Z"} HTTP 200
+
+curl -X POST http://localhost:3001/api/v1/voice/tools \
+  -H 'Content-Type: application/json' \
+  -d '{"tool_name":"get_time","params":"{}"}' 
+# → {"result":"Klockan är 21:21:03 den 2026-02-12."}
+```
+
+**Git:** Commits `9d33adf..3cc9cfe main → main`
+
+---
+
 ## 2026-02-12 — Arkitekturförbättringar: Verifiering & Slutförande
 
 ### 📋 Status: ✅ SLUTFÖRD (2026-02-12 13:35)
