@@ -14,9 +14,10 @@ if (!GIT_REPO_PATH) {
 }
 
 // Middleware to check if git ops are available
-function requireGitConfig(_req: Request, res: Response, next: Function) {
+function requireGitConfig(_req: Request, res: Response, next: Function): void {
     if (!GIT_REPO_PATH) {
-        return res.status(503).json({ error: 'Git operations not available — GIT_REPO_PATH not configured' });
+        res.status(503).json({ error: 'Git operations not available — GIT_REPO_PATH not configured' });
+        return;
     }
     next();
 }
