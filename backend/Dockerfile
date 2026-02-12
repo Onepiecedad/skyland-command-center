@@ -48,4 +48,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 ENTRYPOINT ["dumb-init", "--"]
 
 # Start the application using tsx (handles ESM imports without .js extensions)
-CMD ["npx", "tsx", "src/server.ts"]
+CMD ["./node_modules/.bin/tsx", "src/server.ts"]
