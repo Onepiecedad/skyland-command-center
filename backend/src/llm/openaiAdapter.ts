@@ -1,23 +1,25 @@
 /**
  * OpenAI Adapter Implementation
- * Ticket 21 - Master Brain AI Integration
+ * Ticket 21 - Alex AI Integration
  */
 
 import OpenAI from 'openai';
 import type { LLMAdapter, ChatInput, ChatOutput, ToolDefinition } from './adapter';
+import { config } from '../config';
+import { logger } from '../services/logger';
 
 export class OpenAIAdapter implements LLMAdapter {
     private client: OpenAI;
     private model: string;
 
     constructor() {
-        const apiKey = process.env.OPENAI_API_KEY;
+        const apiKey = config.OPENAI_API_KEY;
         if (!apiKey) {
-            throw new Error('OPENAI_API_KEY environment variable is required');
+            throw new Error('OPENAI_API_KEY not configured (check LLM_PROVIDER)');
         }
 
         this.client = new OpenAI({ apiKey });
-        this.model = process.env.LLM_MODEL || 'gpt-4o';
+        this.model = config.LLM_MODEL;
     }
 
     async chat(input: ChatInput): Promise<ChatOutput> {
@@ -69,7 +71,7 @@ export class OpenAIAdapter implements LLMAdapter {
                 } : undefined,
             };
         } catch (error) {
-            console.error('[openai-adapter] Error calling OpenAI:', error);
+            logger.error('openai', 'Error calling OpenAI', { error: error instanceof Error ? error.message : error });
             throw error;
         }
     }

@@ -1,7 +1,8 @@
 import { useGateway } from '../gateway/useGateway';
 import { useEffect, useState, useCallback } from 'react';
+import { API_URL } from '../config';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = API_URL;
 
 export function StatusBar() {
     const gateway = useGateway('agent:skyland:main');

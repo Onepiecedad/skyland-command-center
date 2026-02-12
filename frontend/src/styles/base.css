@@ -1,0 +1,213 @@
+/* ============================================================================
+   SKYLAND COMMAND CENTER — LIQUID GLASS DESIGN SYSTEM
+   Premium Apple-inspired glassmorphism UI
+   ============================================================================ */
+
+/* ─── Design Tokens ─── */
+:root {
+  /* Background layers */
+  --bg-void: #000000;
+  --bg-deep: #050510;
+  --bg-surface: #0a0a18;
+
+  /* Glass panel */
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-bg-hover: rgba(255, 255, 255, 0.06);
+  --glass-bg-heavy: rgba(10, 10, 30, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.07);
+  --glass-border-light: rgba(255, 255, 255, 0.12);
+  --glass-border-glow: rgba(255, 255, 255, 0.15);
+  --glass-blur: blur(40px) saturate(180%);
+  --glass-blur-heavy: blur(60px) saturate(200%);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --glass-shadow-hover: 0 16px 48px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --glass-shadow-elevated: 0 20px 60px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  /* Neon glow */
+  --neon-blue: rgba(10, 132, 255, 0.4);
+  --neon-green: rgba(48, 209, 88, 0.4);
+  --neon-purple: rgba(191, 90, 242, 0.4);
+  --neon-orange: rgba(255, 159, 10, 0.4);
+
+  /* System colors */
+  --accent-blue: #0A84FF;
+  --accent-green: #30D158;
+  --accent-orange: #FF9F0A;
+  --accent-red: #FF453A;
+  --accent-purple: #BF5AF2;
+  --accent-indigo: #5E5CE6;
+  --accent-yellow: #FFD60A;
+  --accent-cyan: #64D2FF;
+
+  /* Text */
+  --text-primary: rgba(255, 255, 255, 0.93);
+  --text-secondary: rgba(255, 255, 255, 0.55);
+  --text-tertiary: rgba(255, 255, 255, 0.32);
+  --text-ghost: rgba(255, 255, 255, 0.18);
+
+  /* Spacing */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-pill: 9999px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 0.18s;
+  --duration-normal: 0.3s;
+  --duration-slow: 0.5s;
+  --duration-zoom: 0.4s;
+}
+
+/* ─── Animations ─── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes glow-pulse {
+
+  0%,
+  100% {
+    opacity: 0.6;
+    box-shadow: 0 0 4px currentColor;
+  }
+
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 12px currentColor;
+  }
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* ─── Base Reset ─── */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-void);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* ─── Parallax Background ─── */
+.parallax-base {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 120% 80% at 20% 10%, rgba(10, 132, 255, 0.07), transparent 60%),
+    radial-gradient(ellipse 100% 60% at 80% 90%, rgba(94, 92, 230, 0.06), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 50% 50%, rgba(191, 90, 242, 0.03), transparent 60%),
+    var(--bg-deep);
+}
+
+.parallax-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.parallax-nebula {
+  position: fixed;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  animation: nebulaFloat 30s ease-in-out infinite;
+}
+
+.parallax-nebula-1 {
+  width: 600px;
+  height: 400px;
+  top: -100px;
+  left: -100px;
+  background: radial-gradient(ellipse, rgba(10, 132, 255, 0.3), transparent 70%);
+  animation-delay: 0s;
+}
+
+.parallax-nebula-2 {
+  width: 500px;
+  height: 350px;
+  bottom: -80px;
+  right: -80px;
+  background: radial-gradient(ellipse, rgba(191, 90, 242, 0.25), transparent 70%);
+  animation-delay: -15s;
+}
+
+@keyframes nebulaFloat {
+
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  25% {
+    transform: translate(30px, -20px) scale(1.05);
+  }
+
+  50% {
+    transform: translate(-10px, 15px) scale(0.98);
+  }
+
+  75% {
+    transform: translate(-25px, -10px) scale(1.03);
+  }
+}
+

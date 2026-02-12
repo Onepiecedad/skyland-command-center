@@ -1,6 +1,6 @@
 /**
  * LLM Adapter Layer - Provider-agnostic interface for LLM interactions
- * Ticket 21 - Master Brain AI Integration
+ * Ticket 21 - Alex AI Integration
  */
 
 // Tool definition for function calling
@@ -79,6 +79,8 @@ export function createAdapter(provider: LLMProvider): LLMAdapter {
 
 // Get adapter from environment
 export function getAdapter(): LLMAdapter {
-    const provider = (process.env.LLM_PROVIDER || 'openai') as LLMProvider;
+    // config.ts guarantees LLM_PROVIDER is valid at startup
+    const { config } = require('../config');
+    const provider = config.LLM_PROVIDER as LLMProvider;
     return createAdapter(provider);
 }

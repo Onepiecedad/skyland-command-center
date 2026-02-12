@@ -1,6 +1,6 @@
 /**
  * Server-side Tool Definitions and Handlers
- * Ticket 21 - Master Brain AI Integration
+ * Ticket 21 - Alex AI Integration
  */
 
 import type { ToolDefinition } from './adapter';
@@ -10,7 +10,7 @@ import { supabase } from '../services/supabase';
 // Tool Definitions (for LLM function calling)
 // ============================================================================
 
-export const MASTER_BRAIN_TOOLS: ToolDefinition[] = [
+export const ALEX_TOOLS: ToolDefinition[] = [
     {
         name: 'get_customer_status',
         description: 'Hämta status och information för en specifik kund. Använd detta för att få översikt över kundens nuvarande tillstånd, fel, varningar och öppna tasks.',
@@ -261,7 +261,7 @@ async function handleCreateTaskProposal(args: Record<string, unknown>): Promise<
     }
 
     // Add source metadata
-    inputData.source = 'master_brain_chat';
+    inputData.source = 'alex_chat';
     inputData.created_via = 'llm_tool_call';
 
     // GUARDRAIL: Always create with status='review'

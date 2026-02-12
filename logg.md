@@ -1376,6 +1376,236 @@ Duration:    677ms
 
 ---
 
+## 2026-02-12 — Fas 5: Frontend-struktur
+
+### 📋 Status: ✅ SLUTFÖRD (2026-02-12 00:15)
+
+**Mål:** Gör CSS underhållbar, splitta API-klienten, centralisera URL-konfiguration.
+
+#### 5.1 Split App.css → 9 moduler
+
+- [x] Bröt ut 9114-rads `App.css` till 9 domänfiler under `styles/`
+- [x] Skapade `styles/index.css` barrel med `@import`-ordning
+- [x] Uppdaterade `App.tsx` → `import './styles/index.css'`
+
+| Fil | Domän |
+|-----|-------|
+| `styles/base.css` | Variabler, reset, typografi |
+| `styles/layout.css` | Dashboard-layout, header, nav |
+| `styles/customers.css` | Kundkort, listor, detalj |
+| `styles/alex.css` | Alex-vy, chatt, skills-panel |
+| `styles/system.css` | System Dashboard paneler |
+| `styles/skills.css` | Skills grid, kort, modaler |
+| `styles/fleet.css` | Fleet Monitor |
+| `styles/costs.css` | Cost Center |
+| `styles/components.css` | Delade komponenter |
+
+#### 5.2 Split api.ts → 8 moduler
+
+- [x] Bröt ut 867-rads `api.ts` till 8 domänfiler under `api/`
+- [x] Skapade `api/index.ts` barrel — alla `from '../api'`-importer fungerar oförändrat
+
+| Modul | Domän |
+|-------|-------|
+| `api/base.ts` | `fetchWithAuth`, `API_BASE` |
+| `api/types.ts` | Alla delade interfaces (20 st) |
+| `api/customers.ts` | Kunder + aktiviteter |
+| `api/tasks.ts` | Task CRUD, dispatch, runs |
+| `api/chat.ts` | Alex gateway-kommunikation |
+| `api/skills.ts` | Skills registry + lifecycle |
+| `api/system.ts` | Status, git, queue, events, minne |
+| `api/costs.ts` | Cost-domän barrel |
+
+#### 5.3 Centralisera URL-konfiguration
+
+- [x] Skapade `frontend/src/config.ts` med alla env-variabler
+- [x] Uppdaterade 5 filer: `StatusBar.tsx`, `AlexView.tsx`, `AgentHub.tsx`, `SystemResources.tsx`, `WorkflowHealth.tsx`
+- [x] Eliminerade 6 hårdkodade `localhost:3001`-deklarationer
+
+#### 5.4 TypeScript Strictness
+
+- [x] Redan aktiverat i `tsconfig.app.json` (bekräftat)
+
+**Verifiering:**
+
+```
+tsc -b && vite build
+# ✅ Exit code: 0 — ren build på 6.56s
+# ✅ Alla 3 kunder visas korrekt i UI
+```
+
+✅ **Fas 5 KLART** (2026-02-12)
+
+---
+
+## 2026-02-12 — Fas 6: Backend-förbättringar
+
+### 📋 Status: ✅ SLUTFÖRD (2026-02-12 00:28)
+
+**Mål:** Stärka backendkvaliteten — multi-round tool calling, namngivningskonsekvens, kodupprensning.
+
+#### 6.1 Multi-round tool calling
+
+- [x] Ersatte single-round tool-exekvering med while-loop (max 5 rundor)
+- [x] Varje runda: LLM → verktygsanrop → resultat tillbaka till LLM → ny runda
+- [x] Safety: om max-rundor nås utan text, tvinga sammanfattning med `tools: []`
+- [x] Fallback-text om inget svar genereras
+
+**Fil:** `backend/src/routes/chat.ts`
+
+#### 6.2 PROVIDER_COLORS → Frontend only
+
+- [x] Borttagen `PROVIDER_COLORS` map och `color`-fält från backend `costs.ts`
+- [x] Frontend `CostCenter.tsx` äger nu färgerna exklusivt
+- [x] Borttagen `color` från `ProviderSummary` interface
+
+**Filer:** `backend/src/routes/costs.ts`, `frontend/src/pages/CostCenter.tsx`
+
+#### 6.3 Graceful error handling i skills
+
+- [x] Yttre `fs.readdirSync` i `scanSkills()` skyddad med try-catch
+- [x] Befintlig per-skill try-catch redan på plats
+
+**Fil:** `backend/src/routes/skillRegistry.ts`
+
+#### 6.4 Master Brain → Alex (15 instanser)
+
+| Ändring | Filer |
+|---------|-------|
+| `MASTER_BRAIN_TOOLS` → `ALEX_TOOLS` | `tools.ts`, `chat.ts` |
+| `agent: 'master_brain'` → `agent: 'alex'` | `chat.ts` (3 ställen) |
+| `master_brain_chat` → `alex_chat` | `tools.ts` |
+| JSDoc: "Master Brain AI Integration" → "Alex AI Integration" | `adapter.ts`, `openaiAdapter.ts`, `tools.ts`, `systemPrompt.ts` |
+| System prompt: "Du är Master Brain" → "Du är Alex" | `systemPrompt.ts` |
+
+**Verifiering:** `grep -ri "master.brain" backend/src/` → 0 träffar.
+
+#### 6.5 Chat-rendering
+
+- [x] Redan hanterad — `AlexChat.tsx` har `isNoiseMessage()` filter som döljer JSON, system, tool-calls
+
+#### 6.6 WebSocket gateway-stabilitet
+
+- [x] Redan hanterad — `gatewaySocket.ts` har exponential backoff (800ms → 30s), challenge-auth, pending cleanup
+
+#### Verifiering
+
+```bash
+npx tsc --noEmit  # Backend ✅ 0 fel
+npx tsc --noEmit  # Frontend ✅ 0 fel
+grep -ri "master.brain" backend/src/  # ✅ 0 träffar
+```
+
+✅ **Fas 6 KLART** (2026-02-12)
+
+---
+
+## 2026-02-12 — Fas 7: DevOps & Deployment-readiness
+
+### 📋 Status: ✅ SLUTFÖRD (2026-02-12 00:38)
+
+**Mål:** Centraliserad env-validering med Zod + strukturerad JSON-logger.
+
+### 7.1 Docker Compose
+
+- [x] **Skippat** — deprioriterad per handlingsplan
+
+### 7.2 Centraliserad env-validering (`config.ts` + Zod)
+
+Skapade `backend/src/config.ts` med Zod-schema som validerar **alla** miljövariabler vid server-start.
+
+**Funktioner:**
+
+- 20+ env-variabler med typade defaults och validering
+- Kraschar direkt med tydliga felmeddelanden om required vars saknas
+- Dynamisk LLM API-key validering baserad på `LLM_PROVIDER`
+- Numeriska värden (`PORT`, `COST_BUDGET_USD`, reaper-intervall) auto-coerced via `z.coerce.number()`
+
+### 7.3 Strukturerad JSON-logger (`logger.ts`)
+
+Skapade `backend/src/services/logger.ts` — zero-dependency JSON-lines logger.
+
+**Output-format:**
+
+```json
+{"ts":"2026-02-12T00:30:00.000Z","level":"info","ctx":"chat","msg":"Executing tool","data":{}}
+```
+
+### Migrerade filer (13 st)
+
+| Fil | `process.env` → `config` | `console.*` → `logger` |
+|---|---|---|
+| `index.ts` | 3 | 2 |
+| `supabase.ts` | 2 | — |
+| `auth.ts` | 1 | — |
+| `chat.ts` | 4 | 10 |
+| `taskService.ts` | 8 | 10 |
+| `adapter.ts` | 1 | — |
+| `openrouterAdapter.ts` | 3 | 1 |
+| `openaiAdapter.ts` | 2 | 1 |
+| `deepseekAdapter.ts` | 2 | 1 |
+| `costService.ts` | — | 2 |
+| `customerService.ts` | — | 1 |
+| `messageService.ts` | — | 1 |
+
+### Verifiering
+
+```bash
+npx tsc --noEmit  # ✅ 0 fel
+```
+
+✅ **Fas 7 KLART** (2026-02-12)
+
+---
+
+## 2026-02-12 — Fas 8: Clawd-workspace hygien
+
+### 📋 Status: ✅ SLUTFÖRD (2026-02-12 00:48)
+
+**Mål:** Åtgärda duplicering och differentiering i agent-konfigurationen.
+
+### 8.1 Centralisera delade skills
+
+**Problem:** `openclaw-api.md` och `customer-status.md` kopierade till 13 agenters skills-mappar × 2 runtime dirs = 26 kopior per fil.
+
+**Åtgärd:**
+
+- Skapade `clawd-workspace/skills/shared/` med canonical kopior
+- Skapade `scripts/sync-shared-skills.sh` (stödjer `--dry-run`)
+- Kör: `./scripts/sync-shared-skills.sh` → 52 filer synkade
+
+### 8.2 Differentierade HEARTBEAT.md per agent
+
+**Problem:** Alla 14 agenter hade identisk monolitisk heartbeat (MD5: `2feb73018ac`).
+
+**Åtgärd:** Skapade rollspecifika heartbeats:
+
+| Agent | Fokus |
+|-------|-------|
+| `skyland` | Systemöversikt, morgonbrief, meddelanden, approvals |
+| `strategy-analyst` | Marknadssignaler, ICP-matchning |
+| `dev` | Build-status, test-resultat, PR-kö |
+| `content` | Content-kö, publiceringsschema |
+| `automation-engineer` | n8n workflow-status, failed jobs |
+| `signal-hook` | Inkommande signaler, lead-kvalificering |
+| 8 övriga | Minimal heartbeat (`HEARTBEAT_OK` default) |
+
+### 8.3 Synka heartbeat-intervall
+
+**Problem:** `clawdbot.json` = 30min, `openclaw.json` = 2h.
+
+**Åtgärd:** Uppdaterade `clawdbot.json` → `"every": "2h"`. Båda config-filer matchar nu.
+
+### Verifiering
+
+- ✅ MD5-check: 6 unika hashar för rollspecifika + 1 gemensam för minimala
+- ✅ `jq` check: båda config-filer visar `"every": "2h"`
+- ✅ Sync-script: 52 filer distribuerade utan fel
+
+✅ **Fas 8 KLART** (2026-02-12)
+
+---
+
 ## Nuvarande Status
 
 **Backend:**
@@ -1383,24 +1613,31 @@ Duration:    677ms
 - Express API på port 3001
 - Supabase-kopplad (PostgreSQL)
 - LLM: DeepSeek V3.2 (deepseek-chat)
+- **Multi-round tool calling** (max 5 rundor med fallback)
 - Executors: local:echo, n8n:*, claw:*
 - **Middleware:** Auth (Bearer token) + Rate limiting (3-tier)
 - **Routes:** skillRegistry, skillChecker, gitOps, agentQueue, contextData, toolCalls
 - **Cost Pipeline:** Automatisk LLM-kostnadsloggning vid varje chattanrop
+- **Naming:** Alla "Master Brain"-refs ersatta med "Alex"
+- **Env-validering:** Centraliserad Zod-schema i `config.ts` (fail-fast vid startup)
+- **Strukturerad loggning:** JSON-lines logger ersätter console.* i 13 filer
 
 **Frontend:**
 
 - React dashboard på port 5173
-- 4-flikar: Alex · Kunder · System · **Skills**
+- 7-flikar: Alex · Kunder · Arkiv · System · Skills · Fleet
 - 3D Realm visualization
-- Master Brain Chat med tool calling + markdown-rendering
+- Alex Chat med multi-round tool calling + markdown-rendering
 - Task Queue med approve/dispatch
 - AI System Dashboard (4 paneler + Git Panel)
 - **Skill Registry** med sökbar grid och detaljmodal
-- **Cost Center** med riktig data från Supabase
+- **Cost Center** med riktig data från Supabase (frontend äger färger)
 - Vite proxy → backend API
 - Alex Gateway WebSocket-anslutning (Online 🟢)
 - **Auth:** Alla API-anrop skyddade med Bearer token
+- **Modulär CSS:** 9 domänfiler under `styles/`
+- **Modulär API:** 8 domänfiler under `api/`
+- **Centraliserad config:** `config.ts` med alla URL:er
 
 **Integrations:**
 
@@ -1409,9 +1646,15 @@ Duration:    677ms
 - DeepSeek AI (konversation + tools)
 - Alex Gateway (WebSocket, port 18789)
 
+**Clawd-workspace:**
+
+- **Delade skills:** `skills/shared/` med sync-script (26 kopior → 1 canonical)
+- **Differentierade heartbeats:** 6 rollspecifika + 8 minimala
+- **Synkade intervall:** 2h i båda config-filer
+
 ---
 
-**Alla core tickets (1-21) + AI Dashboard + Phase 2 Batch A & B + Fas 1-4 är nu klara! 🎉**
+**Alla core tickets (1-21) + AI Dashboard + Phase 2 Batch A & B + Fas 1-8 är nu klara! 🎉**
 
 **Kvarvarande Phase 2 tickets:**
 
@@ -1422,4 +1665,4 @@ Duration:    677ms
 
 **Separat epic:** `skyland-agent-skills` repo (8 tickets, se userstory)
 
-*Senast uppdaterad: 2026-02-11 23:48*
+*Senast uppdaterad: 2026-02-12 00:48*

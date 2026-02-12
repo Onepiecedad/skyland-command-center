@@ -1,11 +1,13 @@
 import { supabase } from './supabase';
+import { config } from '../config';
+import { logger } from './logger';
 
 // ============================================================================
 // Rate limit configuration (Ticket 20)
 // ============================================================================
-const CLAW_MAX_CONCURRENT_PER_CUSTOMER = parseInt(process.env.CLAW_MAX_CONCURRENT_PER_CUSTOMER || '3', 10);
-const CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER = parseInt(process.env.CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER || '20', 10);
-const CLAW_MAX_RUNS_PER_HOUR_GLOBAL = parseInt(process.env.CLAW_MAX_RUNS_PER_HOUR_GLOBAL || '60', 10);
+const CLAW_MAX_CONCURRENT_PER_CUSTOMER = config.CLAW_MAX_CONCURRENT_PER_CUSTOMER;
+const CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER = config.CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER;
+const CLAW_MAX_RUNS_PER_HOUR_GLOBAL = config.CLAW_MAX_RUNS_PER_HOUR_GLOBAL;
 
 // Claw executor allowlist (Ticket 19)
 const CLAW_EXECUTOR_ALLOWLIST = ['claw:research', 'claw:prospect-finder', 'claw:content', 'claw:deep-research', 'claw:report-writer'];
@@ -48,7 +50,7 @@ export async function logTaskRunActivity(
             details: { task_id: taskId, run_id: runId, message: `Task run ${action.replace('run_', '')}`, ...details }
         });
     } catch (err) {
-        console.error('Failed to log activity:', err);
+        logger.error('task', 'Failed to log activity', { error: err instanceof Error ? err.message : err });
     }
 }
 
@@ -71,7 +73,7 @@ export async function logRateLimitedActivity(
             details: { task_id: taskId, reason, message: `Task dispatch rate limited: ${reason}`, ...details }
         });
     } catch (err) {
-        console.error('Failed to log rate_limited activity:', err);
+        logger.error('task', 'Failed to log rate_limited activity', { error: err instanceof Error ? err.message : err });
     }
 }
 
@@ -158,7 +160,7 @@ export async function checkClawRateLimits(customerId: string | null, executor: s
 
         return { allowed: true };
     } catch (err) {
-        console.error('[rate-limit] Error checking rate limits:', err);
+        logger.error('ratelimit', 'Error checking rate limits', { error: err instanceof Error ? err.message : err });
         // On error, allow dispatch (fail open)
         return { allowed: true };
     }
@@ -168,7 +170,7 @@ export async function checkClawRateLimits(customerId: string | null, executor: s
 // Reaper: Timeout stuck running task_runs
 // ============================================================================
 export async function reapStuckRuns() {
-    const timeoutMinutes = parseInt(process.env.TASK_RUN_TIMEOUT_MINUTES || '15', 10);
+    const timeoutMinutes = config.TASK_RUN_TIMEOUT_MINUTES;
     const cutoff = new Date(Date.now() - timeoutMinutes * 60 * 1000).toISOString();
 
     try {
@@ -180,13 +182,13 @@ export async function reapStuckRuns() {
             .lt('started_at', cutoff);
 
         if (error) {
-            console.error('[reaper] Error querying stuck runs:', error);
+            logger.error('reaper', 'Error querying stuck runs', { error: error.message });
             return;
         }
 
         if (!stuckRuns?.length) return;
 
-        console.log(`[reaper] Found ${stuckRuns.length} stuck run(s) to timeout`);
+        logger.info('reaper', `Found ${stuckRuns.length} stuck run(s) to timeout`);
 
         for (const run of stuckRuns) {
             const now = new Date().toISOString();
@@ -206,7 +208,7 @@ export async function reapStuckRuns() {
                 .eq('id', run.id);
 
             if (runError) {
-                console.error(`[reaper] Failed to update run ${run.id}:`, runError);
+                logger.error('reaper', `Failed to update run ${run.id}`, { error: runError.message });
                 continue;
             }
 
@@ -228,10 +230,10 @@ export async function reapStuckRuns() {
                 { timeout_minutes: timeoutMinutes, duration_ms: durationMs }
             );
 
-            console.log(`[reaper] Run ${run.id} marked as timeout (was running for ${Math.round(durationMs / 1000 / 60)}m)`);
+            logger.info('reaper', `Run ${run.id} marked as timeout (was running for ${Math.round(durationMs / 1000 / 60)}m)`);
         }
     } catch (err) {
-        console.error('[reaper] Unexpected error:', err);
+        logger.error('reaper', 'Unexpected error', { error: err instanceof Error ? err.message : err });
     }
 }
 
@@ -253,7 +255,7 @@ export async function executeLocalEcho(task: Record<string, unknown>): Promise<{
 
 // Execute n8n webhook
 export async function executeN8nWebhook(task: Record<string, unknown>, runId: string): Promise<{ triggered: boolean; error?: string }> {
-    const webhookUrl = process.env.N8N_WEBHOOK_URL;
+    const webhookUrl = config.N8N_WEBHOOK_URL;
 
     if (!webhookUrl) {
         return { triggered: false, error: 'N8N_WEBHOOK_URL not configured' };
@@ -273,7 +275,7 @@ export async function executeN8nWebhook(task: Record<string, unknown>, runId: st
                 title: task.title,
                 input: task.input,
                 customer_id: task.customer_id,
-                callback_url: `${process.env.BACKEND_URL || 'http://localhost:3001'}/api/v1/n8n/task-result`
+                callback_url: `${config.BACKEND_URL || 'http://localhost:3001'}/api/v1/n8n/task-result`
             })
         });
 
@@ -292,9 +294,9 @@ export async function executeClawWebhook(
     task: Record<string, unknown>,
     runId: string
 ): Promise<{ triggered: boolean; error?: string }> {
-    const hookUrl = process.env.OPENCLAW_HOOK_URL;
-    const hookToken = process.env.OPENCLAW_HOOK_TOKEN;
-    const publicBaseUrl = process.env.SCC_PUBLIC_BASE_URL || process.env.BACKEND_URL || 'http://localhost:3001';
+    const hookUrl = config.OPENCLAW_HOOK_URL;
+    const hookToken = config.OPENCLAW_HOOK_TOKEN;
+    const publicBaseUrl = config.SCC_PUBLIC_BASE_URL || config.BACKEND_URL || 'http://localhost:3001';
 
     if (!hookUrl) {
         return { triggered: false, error: 'OPENCLAW_HOOK_URL not configured' };
@@ -325,7 +327,7 @@ export async function executeClawWebhook(
             return { triggered: false, error: `OpenClaw hook returned ${response.status}` };
         }
 
-        console.log(`[claw-dispatch] Triggered ${agentId} for task ${task.id}, run ${runId}`);
+        logger.info('claw', `Triggered ${agentId} for task ${task.id}, run ${runId}`);
         return { triggered: true };
     } catch (err) {
         return { triggered: false, error: err instanceof Error ? err.message : 'Unknown error' };
@@ -377,7 +379,7 @@ export async function dispatchTask(taskId: string, workerId: string): Promise<Di
             })
             .eq('id', taskId);
 
-        console.log(`[rate-limit] Task ${taskId} rate limited: ${rateLimitResult.reason}`);
+        logger.info('ratelimit', `Task ${taskId} rate limited: ${rateLimitResult.reason}`);
 
         return {
             success: false,

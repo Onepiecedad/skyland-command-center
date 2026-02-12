@@ -10,16 +10,13 @@ import {
     Search,
     Upload,
     RefreshCw,
-    Filter,
     Grid,
     List,
-    MoreVertical,
     Download,
     Trash2,
     Tag,
     Calendar,
     HardDrive,
-    Plus,
 } from 'lucide-react';
 
 /* ─── Types ─── */
@@ -328,7 +325,7 @@ export function ArchiveView() {
                         <button className="archive-detail-close" onClick={() => setSelectedFile(null)}>
                             ×
                         </button>
-                        
+
                         <div className="archive-detail-header">
                             <div className="archive-detail-icon" style={{ color: FILE_TYPE_CONFIG[selectedFile.file_type]?.color }}>
                                 {FILE_TYPE_CONFIG[selectedFile.file_type]?.icon || <File size={32} />}

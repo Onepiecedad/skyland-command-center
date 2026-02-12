@@ -5,6 +5,7 @@
  */
 
 import { supabase } from './supabase';
+import { logger } from './logger';
 import type { ChatOutput } from '../llm/adapter';
 
 interface CostLogParams {
@@ -39,9 +40,9 @@ export async function logLLMCost(params: CostLogParams): Promise<void> {
         });
 
         if (error) {
-            console.warn('[cost-service] Failed to log cost:', error.message);
+            logger.warn('cost', 'Failed to log cost', { error: error.message });
         }
     } catch (err) {
-        console.warn('[cost-service] Unexpected error logging cost:', err);
+        logger.warn('cost', 'Unexpected error logging cost', { error: err instanceof Error ? err.message : err });
     }
 }

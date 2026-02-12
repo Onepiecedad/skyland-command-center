@@ -9,29 +9,31 @@
 
 import OpenAI from 'openai';
 import type { LLMAdapter, ChatInput, ChatOutput } from './adapter';
+import { config } from '../config';
+import { logger } from '../services/logger';
 
 export class OpenRouterAdapter implements LLMAdapter {
     private client: OpenAI;
     private model: string;
 
     constructor() {
-        const apiKey = process.env.OPENROUTER_API_KEY;
+        const apiKey = config.OPENROUTER_API_KEY;
         if (!apiKey) {
-            throw new Error('OPENROUTER_API_KEY environment variable is required');
+            throw new Error('OPENROUTER_API_KEY not configured (check LLM_PROVIDER)');
         }
 
         this.client = new OpenAI({
             apiKey,
             baseURL: 'https://openrouter.ai/api/v1',
             defaultHeaders: {
-                'HTTP-Referer': process.env.SCC_PUBLIC_BASE_URL || 'http://localhost:3001',
+                'HTTP-Referer': config.SCC_PUBLIC_BASE_URL || 'http://localhost:3001',
                 'X-Title': 'Skyland Command Center',
             },
         });
 
         // Default to GPT-4o via OpenRouter; override with LLM_MODEL
         // Examples: "openai/gpt-4o", "anthropic/claude-sonnet-4-5-20250929", "deepseek/deepseek-chat"
-        this.model = process.env.LLM_MODEL || 'openai/gpt-4o';
+        this.model = config.LLM_MODEL;
     }
 
     async chat(input: ChatInput): Promise<ChatOutput> {
@@ -80,7 +82,7 @@ export class OpenRouterAdapter implements LLMAdapter {
                 } : undefined,
             };
         } catch (error) {
-            console.error('[openrouter-adapter] Error calling OpenRouter:', error);
+            logger.error('openrouter', 'Error calling OpenRouter', { error: error instanceof Error ? error.message : error });
             throw error;
         }
     }

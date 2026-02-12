@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { logger } from './logger';
 import { CustomerInfo } from '../llm/systemPrompt';
 
 /**
@@ -10,7 +11,7 @@ export async function loadCustomersForPrompt(): Promise<CustomerInfo[]> {
         .select('id, name, slug');
 
     if (error || !data) {
-        console.error('Error loading customers for prompt:', error);
+        logger.error('customer', 'Error loading customers for prompt', { error: error?.message });
         return [];
     }
 

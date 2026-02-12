@@ -1,21 +1,11 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-// Validate required environment variables
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!SUPABASE_URL) {
-    throw new Error('Missing required environment variable: SUPABASE_URL');
-}
-
-if (!SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('Missing required environment variable: SUPABASE_SERVICE_ROLE_KEY');
-}
+import { config } from '../config';
 
 // Create Supabase client with service role key (server-side only)
+// Validation already handled by config.ts at startup
 export const supabase: SupabaseClient = createClient(
-    SUPABASE_URL,
-    SUPABASE_SERVICE_ROLE_KEY,
+    config.SUPABASE_URL,
+    config.SUPABASE_SERVICE_ROLE_KEY,
     {
         auth: {
             autoRefreshToken: false,

@@ -11,7 +11,6 @@ interface ProviderSummary {
     provider: string;
     total: number;
     percentage: number;
-    color: string;
 }
 
 interface AgentCost {
@@ -57,10 +56,10 @@ export function CostCenter() {
             }
             const costData: CostData = await res.json();
 
-            // Ensure provider colors are set (backend may send them, but fallback here)
+            // Assign provider colors from local map (backend no longer sends colors)
             costData.providers = costData.providers.map(p => ({
                 ...p,
-                color: p.color || PROVIDER_COLORS[p.provider] || PROVIDER_COLORS.other,
+                color: PROVIDER_COLORS[p.provider] || PROVIDER_COLORS.other,
             }));
 
             setData(costData);

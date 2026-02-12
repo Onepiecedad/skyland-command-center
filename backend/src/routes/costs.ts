@@ -2,20 +2,11 @@ import { Router, Request, Response } from 'express';
 import { supabase } from '../services/supabase';
 import { costsQuerySchema, costEntrySchema } from '../schemas/costs';
 
+
 const router = Router();
 
 // Budget constant (later could be moved to a settings table)
 const COST_BUDGET_USD = 150;
-
-// Provider colors (must match frontend)
-const PROVIDER_COLORS: Record<string, string> = {
-    openrouter: '#8B5CF6',
-    openai: '#10B981',
-    exa: '#0A84FF',
-    firecrawl: '#FF6B35',
-    anthropic: '#D97706',
-    other: '#64748B',
-};
 
 // GET / - aggregated cost data for the Cost Center dashboard
 router.get('/', async (req: Request, res: Response) => {
@@ -92,7 +83,6 @@ router.get('/', async (req: Request, res: Response) => {
                 provider,
                 total: +total.toFixed(2),
                 percentage: grandTotal > 0 ? +((total / grandTotal) * 100).toFixed(1) : 0,
-                color: PROVIDER_COLORS[provider] || PROVIDER_COLORS.other,
             }))
             .sort((a, b) => b.total - a.total);
 

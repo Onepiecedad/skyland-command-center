@@ -2,17 +2,21 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { supabase } from '../services/supabase';
+import { config } from '../config';
+import { logger } from '../services/logger';
 import { chatRequestSchema } from '../schemas/chat';
 import { logMessage, loadRecentMessages } from '../services/messageService';
 import { loadCustomersForPrompt } from '../services/customerService';
 import { getAdapter, ChatMessage } from '../llm/adapter';
 import { logLLMCost } from '../services/costService';
 import { buildSystemPrompt } from '../llm/systemPrompt';
-import { MASTER_BRAIN_TOOLS, executeToolCall, formatToolResultForLLM } from '../llm/tools';
+import { ALEX_TOOLS, executeToolCall } from '../llm/tools';
 
 const router = Router();
 
-// POST /chat - Master Brain chat endpoint
+const MAX_TOOL_ROUNDS = 5;
+
+// POST /chat - Alex chat endpoint
 router.post('/chat', async (req: Request, res: Response) => {
     try {
         // Validate request
@@ -31,6 +35,7 @@ router.post('/chat', async (req: Request, res: Response) => {
         // Track actions for response
         const actions_taken: Array<{ action: string; table: string; details?: Record<string, unknown> }> = [];
         const proposed_actions: unknown[] = [];
+        const allToolCallNames: string[] = [];
 
         // Use provided customer_id or null
         const customerId = providedCustomerId || null;
@@ -38,7 +43,7 @@ router.post('/chat', async (req: Request, res: Response) => {
         // Log chat_received activity
         await supabase.from('activities').insert({
             customer_id: customerId,
-            agent: 'master_brain',
+            agent: 'alex',
             action: 'chat_received',
             event_type: 'chat',
             severity: 'info',
@@ -77,48 +82,66 @@ router.post('/chat', async (req: Request, res: Response) => {
         try {
             adapter = getAdapter();
         } catch (adapterError) {
-            console.error('Failed to initialize LLM adapter:', adapterError);
+            logger.error('chat', 'Failed to initialize LLM adapter', { error: adapterError instanceof Error ? adapterError.message : adapterError });
             return res.status(500).json({
                 error: 'LLM adapter not configured',
                 details: adapterError instanceof Error ? adapterError.message : 'Unknown error'
             });
         }
 
-        // Call LLM
-        let llmResponse;
-        try {
-            llmResponse = await adapter.chat({
-                systemPrompt,
-                messages: llmMessages,
-                tools: MASTER_BRAIN_TOOLS
-            });
+        // ================================================================
+        // Multi-round tool calling loop (max MAX_TOOL_ROUNDS iterations)
+        // ================================================================
+        let currentMessages = [...llmMessages];
+        let responseText = '';
+        let round = 0;
 
-            // Log LLM cost (fire-and-forget)
-            logLLMCost({
-                provider: process.env.LLM_PROVIDER || 'openai',
-                model: process.env.LLM_MODEL || 'gpt-4o',
-                agent: 'alex',
-                usage: llmResponse.usage,
-            });
-        } catch (llmError) {
-            console.error('LLM call failed:', llmError);
-            return res.status(500).json({
-                error: 'LLM call failed',
-                details: llmError instanceof Error ? llmError.message : 'Unknown error'
-            });
-        }
+        while (round < MAX_TOOL_ROUNDS) {
+            round++;
+            logger.info('chat', `LLM round ${round}/${MAX_TOOL_ROUNDS}`);
 
-        // Process tool calls if present (single round, v1 scope)
-        let responseText = llmResponse.text;
-        const toolResults: Array<{ name: string; result: unknown }> = [];
+            let llmResponse;
+            try {
+                llmResponse = await adapter.chat({
+                    systemPrompt,
+                    messages: currentMessages,
+                    tools: ALEX_TOOLS
+                });
 
-        if (llmResponse.toolCalls && llmResponse.toolCalls.length > 0) {
-            console.log(`[chat] Processing ${llmResponse.toolCalls.length} tool calls`);
+                // Log LLM cost (fire-and-forget)
+                logLLMCost({
+                    provider: config.LLM_PROVIDER,
+                    model: config.LLM_MODEL,
+                    agent: 'alex',
+                    usage: llmResponse.usage,
+                });
+            } catch (llmError) {
+                logger.error('chat', `LLM call failed (round ${round})`, { error: llmError instanceof Error ? llmError.message : llmError });
+                if (round === 1) {
+                    return res.status(500).json({
+                        error: 'LLM call failed',
+                        details: llmError instanceof Error ? llmError.message : 'Unknown error'
+                    });
+                }
+                // On later rounds, use whatever we have so far
+                break;
+            }
+
+            // No tool calls — we have the final text response
+            if (!llmResponse.toolCalls || llmResponse.toolCalls.length === 0) {
+                responseText = llmResponse.text;
+                break;
+            }
+
+            // Execute tool calls
+            logger.info('chat', `Round ${round}: Processing ${llmResponse.toolCalls.length} tool calls`);
+            const roundToolResults: Array<{ name: string; result: unknown }> = [];
 
             for (const toolCall of llmResponse.toolCalls) {
-                console.log(`[chat] Executing tool: ${toolCall.name}`);
+                logger.info('chat', `Executing tool: ${toolCall.name}`);
+                allToolCallNames.push(toolCall.name);
                 const result = await executeToolCall(toolCall.name, toolCall.arguments);
-                toolResults.push({ name: toolCall.name, result });
+                roundToolResults.push({ name: toolCall.name, result });
 
                 // If task was created, add to proposed_actions
                 if (toolCall.name === 'create_task_proposal' && result.success) {
@@ -132,7 +155,7 @@ router.post('/chat', async (req: Request, res: Response) => {
                     // Log task_proposed activity
                     await supabase.from('activities').insert({
                         customer_id: customerId,
-                        agent: 'master_brain',
+                        agent: 'alex',
                         action: 'task_proposed',
                         event_type: 'task',
                         severity: 'info',
@@ -144,59 +167,46 @@ router.post('/chat', async (req: Request, res: Response) => {
                     });
                     actions_taken.push({ action: 'insert', table: 'activities', details: { event_type: 'task_proposed', task_id: taskData.task_id } });
                 }
-
-                // Append formatted tool result to response if LLM didn't provide text
-                if (!responseText) {
-                    responseText = formatToolResultForLLM(toolCall.name, result);
-                }
             }
 
-            // CRITICAL: Send tool results back to LLM for a natural language response
-            if (toolResults.length > 0) {
-                console.log(`[chat] Sending ${toolResults.length} tool results back to LLM for natural response`);
+            // Append assistant tool-call message + tool results to conversation
+            currentMessages.push({
+                role: 'assistant' as const,
+                content: `Jag använder verktyg: ${roundToolResults.map(t => t.name).join(', ')}`
+            });
+            currentMessages.push({
+                role: 'user' as const,
+                content: `Verktygsresultat:\n${roundToolResults.map(tr =>
+                    `${tr.name}: ${JSON.stringify(tr.result, null, 2)}`
+                ).join('\n\n')}\n\nOm du behöver använda fler verktyg, gör det. Annars sammanfatta på ENKEL SVENSKA. Förklara för en person som INTE kan programmera. Inga JSON-objekt eller teknisk kod i svaret!`
+            });
 
-                // Build tool result messages
-                const toolResultMessages: ChatMessage[] = [
-                    ...llmMessages,
-                    {
-                        role: 'assistant' as const,
-                        content: `Jag har hämtat data med verktyg: ${toolResults.map(t => t.name).join(', ')}`
-                    },
-                    {
-                        role: 'user' as const,
-                        content: `Verktygsdata:\n${toolResults.map(tr =>
-                            `${tr.name}: ${JSON.stringify(tr.result, null, 2)}`
-                        ).join('\n\n')}\n\nSammanfatta detta på ENKEL SVENSKA. Förklara för en person som INTE kan programmera vad som hänt och varför. Inga JSON-objekt eller teknisk kod i svaret!`
-                    }
-                ];
-
-                try {
-                    const followUpResponse = await adapter.chat({
-                        systemPrompt,
-                        messages: toolResultMessages,
-                        tools: [] // No tools in follow-up, just generate text
-                    });
-
-                    // Log follow-up LLM cost (fire-and-forget)
-                    logLLMCost({
-                        provider: process.env.LLM_PROVIDER || 'openai',
-                        model: process.env.LLM_MODEL || 'gpt-4o',
-                        agent: 'alex',
-                        usage: followUpResponse.usage,
-                    });
-
-                    if (followUpResponse.text) {
-                        responseText = followUpResponse.text;
-                    }
-                } catch (followUpError) {
-                    console.error('Follow-up LLM call failed:', followUpError);
-                    // Keep the formatted tool result as fallback
-                }
-            }
-
-            // If LLM provided text AND we have tool results, keep LLM text
-            if (llmResponse.text && toolResults.length > 0) {
+            // If LLM also returned text alongside tool calls, save as fallback
+            if (llmResponse.text) {
                 responseText = llmResponse.text;
+            }
+        }
+
+        if (round >= MAX_TOOL_ROUNDS && !responseText) {
+            logger.warn('chat', `Hit max tool rounds (${MAX_TOOL_ROUNDS}), generating final summary`);
+            // Force a final summary without tools
+            try {
+                const summaryResponse = await adapter.chat({
+                    systemPrompt,
+                    messages: currentMessages,
+                    tools: [] // No tools — force text response
+                });
+                logLLMCost({
+                    provider: config.LLM_PROVIDER,
+                    model: config.LLM_MODEL,
+                    agent: 'alex',
+                    usage: summaryResponse.usage,
+                });
+                if (summaryResponse.text) {
+                    responseText = summaryResponse.text;
+                }
+            } catch (summaryError) {
+                logger.error('chat', 'Summary LLM call failed', { error: summaryError instanceof Error ? (summaryError as Error).message : summaryError });
             }
         }
 
@@ -214,8 +224,8 @@ router.post('/chat', async (req: Request, res: Response) => {
             content: responseText,
             customer_id: customerId,
             metadata: {
-                tool_calls: llmResponse.toolCalls?.map(tc => tc.name) || [],
-                tool_results: toolResults.length
+                tool_calls: allToolCallNames,
+                tool_rounds: round
             }
         });
         actions_taken.push({ action: 'insert', table: 'messages', details: { role: 'assistant', conversation_id } });
@@ -223,7 +233,7 @@ router.post('/chat', async (req: Request, res: Response) => {
         // Log chat_responded activity
         await supabase.from('activities').insert({
             customer_id: customerId,
-            agent: 'master_brain',
+            agent: 'alex',
             action: 'chat_responded',
             event_type: 'chat',
             severity: 'info',
@@ -232,7 +242,8 @@ router.post('/chat', async (req: Request, res: Response) => {
                 conversation_id,
                 channel,
                 response_length: responseText.length,
-                tool_calls_count: llmResponse.toolCalls?.length || 0,
+                tool_calls_count: allToolCallNames.length,
+                tool_rounds: round,
                 has_proposed_actions: proposed_actions.length > 0
             }
         });
@@ -245,11 +256,11 @@ router.post('/chat', async (req: Request, res: Response) => {
             customer_id: customerId,
             actions_taken,
             proposed_actions,
-            tool_calls: llmResponse.toolCalls?.map(tc => tc.name) || []
+            tool_calls: allToolCallNames
         });
 
     } catch (err) {
-        console.error('Chat error:', err);
+        logger.error('chat', 'Chat error', { error: err instanceof Error ? err.message : err });
         return res.status(500).json({ error: 'Internal server error' });
     }
 });
@@ -278,14 +289,14 @@ router.get('/chat/history', async (req: Request, res: Response) => {
             .order('created_at', { ascending: true });
 
         if (error) {
-            console.error('Error fetching chat history:', error);
+            logger.error('chat', 'Error fetching chat history', { error: error.message });
             return res.status(500).json({ error: error.message });
         }
 
         return res.json({ messages: data, conversation_id });
 
     } catch (err) {
-        console.error('Chat history error:', err);
+        logger.error('chat', 'Chat history error', { error: err instanceof Error ? err.message : err });
         return res.status(500).json({ error: 'Internal server error' });
     }
 });

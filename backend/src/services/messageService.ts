@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { logger } from './logger';
 import { ChatMessage } from '../llm/adapter';
 
 // Number of previous messages to include in context
@@ -29,7 +30,7 @@ export async function logMessage(params: {
         });
 
     if (error) {
-        console.error('Error logging message:', error);
+        logger.error('message', 'Error logging message', { error: error.message });
     }
 }
 

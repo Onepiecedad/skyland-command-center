@@ -1,11 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
+import { config } from '../config';
 
-const SCC_API_TOKEN = process.env.SCC_API_TOKEN;
-
-if (!SCC_API_TOKEN) {
-    console.error('❌ FATAL: SCC_API_TOKEN environment variable is required');
-    process.exit(1);
-}
+const SCC_API_TOKEN = config.SCC_API_TOKEN;
 
 /**
  * Bearer token authentication middleware.

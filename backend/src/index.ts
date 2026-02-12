@@ -5,6 +5,10 @@ import dotenv from 'dotenv';
 // Load environment variables before importing anything else
 dotenv.config();
 
+// Validate all env vars immediately (exits if invalid)
+import { config } from './config';
+import { logger } from './services/logger';
+
 // --- Route modules (Fas 1 extracted) ---
 import healthRouter from './routes/health';
 import customersRouter from './routes/customers';
@@ -42,7 +46,7 @@ import { globalLimiter, chatLimiter, adminLimiter } from './middleware/rateLimit
 import { reapStuckRuns } from './services/taskService';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = config.PORT;
 
 // ============================================================================
 // Middleware — base
@@ -96,14 +100,14 @@ app.use('/api/v1/archive', archiveRouter);
 // ============================================================================
 // Reaper Timer — timeouts stuck running task_runs
 // ============================================================================
-const reaperIntervalSeconds = parseInt(process.env.TASK_RUN_REAPER_INTERVAL_SECONDS || '60', 10);
-const timeoutMinutes = parseInt(process.env.TASK_RUN_TIMEOUT_MINUTES || '15', 10);
+const reaperIntervalSeconds = config.TASK_RUN_REAPER_INTERVAL_SECONDS;
+const timeoutMinutes = config.TASK_RUN_TIMEOUT_MINUTES;
 setInterval(reapStuckRuns, reaperIntervalSeconds * 1000);
-console.log(`🪓 Reaper started (interval: ${reaperIntervalSeconds}s, timeout: ${timeoutMinutes}m)`);
+logger.info('reaper', `Reaper started (interval: ${reaperIntervalSeconds}s, timeout: ${timeoutMinutes}m)`);
 
 // ============================================================================
 // Start server
 // ============================================================================
 app.listen(PORT, () => {
-    console.log(`🚀 Skyland Command Center API running on port ${PORT}`);
+    logger.info('server', `Skyland Command Center API running on port ${PORT}`);
 });

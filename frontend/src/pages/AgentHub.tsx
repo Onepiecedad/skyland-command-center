@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useGateway } from '../gateway/useGateway';
+import { API_URL } from '../config';
 import allSkills from '../data/skills.json';
 
 // ============================================================================
@@ -23,7 +24,7 @@ interface ActiveTask {
     progress?: number;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE = API_URL;
 
 // Neon accent per category
 const CATEGORY_COLORS: Record<string, string> = {

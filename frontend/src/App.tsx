@@ -11,7 +11,7 @@ import { SystemDashboard } from './pages/SystemDashboard';
 import { SkillsView } from './pages/SkillsView';
 import { ArchiveView } from './pages/ArchiveView';
 import FleetMonitor from './pages/FleetMonitor';
-import './App.css';
+import './styles/index.css';
 
 type View = 'alex' | 'customers' | 'system' | 'skills' | 'fleet' | 'archive';
 
@@ -185,6 +185,18 @@ function App() {
                 exit="exit"
               >
                 <FleetMonitor />
+              </motion.div>
+            )}
+            {currentView === 'archive' && (
+              <motion.div
+                key="archive"
+                className="view-container"
+                variants={VIEW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <ArchiveView />
               </motion.div>
             )}
           </AnimatePresence>

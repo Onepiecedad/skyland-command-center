@@ -3,6 +3,9 @@ import { AgentStatusPanel } from '../components/system/AgentStatusPanel';
 import { SystemResources } from '../components/system/SystemResources';
 import { ApprovalQueue } from '../components/system/ApprovalQueue';
 import { GitPanel } from '../components/system/GitPanel';
+import { EventFeedPanel } from '../components/system/EventFeedPanel';
+import { ErrorRecoveryPanel } from '../components/system/ErrorRecoveryPanel';
+import { MemoryManagementPanel } from '../components/system/MemoryManagementPanel';
 
 export function SystemDashboard() {
     return (
@@ -13,7 +16,7 @@ export function SystemDashboard() {
                     AI System Dashboard
                 </h2>
                 <p className="sys-dashboard-subtitle">
-                    Realtidsöverblick — Workflows · Agenter · Resurser · Godkännanden · Git
+                    Realtidsöverblick — Workflows · Agenter · Resurser · Godkännanden · Events · Fel · Minne · Git
                 </p>
             </div>
 
@@ -22,6 +25,12 @@ export function SystemDashboard() {
                 <AgentStatusPanel />
                 <SystemResources />
                 <ApprovalQueue />
+            </div>
+
+            <div className="sys-grid">
+                <EventFeedPanel />
+                <ErrorRecoveryPanel />
+                <MemoryManagementPanel />
             </div>
 
             <GitPanel />

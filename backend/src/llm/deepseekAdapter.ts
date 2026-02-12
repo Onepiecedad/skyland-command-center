@@ -5,15 +5,17 @@
 
 import OpenAI from 'openai';
 import type { LLMAdapter, ChatInput, ChatOutput } from './adapter';
+import { config } from '../config';
+import { logger } from '../services/logger';
 
 export class DeepSeekAdapter implements LLMAdapter {
     private client: OpenAI;
     private model: string;
 
     constructor() {
-        const apiKey = process.env.DEEPSEEK_API_KEY;
+        const apiKey = config.DEEPSEEK_API_KEY;
         if (!apiKey) {
-            throw new Error('DEEPSEEK_API_KEY environment variable is required');
+            throw new Error('DEEPSEEK_API_KEY not configured (check LLM_PROVIDER)');
         }
 
         // DeepSeek uses OpenAI-compatible API
@@ -21,7 +23,7 @@ export class DeepSeekAdapter implements LLMAdapter {
             apiKey,
             baseURL: 'https://api.deepseek.com'
         });
-        this.model = process.env.LLM_MODEL || 'deepseek-chat';
+        this.model = config.LLM_MODEL;
     }
 
     async chat(input: ChatInput): Promise<ChatOutput> {
@@ -73,7 +75,7 @@ export class DeepSeekAdapter implements LLMAdapter {
                 } : undefined,
             };
         } catch (error) {
-            console.error('[deepseek-adapter] Error calling DeepSeek:', error);
+            logger.error('deepseek', 'Error calling DeepSeek', { error: error instanceof Error ? error.message : error });
             throw error;
         }
     }

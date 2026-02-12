@@ -1,0 +1,471 @@
+/* ── Costs: Cost Center Dashboard ── */
+
+/* ============================================================================
+   COST CENTER — API Spend Dashboard
+   ============================================================================ */
+
+.cost-center {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: fadeInUp var(--duration-normal) var(--ease-out);
+}
+
+/* Loading & Error States */
+.cost-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 300px;
+  color: var(--text-tertiary);
+  font-size: 14px;
+}
+
+.cost-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.08);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cost-error {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: rgba(255, 69, 58, 0.08);
+  border: 1px solid rgba(255, 69, 58, 0.2);
+}
+
+.cost-error-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.cost-error-text {
+  flex: 1;
+  font-size: 14px;
+  color: var(--accent-red);
+}
+
+/* Summary Cards Row */
+.cost-summary-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.cost-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 16px;
+}
+
+.cost-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.cost-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.cost-value.over-budget {
+  color: var(--accent-red);
+}
+
+.cost-delta {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cost-delta.up {
+  color: var(--accent-red);
+}
+
+.cost-delta.down {
+  color: var(--accent-green);
+}
+
+.cost-sublabel {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* Budget Bar */
+.budget-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.budget-fill {
+  height: 100%;
+  background: var(--accent-green);
+  border-radius: 2px;
+  transition: width var(--duration-slow) var(--ease-out);
+}
+
+.budget-fill.warning {
+  background: var(--accent-orange);
+}
+
+.budget-fill.danger {
+  background: var(--accent-red);
+}
+
+.budget-text {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* Daily Spend Chart */
+.chart-panel {
+  padding: 20px;
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.chart-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.chart-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.chart-range-btn {
+  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.chart-range-btn:hover {
+  background: var(--glass-bg-hover);
+}
+
+.chart-range-btn.active {
+  background: rgba(10, 132, 255, 0.15);
+  border-color: rgba(10, 132, 255, 0.3);
+  color: var(--accent-blue);
+}
+
+/* Stacked Bar Chart */
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 200px;
+  padding: 0 4px;
+}
+
+.bar-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.bar-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 3px 3px 0 0;
+  overflow: hidden;
+  min-height: 2px;
+  transition: height var(--duration-normal) var(--ease-out);
+}
+
+.bar-segment {
+  width: 100%;
+  min-height: 1px;
+  transition: height var(--duration-normal) var(--ease-out);
+}
+
+.bar-label {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  height: 14px;
+}
+
+/* Chart Legend */
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Cost Details Grid */
+.cost-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.provider-breakdown h2,
+.agent-breakdown h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 16px;
+}
+
+/* Provider Breakdown */
+.provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.provider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.provider-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.provider-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.provider-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.provider-bar-container {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.provider-bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width var(--duration-slow) var(--ease-out);
+}
+
+.provider-values {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-shrink: 0;
+  min-width: 90px;
+  justify-content: flex-end;
+}
+
+.provider-amount {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.provider-pct {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Agent Breakdown */
+.agent-cost-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.agent-cost-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+}
+
+.agent-cost-rank {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-cost-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-cost-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: block;
+}
+
+.agent-cost-calls {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  display: block;
+  margin-top: 2px;
+}
+
+.agent-cost-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* Cost Footer */
+.cost-footer {
+  text-align: center;
+  padding: 16px;
+}
+
+.cost-footer-note {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.cost-footer-note code {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  color: var(--accent-blue);
+}
+
+/* Loading Shimmer */
+.loading-panel {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-shimmer {
+  width: 60%;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0.04) 25%,
+      rgba(255, 255, 255, 0.08) 50%,
+      rgba(255, 255, 255, 0.04) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ─── Responsive: Agent Hub & Cost Center ─── */
+@media (max-width: 768px) {
+  .agent-hub-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cost-summary-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .cost-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bar-chart {
+    height: 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .cost-summary-row {
+    grid-template-columns: 1fr;
+  }
+}
+

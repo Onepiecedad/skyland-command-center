@@ -8,6 +8,7 @@ import {
     CheckCircle,
     XCircle,
 } from 'lucide-react';
+import { API_URL } from '../../config';
 
 // ─── Types ───
 interface ResourceStatus {
@@ -31,7 +32,7 @@ export function SystemResources() {
 
     const fetchResources = useCallback(async () => {
         try {
-            const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+            const API = API_URL;
             const res = await fetch(`${API}/api/v1/status`);
             if (res.ok) {
                 const data = await res.json();

@@ -7,6 +7,7 @@ import {
     Clock,
     Zap,
 } from 'lucide-react';
+import { API_URL } from '../../config';
 
 // ─── Types ───
 type WorkflowStatus = 'HEALTHY' | 'DEGRADED' | 'CRITICAL';
@@ -47,7 +48,7 @@ export function WorkflowHealth() {
     const fetchWorkflows = useCallback(async () => {
         try {
             // Try fetching from n8n via SCC backend proxy
-            const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+            const API = API_URL;
             const res = await fetch(`${API}/api/v1/status`);
             if (!res.ok) throw new Error('API unavailable');
             // We'll derive what we can from the status endpoint

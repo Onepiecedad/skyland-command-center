@@ -29,6 +29,7 @@ import { AlexChat } from '../components/AlexChat';
 import { ThreadSidebar } from '../components/chat/ThreadSidebar';
 import { ThreadMemoryPanel } from '../components/chat/ThreadMemoryPanel';
 import { useGateway } from '../gateway/useGateway';
+import { API_URL } from '../config';
 
 /* ─── Types ─── */
 interface Skill {
@@ -86,9 +87,7 @@ type SourceFilter = 'all' | 'skills' | 'agents' | 'mcp';
 
 /* Sidebar sections removed — now rendered as collapsible groups */
 
-const SKILLS_API = import.meta.env.VITE_API_URL
-    ? `${import.meta.env.VITE_API_URL}/api/v1/skills`
-    : 'http://localhost:3001/api/v1/skills';
+const SKILLS_API = `${API_URL}/api/v1/skills`;
 
 interface Props {
     onTaskCreated: () => void;

@@ -1,0 +1,2405 @@
+/* ── Alex: Chat, Markdown, Input, Toolbar ── */
+
+/* ─── Chat Panel ─── */
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.chat-header {
+  margin-bottom: 0.75rem;
+}
+
+.chat-mode-toggle {
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 3px;
+  width: fit-content;
+}
+
+.chat-mode-btn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.chat-mode-btn:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.chat-mode-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.gateway-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.gateway-dot.online {
+  background: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.5);
+}
+
+.gateway-dot.offline {
+  background: #f87171;
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.4);
+}
+
+/* Alex-mode accent */
+.chat-alex-mode {
+  border-color: rgba(52, 211, 153, 0.15);
+}
+
+.chat-message.alex .message-content {
+  background: rgba(52, 211, 153, 0.08);
+  border-left: 2px solid rgba(52, 211, 153, 0.3);
+}
+
+.chat-messages {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  min-height: 0;
+}
+
+.chat-message {
+  padding: 0.6rem 0.85rem;
+  border-radius: var(--radius-md);
+  max-width: 85%;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.chat-message.user {
+  background: linear-gradient(135deg, var(--accent-blue), rgba(10, 132, 255, 0.8));
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+  color: white;
+}
+
+.chat-message.assistant {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+}
+
+.message-content {
+  margin-bottom: 0.25rem;
+  word-break: break-word;
+}
+
+/* ─── Markdown Body in Chat ─── */
+.message-content.markdown-body p {
+  margin: 0.3em 0;
+  line-height: 1.55;
+}
+
+.message-content.markdown-body p:first-child {
+  margin-top: 0;
+}
+
+.message-content.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+
+.message-content.markdown-body strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.message-content.markdown-body em {
+  font-style: italic;
+  opacity: 0.9;
+}
+
+.message-content.markdown-body h1,
+.message-content.markdown-body h2,
+.message-content.markdown-body h3,
+.message-content.markdown-body h4 {
+  margin: 0.6em 0 0.3em;
+  font-weight: 600;
+  color: #fff;
+}
+
+.message-content.markdown-body h1 {
+  font-size: 1.15em;
+}
+
+.message-content.markdown-body h2 {
+  font-size: 1.05em;
+}
+
+.message-content.markdown-body h3 {
+  font-size: 0.95em;
+}
+
+.message-content.markdown-body ul,
+.message-content.markdown-body ol {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+
+.message-content.markdown-body li {
+  margin: 0.15em 0;
+  line-height: 1.5;
+}
+
+.message-content.markdown-body li::marker {
+  color: var(--accent);
+}
+
+.message-content.markdown-body code {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  font-size: 0.85em;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.message-content.markdown-body pre {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.75em 1em;
+  margin: 0.5em 0;
+  overflow-x: auto;
+}
+
+.message-content.markdown-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.82em;
+}
+
+.message-content.markdown-body blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 0.5em 0;
+  padding: 0.3em 0.8em;
+  opacity: 0.85;
+}
+
+.message-content.markdown-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: rgba(var(--accent-rgb, 100, 200, 255), 0.3);
+}
+
+.message-content.markdown-body a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* ─── Markdown Tables ─── */
+.message-content.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  font-size: 0.84em;
+  overflow-x: auto;
+  display: block;
+}
+
+.message-content.markdown-body thead {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.message-content.markdown-body tbody {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.message-content.markdown-body th {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.5em 0.75em;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+  white-space: nowrap;
+}
+
+.message-content.markdown-body td {
+  padding: 0.4em 0.75em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.message-content.markdown-body tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.message-content.markdown-body tr:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Markdown Horizontal Rule ─── */
+.message-content.markdown-body hr {
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 0.8em 0;
+}
+
+/* ─── Strikethrough (GFM) ─── */
+.message-content.markdown-body del {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.msg-timestamp {
+  display: block;
+  font-size: 0.6rem;
+  color: var(--text-tertiary);
+  opacity: 0.6;
+  margin-top: 2px;
+  letter-spacing: 0.03em;
+}
+
+.chat-message.user .msg-timestamp {
+  text-align: right;
+}
+
+.intent-badge {
+  display: inline-block;
+  background: rgba(191, 90, 242, 0.2);
+  border: 1px solid rgba(191, 90, 242, 0.3);
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--accent-purple);
+  margin-top: 0.3rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.proposed-actions {
+  margin-top: 0.5rem;
+  padding: 0.55rem;
+  background: rgba(48, 209, 88, 0.08);
+  border: 1px solid rgba(48, 209, 88, 0.15);
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+
+.proposed-action {
+  color: var(--accent-green);
+}
+
+.task-status {
+  color: var(--text-secondary);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.suggestion-chip {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text-primary);
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.suggestion-chip:hover {
+  background: rgba(10, 132, 255, 0.15);
+  border-color: rgba(10, 132, 255, 0.3);
+  color: var(--accent-blue);
+}
+
+/* ─── Bolt-Style Chat Input ─── */
+.bolt-input-wrapper {
+  position: relative;
+  margin-top: auto;
+}
+
+.bolt-input-glow {
+  position: absolute;
+  inset: -1px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bolt-input-card {
+  position: relative;
+  z-index: 1;
+  border-radius: 16px;
+  background: rgba(22, 22, 28, 0.85);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 4px 24px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bolt-input-card:focus-within {
+  border-color: rgba(10, 132, 255, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(10, 132, 255, 0.15),
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    0 0 30px rgba(10, 132, 255, 0.06);
+}
+
+.bolt-textarea {
+  display: block;
+  width: 100%;
+  resize: none;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.5;
+  padding: 1rem 1.15rem 0.5rem;
+  min-height: 48px;
+  max-height: 180px;
+}
+
+.bolt-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.22);
+}
+
+.bolt-textarea:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── Toolbar ─── */
+.bolt-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.65rem 0.65rem;
+}
+
+.bolt-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.bolt-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ─── Attach Button ─── */
+.bolt-attach {
+  position: relative;
+}
+
+.bolt-attach-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bolt-attach-trigger:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.bolt-rotate-45 {
+  transform: rotate(45deg);
+  transition: transform 0.2s ease;
+}
+
+/* ─── Model Selector ─── */
+.bolt-model-selector {
+  position: relative;
+}
+
+.bolt-model-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bolt-model-trigger:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bolt-chevron {
+  transition: transform 0.2s ease;
+}
+
+.bolt-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* ─── Shared Dropdown Styles ─── */
+.bolt-dropdown-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.bolt-model-dropdown,
+.bolt-attach-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 100;
+  min-width: 210px;
+  background: rgba(22, 22, 28, 0.96);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  padding: 6px;
+  animation: boltDropIn 0.2s ease;
+}
+
+@keyframes boltDropIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bolt-dropdown-label {
+  padding: 0.4rem 0.6rem 0.3rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.25);
+}
+
+/* ─── Model Option ─── */
+.bolt-model-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.bolt-model-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+.bolt-model-option.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.bolt-model-option-icon {
+  flex-shrink: 0;
+}
+
+.bolt-model-option-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.bolt-model-option-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bolt-model-option-name {
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.bolt-model-option-desc {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.bolt-model-badge {
+  font-size: 0.58rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.bolt-model-badge.default {
+  background: rgba(10, 132, 255, 0.2);
+  color: rgba(100, 180, 255, 0.9);
+}
+
+.bolt-model-badge.pro {
+  background: rgba(191, 90, 242, 0.2);
+  color: rgba(200, 140, 255, 0.9);
+}
+
+/* ─── Attach Option ─── */
+.bolt-attach-option {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.bolt-attach-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+
+/* ─── Icon Colors ─── */
+.bolt-icon-blue {
+  color: rgba(80, 160, 255, 0.9);
+}
+
+.bolt-icon-green {
+  color: rgba(52, 211, 153, 0.9);
+}
+
+.bolt-icon-purple {
+  color: rgba(191, 130, 255, 0.9);
+}
+
+.bolt-icon-cyan {
+  color: rgba(34, 211, 238, 0.9);
+}
+
+.bolt-model-icon {
+  flex-shrink: 0;
+}
+
+/* ─── Plan Button ─── */
+.bolt-plan-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bolt-plan-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ─── Send Button ─── */
+.bolt-send-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent-blue);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 20px rgba(10, 132, 255, 0.3);
+}
+
+.bolt-send-btn:hover:not(:disabled) {
+  background: rgba(26, 148, 255, 1);
+  box-shadow: 0 0 28px rgba(10, 132, 255, 0.45);
+}
+
+.bolt-send-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.bolt-send-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ─── Abort Button ─── */
+.bolt-abort-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: none;
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 16px rgba(248, 113, 113, 0.15);
+}
+
+.bolt-abort-btn:hover {
+  background: rgba(248, 113, 113, 0.3);
+  box-shadow: 0 0 24px rgba(248, 113, 113, 0.25);
+}
+
+.bolt-abort-btn:active {
+  transform: scale(0.95);
+}
+
+.conversation-id {
+  font-size: 0.68rem;
+  color: var(--text-tertiary);
+  margin-top: 0.5rem;
+  font-family: 'SF Mono', monospace;
+}
+
+
+/* ── Streaming Chat & Alex Gateway ── */
+
+/* ============================================================================
+   Phase 2 — Streaming Chat & Alex Gateway
+   ============================================================================ */
+
+/* --- Streaming cursor --- */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--accent-green);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: cursor-blink 0.8s steps(2) infinite;
+}
+
+@keyframes cursor-blink {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+.chat-message.streaming .message-content {
+  border-left-color: var(--accent-green);
+  animation: stream-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes stream-pulse {
+
+  0%,
+  100% {
+    border-left-color: rgba(52, 211, 153, 0.3);
+  }
+
+  50% {
+    border-left-color: rgba(52, 211, 153, 0.7);
+  }
+}
+
+/* --- Thinking dots --- */
+.thinking-dots {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.thinking-dots span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  animation: thinking-bounce 1.2s ease-in-out infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes thinking-bounce {
+
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+
+  30% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+
+/* --- Abort button --- */
+.abort-btn {
+  background: rgba(255, 69, 58, 0.15) !important;
+  border: 1px solid rgba(255, 69, 58, 0.3) !important;
+  color: var(--accent-red) !important;
+  font-size: 14px !important;
+  width: 38px;
+  min-width: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.abort-btn:hover {
+  background: rgba(255, 69, 58, 0.25) !important;
+  border-color: rgba(255, 69, 58, 0.5) !important;
+}
+
+/* --- Alex status bar in chat header --- */
+.alex-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+}
+
+.alex-status-label {
+  font-weight: 500;
+}
+
+.alex-status-label.connected {
+  color: var(--accent-green);
+}
+
+.alex-status-label.connecting {
+  color: var(--accent-orange);
+}
+
+.alex-status-label.disconnected {
+  color: var(--accent-red);
+}
+
+.alex-state {
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.alex-state.thinking {
+  background: rgba(10, 132, 255, 0.1);
+  color: var(--accent-blue);
+  animation: state-pulse 1.5s ease-in-out infinite;
+}
+
+.alex-state.executing {
+  background: rgba(191, 90, 242, 0.1);
+  color: var(--accent-purple);
+  animation: state-pulse 1s ease-in-out infinite;
+}
+
+.alex-state.idle {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-tertiary);
+}
+
+.alex-state.stuck {
+  background: rgba(255, 69, 58, 0.1);
+  color: var(--accent-red);
+}
+
+@keyframes state-pulse {
+
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+
+/* ── Alex View Layout, Profile, Sidebar, Skills Panel, Skill Detail, Role Inspector ── */
+
+/* ============================================================================
+   ALEX VIEW — ALIEN COMMAND CENTER LAYOUT
+   ============================================================================ */
+.alex-view {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  height: calc(100vh - 82px);
+  overflow: hidden;
+}
+
+/* ─── Left Sidebar — Deep Glass ─── */
+.alex-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.75rem;
+  background: rgba(8, 8, 20, 0.7);
+  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  backdrop-filter: blur(30px) saturate(1.6);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  overflow-y: auto;
+}
+
+/* ─── Alex Profile Card ─── */
+.alex-profile-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 1.25rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.alex-profile-avatar {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.12), rgba(191, 90, 242, 0.12));
+  border-radius: 16px;
+  color: var(--accent-blue);
+}
+
+.alex-avatar-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 20px;
+  border: 2px solid transparent;
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.4), rgba(191, 90, 242, 0.3)) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: profilePulse 3s ease-in-out infinite;
+}
+
+@keyframes profilePulse {
+
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+.alex-profile-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.alex-profile-name {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.alex-profile-role {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
+
+.alex-profile-stats {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.alex-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.alex-stat svg {
+  opacity: 0.5;
+}
+
+/* ─── Sidebar Navigation ─── */
+/* ─── Collapsible Sidebar Sections (OpenClaw-style) ─── */
+.alex-sidebar-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.25rem 0;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+.alex-section {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.alex-section:last-child {
+  border-bottom: none;
+}
+
+/* Section Header (toggle) */
+.alex-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-family: inherit;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.alex-section-header:hover {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Chevron rotation */
+.alex-section-chevron {
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.alex-section-header.collapsed .alex-section-chevron {
+  transform: rotate(-90deg);
+}
+
+/* Section Items */
+.alex-section-items {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0.4rem 0.35rem;
+}
+
+/* Individual Item */
+.alex-section-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.65rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 450;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+  position: relative;
+}
+
+.alex-section-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+}
+
+.alex-section-item.active {
+  background: rgba(10, 132, 255, 0.06);
+  border-color: rgba(10, 132, 255, 0.1);
+  color: var(--accent-blue);
+}
+
+.alex-section-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 2px;
+  background: var(--accent-blue);
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(10, 132, 255, 0.3);
+}
+
+/* Item Icon */
+.alex-section-item svg {
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.alex-section-item.active svg {
+  opacity: 1;
+  filter: drop-shadow(0 0 3px rgba(10, 132, 255, 0.3));
+}
+
+/* Count badge */
+.alex-section-count {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 500;
+}
+
+/* New thread button */
+.alex-section-item.new-thread-btn {
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.72rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.15rem;
+}
+
+.alex-section-item.new-thread-btn:hover {
+  border-color: rgba(10, 132, 255, 0.2);
+  color: var(--accent-blue);
+  background: rgba(10, 132, 255, 0.04);
+}
+
+/* Thread list inside section — hide its own "new thread" button since we have one */
+.alex-section-items .thread-sidebar .thread-new-btn {
+  display: none;
+}
+
+.alex-section-items .thread-sidebar {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.alex-section-items .thread-sidebar .thread-list {
+  gap: 0.1rem;
+}
+
+.alex-section-items .thread-sidebar .thread-item {
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.76rem;
+}
+
+/* Memory panel inside section */
+.alex-section-items .thread-memory-panel {
+  padding: 0.2rem 0;
+  border: none;
+  background: none;
+}
+
+/* ─── Main Content Area ─── */
+.alex-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  background: rgba(6, 6, 15, 0.4);
+}
+
+.alex-content .chat-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+}
+
+.alex-content .chat-header {
+  padding: 0.75rem 1.25rem 0;
+}
+
+.alex-content .chat-messages {
+  padding: 0.75rem 1.25rem;
+}
+
+/* ─── Glass Panel (Tasks, Costs placeholders) ─── */
+.alex-panel-glass {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.alex-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.alex-panel-header svg {
+  color: var(--accent-blue);
+  opacity: 0.7;
+}
+
+.alex-panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: var(--text-ghost);
+}
+
+.alex-panel-empty svg {
+  opacity: 0.25;
+}
+
+.alex-panel-empty p {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+/* ─── Skills Panel ─── */
+.alex-skills-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem;
+  overflow-y: auto;
+  position: relative;
+}
+
+.alex-skills-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  margin-bottom: 1rem;
+  transition: all var(--duration-fast);
+}
+
+.alex-skills-search:focus-within {
+  border-color: rgba(10, 132, 255, 0.25);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.06);
+}
+
+.alex-skills-search svg {
+  color: var(--text-ghost);
+  flex-shrink: 0;
+}
+
+.alex-skills-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+
+.alex-skills-search input::placeholder {
+  color: var(--text-ghost);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Apple-Inspired Skills — Segmented Control + Card Grid
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Segmented Control Bar ── */
+.skills-segment-bar {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+}
+
+.skills-segment-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.5rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.skills-segment-btn:hover {
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.skills-segment-btn.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.skills-segment-count {
+  font-size: 0.6rem;
+  font-weight: 700;
+  opacity: 0.4;
+  min-width: 1em;
+}
+
+.skills-segment-btn.active .skills-segment-count {
+  opacity: 0.6;
+}
+
+/* ── Scrollable Content Area ── */
+.skills-card-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-bottom: 1rem;
+}
+
+/* ── Category Sections ── */
+.skills-category-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skills-category-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.25);
+  padding: 0 0.15rem;
+}
+
+.skills-category-label svg {
+  opacity: 0.4;
+}
+
+.skills-category-count {
+  margin-left: auto;
+  font-size: 0.55rem;
+  font-weight: 600;
+  opacity: 0.35;
+}
+
+/* ── 2-Column Card Grid ── */
+.skills-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+/* ── Individual Skill Card ── */
+.skills-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.65rem 0.7rem;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  color: inherit;
+  text-align: left;
+  min-height: 56px;
+}
+
+.skills-card:hover {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.skills-card.active {
+  background: rgba(10, 132, 255, 0.08);
+  border-color: rgba(10, 132, 255, 0.2);
+  box-shadow: 0 0 0 1px rgba(10, 132, 255, 0.15);
+}
+
+.skills-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.35);
+  margin-top: 1px;
+}
+
+.skills-card:hover .skills-card-icon {
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.skills-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.skills-card-name {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skills-card:hover .skills-card-name {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.skills-card-desc {
+  font-size: 0.62rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.25);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.skills-card:hover .skills-card-desc {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* ─── Skill Detail Overlay — Zoom Modal ─── */
+.alex-skill-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: overlayFadeIn 0.2s ease-out;
+}
+
+@keyframes overlayFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.alex-skill-detail {
+  position: relative;
+  width: 420px;
+  max-width: 90vw;
+  background: rgba(15, 15, 30, 0.92);
+  -webkit-backdrop-filter: blur(40px) saturate(1.6);
+  backdrop-filter: blur(40px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  animation: zoomIn 0.35s var(--ease-spring);
+}
+
+@keyframes zoomIn {
+  from {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.alex-skill-detail-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  color: var(--text-tertiary);
+  padding: 0.35rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.alex-skill-detail-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.alex-skill-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.alex-skill-detail-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.alex-skill-detail-desc {
+  font-size: 0.85rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  margin: 0 0 1.25rem;
+}
+
+.alex-skill-detail-meta {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+}
+
+.alex-skill-detail-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.65rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-pill);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.02em;
+}
+
+.alex-skill-detail-badge.source {
+  background: rgba(10, 132, 255, 0.1);
+  border-color: rgba(10, 132, 255, 0.15);
+  color: rgba(10, 132, 255, 0.7);
+}
+
+.alex-skill-run-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.65rem;
+  background: rgba(10, 132, 255, 0.1);
+  border: 1px solid rgba(10, 132, 255, 0.2);
+  border-radius: 10px;
+  color: rgba(10, 132, 255, 0.85);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.alex-skill-run-btn:hover {
+  background: rgba(10, 132, 255, 0.15);
+  box-shadow: 0 0 20px rgba(10, 132, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+/* ── Avatar click trigger ── */
+.alex-role-trigger {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  position: relative;
+}
+
+.alex-role-trigger::after {
+  content: '🔍';
+  position: absolute;
+  bottom: -2px;
+  right: -4px;
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.alex-role-trigger:hover::after {
+  opacity: 1;
+}
+
+.alex-role-trigger:hover {
+  filter: brightness(1.2);
+}
+
+/* ============================================================================
+   ROLE INSPECTOR MODAL
+   ============================================================================ */
+.role-inspector-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.65);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.role-inspector {
+  width: min(800px, 90vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(145deg, rgba(20, 20, 30, 0.92), rgba(12, 12, 20, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow:
+    0 25px 60px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(10, 132, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  animation: roleSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes roleSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Header */
+.role-inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.role-inspector-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.role-inspector-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.role-inspector-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.role-inspector-close:hover {
+  background: rgba(255, 59, 48, 0.15);
+  border-color: rgba(255, 59, 48, 0.3);
+  color: #ff3b30;
+}
+
+/* Tabs */
+.role-inspector-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  overflow-x: auto;
+}
+
+.role-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.role-tab:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.role-tab.active {
+  background: rgba(10, 132, 255, 0.1);
+  color: #0a84ff;
+  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.2);
+}
+
+/* Body + Content */
+.role-inspector-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+}
+
+.role-inspector-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.role-inspector-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.role-inspector-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+
+.role-inspector-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.role-file-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.role-file-name {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: #0a84ff;
+  font-weight: 600;
+}
+
+.role-file-size,
+.role-file-date {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.role-file-pre {
+  margin: 0;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.78);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  max-height: 50vh;
+}
+
+.role-file-pre::-webkit-scrollbar {
+  width: 5px;
+}
+
+.role-file-pre::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.role-file-missing {
+  color: rgba(255, 59, 48, 0.7);
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Loading */
+.role-inspector-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+}
+
+.role-spin {
+  animation: spin 1s linear infinite;
+}
+
+
+/* ── Thread Sidebar, Memory Panel, Chat Attachments ── */
+
+/* ═══════════════════════════════════════════════════════════════
+   Thread Sidebar — Multi-thread chat management
+   ═══════════════════════════════════════════════════════════════ */
+
+.alex-sidebar-threads {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 0.5rem 0.5rem;
+  overflow: hidden;
+}
+
+.thread-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── New Thread Button ── */
+.thread-new-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.thread-new-btn:hover {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.4);
+  transform: translateY(-1px);
+}
+
+.thread-new-btn:active {
+  transform: translateY(0);
+}
+
+/* ── Thread List ── */
+.thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+}
+
+.thread-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.thread-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+/* ── Thread Item ── */
+.thread-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: 100%;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.76rem;
+  position: relative;
+}
+
+.thread-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.thread-item.active {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.2);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.thread-item-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.thread-item.active .thread-item-icon {
+  background: rgba(99, 102, 241, 0.2);
+  color: rgba(165, 180, 252, 1);
+}
+
+.thread-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.thread-item-label {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.76rem;
+}
+
+.thread-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.thread-item-channel {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.thread-item-time {
+  opacity: 0.7;
+}
+
+.thread-item-active-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6366f1;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(99, 102, 241, 0.6);
+}
+
+/* ── Empty State ── */
+.thread-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+/* ── Preview Text ── */
+.thread-item-preview {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+  line-height: 1.3;
+}
+
+.thread-item.active .thread-item-preview {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Message Count Badge ── */
+.thread-item-badge {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: rgba(99, 102, 241, 0.2);
+  color: rgba(165, 180, 252, 0.9);
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 0 4px;
+}
+
+.thread-item.active .thread-item-badge {
+  background: rgba(99, 102, 241, 0.35);
+  color: rgba(199, 210, 254, 1);
+}
+
+/* ================================================================
+   ThreadMemoryPanel
+   ================================================================ */
+
+.memory-panel {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.memory-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.5rem 0.5rem;
+}
+
+.memory-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: rgba(165, 180, 252, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.memory-panel-refresh {
+  all: unset;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.3);
+  transition: color 0.2s, background 0.2s;
+}
+
+.memory-panel-refresh:hover {
+  color: rgba(165, 180, 252, 0.9);
+  background: rgba(99, 102, 241, 0.15);
+}
+
+.memory-panel-refresh .spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Search ── */
+.memory-search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0.5rem 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.3);
+  transition: border-color 0.2s;
+}
+
+.memory-search:focus-within {
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.memory-search-input {
+  all: unset;
+  flex: 1;
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.memory-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Memory List ── */
+.memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0 0.25rem;
+}
+
+/* ── Memory Entry ── */
+.memory-entry {
+  padding: 0.5rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.memory-entry:hover {
+  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(99, 102, 241, 0.15);
+}
+
+.memory-entry-content {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.memory-entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+  font-size: 0.55rem;
+}
+
+.memory-entry-source {
+  color: rgba(165, 180, 252, 0.6);
+  font-weight: 500;
+}
+
+.memory-entry-time {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.memory-entry-score {
+  color: rgba(99, 102, 241, 0.5);
+  font-weight: 600;
+}
+
+/* ── Empty State ── */
+.memory-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1.5rem 0.75rem;
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+.memory-empty-hint {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.12);
+  max-width: 160px;
+}
+
+/* ============================================================================
+   Chat Attachment System
+   ============================================================================ */
+
+/* ─── Attachment Preview Strip ─── */
+.attachment-strip {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.attachment-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.attachment-chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+  max-width: 180px;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.attachment-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.attachment-chip.has-preview {
+  padding: 0.2rem;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  width: 64px;
+  height: 64px;
+}
+
+.attachment-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0.4rem;
+  display: block;
+}
+
+.attachment-file-icon {
+  color: rgba(129, 140, 248, 0.8);
+  flex-shrink: 0;
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-size {
+  color: rgba(255, 255, 255, 0.35);
+  flex-shrink: 0;
+  font-size: 0.6rem;
+}
+
+.attachment-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.8);
+  border: 1.5px solid rgba(0, 0, 0, 0.3);
+  color: white;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+  transform: scale(0.8);
+  padding: 0;
+}
+
+.attachment-chip:hover .attachment-remove {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.attachment-remove:hover {
+  background: rgba(239, 68, 68, 1);
+}
+
+/* ─── Inline Attachments in Messages ─── */
+.msg-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.msg-attachment-img {
+  max-width: 320px;
+  max-height: 240px;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  object-fit: cover;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.msg-attachment-img:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.msg-attachment-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.msg-attachment-file svg {
+  color: rgba(129, 140, 248, 0.8);
+}

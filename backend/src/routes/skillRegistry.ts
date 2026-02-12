@@ -92,7 +92,13 @@ function scanSkills(skillsDir: string): SkillInfo[] {
         return skills;
     }
 
-    const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+    let entries: fs.Dirent[];
+    try {
+        entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+    } catch (err) {
+        console.error(`[skills] Failed to read skills directory ${skillsDir}:`, err);
+        return skills;
+    }
 
     for (const entry of entries) {
         if (!entry.isDirectory()) continue;

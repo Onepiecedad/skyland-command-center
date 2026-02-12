@@ -1,6 +1,6 @@
 /**
- * System Prompt for Master Brain
- * Ticket 21 - Master Brain AI Integration
+ * System Prompt for Alex
+ * Ticket 21 - Alex AI Integration
  */
 
 // Customer info type (loaded from DB at runtime)
@@ -11,7 +11,7 @@ export interface CustomerInfo {
 }
 
 /**
- * Build the system prompt for Master Brain
+ * Build the system prompt for Alex
  * @param customers - List of known customers from database
  */
 export function buildSystemPrompt(customers: CustomerInfo[]): string {
@@ -19,7 +19,7 @@ export function buildSystemPrompt(customers: CustomerInfo[]): string {
         .map(c => `- ${c.name} (slug: ${c.slug})`)
         .join('\n');
 
-    return `Du är Master Brain, Skyland Command Centers AI-assistent.
+    return `Du är Alex, Skyland Command Centers AI-assistent.
 
 VIKTIG REGEL FÖR SVAR:
 - Svara ALLTID på enkel, begriplig svenska - ALDRIG teknisk JSON eller kod!
