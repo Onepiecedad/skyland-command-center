@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Archive, Zap, Building2, Monitor, Puzzle, Radar } from 'lucide-react';
+import { Archive, Zap, Building2, Monitor, Puzzle, Radar, Lightbulb, Mic } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -11,9 +11,11 @@ import { SystemDashboard } from './pages/SystemDashboard';
 import { SkillsView } from './pages/SkillsView';
 import ArchiveView from './pages/ArchiveView';
 import FleetMonitor from './pages/FleetMonitor';
+import { IdeasView } from './pages/IdeasView';
+import VoiceChatView from './pages/VoiceChatView';
 import './styles/index.css';
 
-type View = 'alex' | 'customers' | 'system' | 'skills' | 'fleet' | 'archive';
+type View = 'alex' | 'customers' | 'system' | 'skills' | 'fleet' | 'archive' | 'ideas' | 'voicechat';
 
 interface Segment {
   key: string;
@@ -28,6 +30,8 @@ const SEGMENTS: Segment[] = [
   { key: 'system', label: 'System', icon: <Monitor size={14} strokeWidth={2} /> },
   { key: 'skills', label: 'Skills', icon: <Puzzle size={14} strokeWidth={2} /> },
   { key: 'fleet', label: 'Fleet', icon: <Radar size={14} strokeWidth={2} /> },
+  { key: 'ideas', label: 'Idéer', icon: <Lightbulb size={14} strokeWidth={2} /> },
+  { key: 'voicechat', label: 'Röstchat', icon: <Mic size={14} strokeWidth={2} /> },
 ];
 
 /* Zoom + fade transition for alien control panel feel */
@@ -91,6 +95,12 @@ function App() {
       } else if (e.key === '6') {
         e.preventDefault();
         handleViewChange('fleet');
+      } else if (e.key === '7') {
+        e.preventDefault();
+        handleViewChange('ideas');
+      } else if (e.key === '8') {
+        e.preventDefault();
+        handleViewChange('voicechat');
       }
     };
     window.addEventListener('keydown', handler);
@@ -197,6 +207,30 @@ function App() {
                 exit="exit"
               >
                 <ArchiveView />
+              </motion.div>
+            )}
+            {currentView === 'ideas' && (
+              <motion.div
+                key="ideas"
+                className="view-container"
+                variants={VIEW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <IdeasView />
+              </motion.div>
+            )}
+            {currentView === 'voicechat' && (
+              <motion.div
+                key="voicechat"
+                className="view-container"
+                variants={VIEW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <VoiceChatView />
               </motion.div>
             )}
           </AnimatePresence>
