@@ -215,10 +215,9 @@ export class GatewaySocket {
         };
         if (attachments?.length) {
             payload.attachments = attachments.map(a => ({
-                name: a.name,
-                type: a.type,
-                size: a.size,
-                data_b64: a.data_b64,
+                fileName: a.name,
+                mimeType: a.type,
+                content: a.data_b64,
             }));
         }
         await this.request('chat.send', payload);
