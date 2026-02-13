@@ -1,0 +1,262 @@
+/* ─── Context Monitor ─── */
+.context-monitor {
+  background: var(--surface-1, #1a1a2e);
+  border: 1px solid var(--border, #2a2a3e);
+  border-radius: 12px;
+  padding: 1.25rem;
+  color: var(--text-1, #fff);
+}
+
+.monitor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.monitor-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.status-badge {
+  padding: 0.25rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.connected {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.status-badge.disconnected {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+/* ─── Monitor Cards ─── */
+.monitor-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.monitor-card {
+  background: var(--surface-2, #252538);
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: transform 0.2s ease;
+}
+
+.monitor-card:hover {
+  transform: translateY(-2px);
+}
+
+.card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-label {
+  font-size: 0.7rem;
+  color: var(--text-2, #9ca3af);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-1, #fff);
+}
+
+/* ─── Pressure Section ─── */
+.pressure-section {
+  background: var(--surface-2, #252538);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.pressure-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.pressure-header span:first-child {
+  color: var(--text-2, #9ca3af);
+}
+
+.pressure-header span:last-child {
+  font-weight: 600;
+}
+
+.pressure-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pressure-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.5s ease, background-color 0.3s ease;
+}
+
+.pressure-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #ef4444;
+  font-size: 0.8rem;
+}
+
+/* ─── Sessions Section ─── */
+.sessions-section {
+  margin-bottom: 1.25rem;
+}
+
+.sessions-section h4,
+.pricing-section h4 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-2, #9ca3af);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.75rem;
+}
+
+.empty-state {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-3, #6b7280);
+  font-size: 0.85rem;
+  background: var(--surface-2, #252538);
+  border-radius: 8px;
+}
+
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.session-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--surface-2, #252538);
+  border-radius: 8px;
+  transition: background 0.2s ease;
+}
+
+.session-item:hover {
+  background: var(--surface-3, #303048);
+}
+
+.session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.session-model {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.session-time {
+  font-size: 0.7rem;
+  color: var(--text-3, #6b7280);
+}
+
+.session-metrics {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+}
+
+.session-metrics .metric {
+  color: var(--text-2, #9ca3af);
+}
+
+.session-metrics .cost {
+  color: #10b981;
+  font-weight: 600;
+}
+
+/* ─── Pricing Section ─── */
+.pricing-section {
+  border-top: 1px solid var(--border, #2a2a3e);
+  padding-top: 1rem;
+}
+
+.pricing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pricing-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.model-name {
+  color: var(--text-2, #9ca3af);
+}
+
+.price {
+  font-family: monospace;
+  color: var(--text-1, #fff);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 640px) {
+  .monitor-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .session-metrics {
+    flex-direction: column;
+    gap: 0.25rem;
+    text-align: right;
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "models": {
+    "openrouter/moonshotai/kimi-k2.5": {
+      "input": 0.000003,
+      "output": 0.000012,
+      "context_window": 256000
+    },
+    "openrouter/google/gemini-2.5-flash": {
+      "input": 0.00000015,
+      "output": 0.0000006,
+      "context_window": 1000000
+    },
+    "openrouter/anthropic/claude-sonnet-4-20250514": {
+      "input": 0.000003,
+      "output": 0.000015,
+      "context_window": 200000
+    },
+    "openrouter/deepseek/deepseek-chat": {
+      "input": 0.00000014,
+      "output": 0.00000028,
+      "context_window": 64000
+    }
+  },
+  "alerts": {
+    "context_threshold_percent": 80,
+    "cost_threshold_dollars": 5.00
+  }
+}

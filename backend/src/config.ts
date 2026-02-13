@@ -52,6 +52,10 @@ const envSchema = z.object({
     ELEVENLABS_API_KEY: z.string().optional(),
     ELEVENLABS_AGENT_ID: z.string().optional(),
 
+    // --- Clawdbot Gateway (voice tool proxy) ---
+    CLAWDBOT_GATEWAY_URL: z.string().default('http://127.0.0.1:18789'),
+    CLAWDBOT_GATEWAY_TOKEN: z.string().optional(),
+
     // --- Rate limiting ---
     CLAW_MAX_CONCURRENT_PER_CUSTOMER: z.coerce.number().default(3),
     CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER: z.coerce.number().default(20),

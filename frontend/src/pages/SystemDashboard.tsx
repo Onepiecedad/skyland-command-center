@@ -6,6 +6,7 @@ import { GitPanel } from '../components/system/GitPanel';
 import { EventFeedPanel } from '../components/system/EventFeedPanel';
 import { ErrorRecoveryPanel } from '../components/system/ErrorRecoveryPanel';
 import { MemoryManagementPanel } from '../components/system/MemoryManagementPanel';
+import { ContextMonitor } from '../components/system/ContextMonitor';
 
 export function SystemDashboard() {
     return (
@@ -16,7 +17,7 @@ export function SystemDashboard() {
                     AI System Dashboard
                 </h2>
                 <p className="sys-dashboard-subtitle">
-                    Realtidsöverblick — Workflows · Agenter · Resurser · Godkännanden · Events · Fel · Minne · Git
+                    Realtidsöverblick — Workflows · Agenter · Resurser · Godkännanden · Context · Events · Fel · Minne · Git
                 </p>
             </div>
 
@@ -28,6 +29,7 @@ export function SystemDashboard() {
             </div>
 
             <div className="sys-grid">
+                <ContextMonitor />
                 <EventFeedPanel />
                 <ErrorRecoveryPanel />
                 <MemoryManagementPanel />

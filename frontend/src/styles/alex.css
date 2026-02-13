@@ -955,6 +955,58 @@
   background: linear-gradient(135deg, rgba(10, 132, 255, 0.12), rgba(191, 90, 242, 0.12));
   border-radius: 16px;
   color: var(--accent-blue);
+  overflow: hidden;
+}
+
+.alex-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 16px;
+  transition: transform 0.3s ease;
+}
+
+.alex-profile-avatar:hover .alex-avatar-image {
+  transform: scale(1.05);
+}
+
+/* ─── Avatar Selector ─── */
+.alex-avatar-selector {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  justify-content: center;
+}
+
+.alex-avatar-option {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.alex-avatar-option img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.alex-avatar-option:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.alex-avatar-option.active {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 12px rgba(10, 132, 255, 0.4);
 }
 
 .alex-avatar-ring {

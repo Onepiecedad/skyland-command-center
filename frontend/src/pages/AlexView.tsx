@@ -178,11 +178,19 @@ export default function AlexView() {
     console.log('[AlexView] Task created');
   }, []);
 
+  /* ─── Avatar State ─── */
+  const [currentAvatar, setCurrentAvatar] = useState('/avatars/alex-cyborg-feminin.svg');
+  const avatars = [
+    { src: '/avatars/alex-cyborg-feminin.svg', name: 'S.E.L.F.', label: 'Cyborg' },
+    { src: '/avatars/alex-avatar.svg', name: 'Alex', label: 'Tech' },
+    { src: '/avatars/ai-kompisen.svg', name: 'AI-Kompisen', label: 'Social' },
+  ];
+
   return (
     <div className="alex-view">
       {/* ─── Left Sidebar ─── */}
       <aside className="alex-sidebar">
-        {/* Alex Profile Card */}
+        {/* Alex Profile Card with Avatar */}
         <div className="alex-profile-card">
           <button
             className="alex-profile-avatar alex-role-trigger"
@@ -190,8 +198,29 @@ export default function AlexView() {
             title="Visa rollfiler"
           >
             <div className="alex-avatar-ring" />
-            <Bot size={22} strokeWidth={1.8} />
+            <img 
+              src={currentAvatar}
+              alt="Alex Avatar" 
+              className="alex-avatar-image"
+              onError={(e) => {
+                // Fallback to Bot icon if image fails
+                e.currentTarget.style.display = 'none';
+              }}
+            />
           </button>
+          {/* Avatar Selector */}
+          <div className="alex-avatar-selector">
+            {avatars.map((avatar) => (
+              <button
+                key={avatar.src}
+                className={`alex-avatar-option ${currentAvatar === avatar.src ? 'active' : ''}`}
+                onClick={() => setCurrentAvatar(avatar.src)}
+                title={avatar.name}
+              >
+                <img src={avatar.src} alt={avatar.name} />
+              </button>
+            ))}
+          </div>
           <div className="alex-profile-info">
             <span className="alex-profile-name">Alex</span>
             <span className="alex-profile-role">AI Assistant</span>
