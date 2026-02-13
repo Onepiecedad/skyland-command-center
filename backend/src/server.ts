@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
+import path from 'path';
 
 // Load environment variables
 dotenv.config();
@@ -73,21 +74,23 @@ class Server {
    * Initialize Express middleware
    */
   private initializeMiddleware(): void {
-    // Security headers
+    // Security headers — relaxed CSP for Vite-built SPA
     this.app.use(helmet({
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+          styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com"],
           scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+          fontSrc: ["'self'", "https://fonts.gstatic.com"],
           imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: ["'self'", "https:", "wss:"],
         }
       }
     }));
 
     // CORS
     this.app.use(cors({
-      origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+      origin: process.env.FRONTEND_URL || ['http://localhost:5173', 'https://scc.skylandai.se'],
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id']
@@ -165,15 +168,19 @@ class Server {
     this.app.use('/api/v1/webhooks/openwork', openworkWebhookRouter);
     this.app.use('/api/v1/voice', voiceRouter);
 
-    // Root endpoint
-    this.app.get('/', (_req, res) => {
-      res.json({
-        name: 'Skyland Command Center API',
-        version: '1.0.0',
-        documentation: '/api-docs',
-        health: '/health',
-        timestamp: new Date().toISOString()
-      });
+    // ================================================================
+    // Static frontend — serve the built React SPA from public/
+    // ================================================================
+    const publicDir = path.join(__dirname, '..', 'public');
+    this.app.use(express.static(publicDir));
+
+    // SPA catch-all: any non-API GET request → index.html
+    this.app.get('*', (req, res, next) => {
+      // Skip API routes, health checks, and docs
+      if (req.path.startsWith('/api') || req.path.startsWith('/health') || req.path.startsWith('/api-docs')) {
+        return next();
+      }
+      res.sendFile(path.join(publicDir, 'index.html'));
     });
   }
 

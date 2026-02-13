@@ -1,23 +1,36 @@
-# Backend Dockerfile
-# Multi-stage build for optimized production image
+# SCC Dockerfile — Multi-stage build: Frontend + Backend
+# Serves both the React SPA and the Express API from a single container.
 
-# Build stage — compile TypeScript to CommonJS
-FROM node:20-alpine AS builder
+# ── Stage 1: Build Frontend ──────────────────────────────────────────
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+COPY frontend/package*.json ./
+RUN npm ci
+
+COPY frontend/ ./
+
+# Build the Vite React app → dist/
+RUN npm run build
+
+# ── Stage 2: Build Backend ───────────────────────────────────────────
+FROM node:20-alpine AS backend-builder
 
 WORKDIR /app
 
-COPY package*.json ./
-COPY tsconfig.json ./
+COPY backend/package*.json ./
+COPY backend/tsconfig.json ./
 
 # Install all deps (tsc + types needed for compilation)
 RUN npm ci
 
-COPY src ./src
+COPY backend/src ./src
 
 # Compile TypeScript → dist/
 RUN npm run build
 
-# Production stage — run compiled JS
+# ── Stage 3: Production ─────────────────────────────────────────────
 FROM node:20-alpine
 
 RUN apk add --no-cache dumb-init
@@ -27,13 +40,16 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
-COPY package*.json ./
+COPY backend/package*.json ./
 
 # Production deps only
 RUN npm ci --omit=dev && npm cache clean --force
 
-# Copy compiled output from builder
-COPY --from=builder /app/dist ./dist
+# Copy compiled backend from builder
+COPY --from=backend-builder /app/dist ./dist
+
+# Copy built frontend into public/ for express.static
+COPY --from=frontend-builder /app/frontend/dist ./public
 
 RUN mkdir -p logs
 
