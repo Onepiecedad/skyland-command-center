@@ -161,13 +161,23 @@ function getSocket(): GatewaySocket {
 
 /**
  * Call a gateway JSON-RPC method directly over WebSocket.
- * Uses native methods like 'sessions.list' and 'chat.history'.
+ * Waits up to 5 seconds for the socket to connect (handles mount race).
  */
 async function gatewayRpc(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
     const socket = getSocket();
 
+    // Wait for socket to connect (useGateway may still be in its useEffect)
     if (!socket.connected) {
-        throw new Error('Gateway not connected');
+        const maxWait = 5000;
+        const interval = 500;
+        let waited = 0;
+        while (!socket.connected && waited < maxWait) {
+            await new Promise(r => setTimeout(r, interval));
+            waited += interval;
+        }
+        if (!socket.connected) {
+            throw new Error('Gateway not connected');
+        }
     }
 
     return socket.rpc(method, params);
