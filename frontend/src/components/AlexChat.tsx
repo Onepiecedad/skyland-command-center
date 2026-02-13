@@ -263,7 +263,7 @@ export function AlexChat({ gateway: externalGateway }: Props) {
         const atts = attachments.length ? [...attachments] : undefined;
         setInput('');
         setAttachments([]);
-        gateway.sendMessage(text, atts, selectedModel.id);
+        gateway.sendMessage(text, atts);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {

@@ -48,7 +48,7 @@ export interface UseGatewayResult {
     threadPreviews: Record<string, ThreadPreview>;
     memoryEntries: MemoryEntry[];
     sessionKey: string;
-    sendMessage: (text: string, attachments?: ChatAttachment[], model?: string) => void;
+    sendMessage: (text: string, attachments?: ChatAttachment[]) => void;
     abortChat: () => void;
     loadHistory: () => void;
     setSessionKey: (key: string) => void;
@@ -242,7 +242,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
         fetchPreviews();
     }, [sessions]);
     // --- Public methods ---
-    const sendMessage = useCallback((text: string, attachments?: ChatAttachment[], model?: string) => {
+    const sendMessage = useCallback((text: string, attachments?: ChatAttachment[]) => {
         if (!socketRef.current?.connected || (!text.trim() && !attachments?.length)) return;
 
         // Add user message immediately
@@ -257,7 +257,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
         setIsStreaming(true);
         setAlexState('thinking');
 
-        socketRef.current.sendChatMessage(sessionKey, text, attachments, model).catch((err) => {
+        socketRef.current.sendChatMessage(sessionKey, text, attachments).catch((err) => {
             setIsStreaming(false);
             setAlexState('idle');
             setMessages(prev => [...prev, {
