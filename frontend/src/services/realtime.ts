@@ -85,6 +85,26 @@ class RealtimeService {
       )
       .subscribe((status) => {
         console.log(`Realtime subscription status for ${channelName}:`, status);
+        // Auto-reconnect on channel error or timeout
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(`[Realtime] ${channelName} ${status}, will re-subscribe in 5s`);
+          // Remove broken channel so a fresh one is created on next subscribe
+          const broken = this.channels.get(channelName);
+          if (broken) {
+            broken.unsubscribe();
+            this.channels.delete(channelName);
+          }
+          // Re-subscribe after delay for all existing listeners
+          setTimeout(() => {
+            const listeners = this.listeners.get(channelName);
+            if (listeners && listeners.size > 0) {
+              const firstListener = listeners.values().next().value;
+              if (firstListener) {
+                this.subscribe(channelName, table, firstListener as typeof callback);
+              }
+            }
+          }, 5000);
+        }
       });
 
     // Store listener

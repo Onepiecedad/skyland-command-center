@@ -169,6 +169,13 @@ export class GatewaySocket {
     private connectTimer: ReturnType<typeof setTimeout> | null = null;
     private challengeNonce: string | null = null;
 
+    // Heartbeat / keepalive
+    private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+    private heartbeatTimeout: ReturnType<typeof setTimeout> | null = null;
+    private static readonly HEARTBEAT_INTERVAL_MS = 25000;
+    private static readonly HEARTBEAT_TIMEOUT_MS = 5000;
+    private static readonly REQUEST_TIMEOUT_MS = 30000;
+
     constructor(url: string, handlers: GatewayEventHandlers = {}, token?: string) {
         this.url = url;
         this.token = token ?? null;
@@ -192,6 +199,7 @@ export class GatewaySocket {
 
     stop(): void {
         this.stopped = true;
+        this.stopHeartbeat();
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
@@ -356,12 +364,14 @@ export class GatewaySocket {
 
         this.ws.onclose = (evt) => {
             this.ws = null;
+            this.stopHeartbeat();
             this.rejectAllPending('connection closed');
             if (!this.stopped) {
                 this.setStatus('disconnected');
-                if (evt.code !== 1000) {
-                    this.scheduleReconnect();
-                }
+                // Always reconnect — even on normal close (1000) the gateway
+                // may have closed due to idle timeout, keepalive, or rebalance.
+                console.log(`[GW] WebSocket closed (code=${evt.code}, reason=${evt.reason || 'none'}), scheduling reconnect`);
+                this.scheduleReconnect();
             }
         };
 
@@ -412,6 +422,7 @@ export class GatewaySocket {
             .then((payload) => {
                 this.backoffMs = 800;
                 this.setStatus('connected');
+                this.startHeartbeat();
                 this.handlers.onHello?.(payload);
             })
             .catch(() => {
@@ -479,6 +490,9 @@ export class GatewaySocket {
         const p = payload as Record<string, unknown> | null;
         if (!p) return;
 
+        // Debug trace (compact to avoid GC pressure during fast streaming)
+        console.debug('[GW] chat:', p?.kind || p?.state || 'unknown');
+
         // Gateway may send 'state' or 'kind' for event type
         const kind = (p.kind as string) || (p.state as string) || 'delta';
         const chunk: ChatStreamChunk = { kind: kind as ChatStreamChunk['kind'] };
@@ -494,7 +508,7 @@ export class GatewaySocket {
             chunk.runId = p.runId as string;
             chunk.sessionKey = p.sessionKey as string;
         } else if (kind === 'error') {
-            chunk.error = toStr(p.error) || 'Unknown error';
+            chunk.error = toStr(p.error) || toStr(p.errorMessage) || 'Unknown error';
             chunk.runId = p.runId as string;
         } else if (kind === 'tool_call' || kind === 'tool_start') {
             chunk.kind = 'tool_start';
@@ -525,16 +539,64 @@ export class GatewaySocket {
         return new Promise((resolve, reject) => {
             this.pending.set(id, { resolve, reject });
             this.ws!.send(JSON.stringify(msg));
+
+            // Timeout to prevent hung UI states (P0 fix)
+            setTimeout(() => {
+                if (this.pending.has(id)) {
+                    this.pending.delete(id);
+                    reject(new Error(`request '${method}' timed out after ${GatewaySocket.REQUEST_TIMEOUT_MS}ms`));
+                }
+            }, GatewaySocket.REQUEST_TIMEOUT_MS);
         });
     }
 
     private scheduleReconnect(): void {
         if (this.stopped || this.reconnectTimer) return;
+        console.log(`[GW] Reconnecting in ${this.backoffMs}ms...`);
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null;
             this.connect();
         }, this.backoffMs);
         this.backoffMs = Math.min(this.backoffMs * 1.5, this.maxBackoffMs);
+    }
+
+    // --- Heartbeat / Keepalive (P0 fix) ---
+
+    private startHeartbeat(): void {
+        this.stopHeartbeat();
+        this.heartbeatInterval = setInterval(() => {
+            if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+            // Send a lightweight ping request
+            this.request('ping', {})
+                .then(() => {
+                    // Pong received — connection alive
+                    if (this.heartbeatTimeout) {
+                        clearTimeout(this.heartbeatTimeout);
+                        this.heartbeatTimeout = null;
+                    }
+                })
+                .catch(() => {
+                    // Ping failed — don't act yet, timeout will handle it
+                });
+
+            // Set a timeout — if no pong within 5s, connection is dead
+            this.heartbeatTimeout = setTimeout(() => {
+                console.warn('[GW] Heartbeat timeout — connection appears dead, forcing reconnect');
+                this.ws?.close(4002, 'heartbeat timeout');
+            }, GatewaySocket.HEARTBEAT_TIMEOUT_MS);
+        }, GatewaySocket.HEARTBEAT_INTERVAL_MS);
+    }
+
+    private stopHeartbeat(): void {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
+        if (this.heartbeatTimeout) {
+            clearTimeout(this.heartbeatTimeout);
+            this.heartbeatTimeout = null;
+        }
     }
 
     private rejectAllPending(reason: string): void {

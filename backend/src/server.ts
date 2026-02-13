@@ -253,10 +253,23 @@ class Server {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
 
-    // Handle uncaught exceptions
+    // Handle uncaught exceptions — only shutdown for truly fatal errors
+    let uncaughtCount = 0;
     process.on('uncaughtException', (error) => {
+      uncaughtCount++;
       logger.error('Uncaught Exception:', error);
-      shutdown('UNCAUGHT_EXCEPTION');
+
+      // Fatal conditions: out of memory, disk full, or repeated crashes
+      const isFatal = (error as NodeJS.ErrnoException).code === 'ENOMEM'
+        || (error as NodeJS.ErrnoException).code === 'ENOSPC'
+        || uncaughtCount >= 5;
+
+      if (isFatal) {
+        logger.error('Fatal condition detected, shutting down');
+        shutdown('UNCAUGHT_EXCEPTION');
+      } else {
+        logger.warn(`Non-fatal uncaught exception #${uncaughtCount}, continuing`);
+      }
     });
 
     // Handle unhandled promise rejections

@@ -75,30 +75,65 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
     const streamBuf = useRef('');
     const currentRunId = useRef<string | null>(null);
     const activeTools = useRef<Map<string, { name: string; status: string }>>(new Map());
-    const seenRunIds = useRef<Set<string>>(new Set());
+    // Stable ref for handleChatEvent — avoids socket recreation when callback changes
+    const chatEventRef = useRef<(chunk: ChatStreamChunk) => void>(() => { });
+    // Track runs that have already been committed to messages — all subsequent
+    // events (deltas AND finals) for a committed runId are silently dropped.
+    const committedRunIds = useRef<Set<string>>(new Set());
+    // Track the first final we see (even without runId) to drop duplicates
+    const lastFinalTs = useRef<number>(0);
 
     // --- Chat event handler ---
     const handleChatEvent = useCallback((chunk: ChatStreamChunk) => {
+        const rid = chunk.runId || '';
+
+        // ── GATE: drop anything for an already-committed run ──
+        if (rid && committedRunIds.current.has(rid)) {
+            console.debug('[dedup] dropping %s for committed run %s', chunk.kind, rid.slice(0, 8));
+            return;
+        }
+
         switch (chunk.kind) {
             case 'delta':
                 streamBuf.current += chunk.content || '';
                 setStreamingContent(streamBuf.current);
                 setIsStreaming(true);
                 setAlexState('thinking');
-                if (chunk.runId) currentRunId.current = chunk.runId;
+                if (rid) currentRunId.current = rid;
                 break;
 
             case 'final': {
-                // Deduplicate: skip if we already processed this runId
-                if (chunk.runId && seenRunIds.current.has(chunk.runId)) break;
-                if (chunk.runId) seenRunIds.current.add(chunk.runId);
+                // Dedup: if no runId, use a timing gate (ignore finals within 500ms)
+                const now = Date.now();
+                if (!rid) {
+                    if (now - lastFinalTs.current < 500) {
+                        console.debug('[dedup] dropping rapid duplicate final (no runId)');
+                        break;
+                    }
+                }
+                lastFinalTs.current = now;
 
-                const finalText = streamBuf.current + (chunk.content || '');
+                // Use streamed buffer if available; only fall back to chunk.content
+                // when no deltas were received (e.g. short messages with no streaming).
+                const finalText = streamBuf.current || chunk.content || '';
                 streamBuf.current = '';
                 setStreamingContent('');
                 setIsStreaming(false);
                 setAlexState('idle');
                 currentRunId.current = null;
+
+                // Mark this run as committed so duplicate deltas/finals are dropped
+                if (rid) {
+                    committedRunIds.current.add(rid);
+                    // Cap at 200 entries to prevent memory leak during long sessions
+                    if (committedRunIds.current.size > 200) {
+                        const iter = committedRunIds.current.values();
+                        for (let i = 0; i < 100; i++) iter.next();
+                        const remaining = new Set<string>();
+                        for (const v of iter) remaining.add(v);
+                        committedRunIds.current = remaining;
+                    }
+                }
 
                 // Skip internal system messages
                 if (isSystemMessage({ content: finalText })) break;
@@ -152,6 +187,9 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
         }
     }, []);
 
+    // Keep chatEventRef in sync (never triggers re-renders or socket recreation)
+    chatEventRef.current = handleChatEvent;
+
     // --- Connect on mount (skip if disabled) ---
     useEffect(() => {
         if (disabled) return;
@@ -164,7 +202,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                     setAlexState('idle');
                 }
             },
-            onChatEvent: handleChatEvent,
+            onChatEvent: (chunk: ChatStreamChunk) => chatEventRef.current(chunk),
             onPresence: (entries) => {
                 // Presence events tell us what Alex is doing
                 const busy = entries.some((e: unknown) => {
@@ -173,14 +211,16 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                 });
                 if (busy) setAlexState('executing');
             },
-            onHello: () => {
-                // On connect, fetch nodes + sessions
-                socket.getNodes()
-                    .then(setNodes)
-                    .catch(() => { });
-                socket.getSessions()
-                    .then(setSessions)
-                    .catch(() => { });
+            onHello: async () => {
+                // Stagger initial data loads to avoid flooding the gateway
+                try {
+                    const n = await socket.getNodes();
+                    setNodes(n);
+                } catch { /* ignore */ }
+                try {
+                    const s = await socket.getSessions();
+                    setSessions(s);
+                } catch { /* ignore */ }
             },
             onError: (err) => {
                 console.error('[gateway]', err);
@@ -197,7 +237,8 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
             socketRef.current = null;
             setSharedSocket(null);
         };
-    }, [handleChatEvent, disabled]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- chatEventRef is stable
+    }, [disabled]);
 
     // --- Refresh nodes + sessions periodically ---
     useEffect(() => {

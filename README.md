@@ -1,122 +1,71 @@
-# Skyland Command Center
+# Skyland Command Center (SCC) - Project Setup Documentation
 
-Central dashboard for managing the Skyland ecosystem.
+This document outlines the current configuration and key components of your Skyland Command Center (SCC) setup, managed by Alex, your AI assistant.
 
-## Getting Started
+## 1. Environment & Core Setup
 
-### Frontend
+- **Operating System:** macOS (as detected by Alex)
+- **Node.js Version:** v24.13.0 (managed via nvm)
+- **OpenClaw Executable Path:** `/Users/onepiecedad/.nvm/versions/node/v24.13.0/lib/node_modules/openclaw/bin/openclaw`
+- **Gateway Process Manager:** PM2 (managed by `launchd` for autostart)
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## 2. OpenClaw Model Routing Strategy (Cost Optimized)
 
-### Backend
+Alex has implemented a 3-tier model routing strategy to optimize costs and balance performance, configured in `.openclaw/openclaw.json`:
 
-```bash
-cd backend
+- **Primary Default Model:** `openrouter/google/gemini-2.5-flash` (for general communication, low cost)
 
-# Copy environment template and fill in your Supabase credentials
-cp .env.example .env
-# Edit .env with your SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
+### Routing Tiers:
 
-npm install
-npm run dev
-```
+| Tier    | Model                        | Max Tokens | Use Case                                            | Estimated Cost / 1M Input Tokens | Note               |
+|---------|------------------------------|------------|-----------------------------------------------------|----------------------------------|--------------------|
+| **Tier 1** | `gemini-2.5-flash`           | 2,000      | Greetings, simple questions, status checks, memory search (cheapest) | $0.00015                       | Default for routine tasks |
+| **Tier 2** | `moonshotai/kimi-k2.5`       | 8,000      | Code generation, analysis, research, file operations, web search, tool execution | $0.45                         | Medium complexity  |
+| **Tier 3** | `anthropic/claude-sonnet-4-20250514` | 16,000     | Complex problem solving, architecture, debugging, strategic planning, multi-step workflows, code review (most capable) | $3.00                         | Complex / advanced |
 
-### Environment Variables
+This strategy is designed to route tasks to the most cost-effective model suitable for the job, aiming for significant cost reductions.
 
-The backend requires the following environment variables (see `backend/.env.example`):
+## 3. Skyland Command Center (SCC) - Custom Features
 
-| Variable | Description |
-|----------|-------------|
-| `SUPABASE_URL` | Your Supabase project URL (e.g., `https://xxx.supabase.co`) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key for server-side access |
-| `PORT` | Server port (default: 3001) |
+Your SCC dashboard (`skyland-command-center/frontend/`) includes several custom-built components and integrations:
 
-**⚠️ Never commit `.env` to git** – it's already in `.gitignore`.
+- **💡 Idéer (Project Ideas Management):**
+  - **Purpose:** Centralized system to capture, track, and manage project ideas and tasks.
+  - **Location:** `/ideas` route, `IdeasView.tsx` component.
+  - **Features:** CRUD operations, status tracking, categorization, tag support, React Query integration.
 
-### API Endpoints
+- **🎙️ Röstchat (ElevenLabs Voice Interface):**
+  - **Purpose:** Real-time two-way voice communication with Alex via ElevenLabs Conversational AI.
+  - **Location:** `/voice` route, `VoiceChatView.tsx` component (`VoiceChat.tsx` core).
+  - **Features:** WebRTC connectivity, real-time transcription, integrated tool calling (via `backend/src/routes/voice.ts`), customizable voice (Swedish).
+  - **Status:** Requires manual ElevenLabs agent configuration (webhook URL, JSON schema) and API key setup in `.env`.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/health` | Health check |
-| `GET` | `/api/v1/customers` | Get all customers with status |
-| `POST` | `/api/v1/activities` | Create a new activity |
+- **📊 Context & Cost Monitor:**
+  - **Purpose:** Real-time monitoring of AI token usage, estimated costs, and context pressure per session.
+  - **Location:** Integrated into the `SystemDashboard.tsx` via `ContextMonitor.tsx` component.
+  - **Features:** Overview cards (total cost/tokens, context pressure), active session list, configurable model pricing (`public/config/pricing.json`), context usage bar with alerts.
 
-### Example Requests
+- **🖼️ Alex Avatars:**
+  - **Purpose:** Customizable visual representation for Alex within the SCC dashboard.
+  - **Location:** `/frontend/public/avatars/` with selector in `AlexView.tsx`.
+  - **Avatars:**
+    - `alex-avatar.svg`: Professional, tech-assistant style.
+    - `ai-influencer-avatar.svg`: Energetic, pedagogical, social media-oriented.
+    - `alex-cyborg-feminin.svg` (S.E.L.F.): Futuristisk, feminine cyborg style.
 
-```bash
-# Health check
-curl http://localhost:3001/api/v1/health
+## 4. Key Configuration Files
 
-# Get customers with status
-curl http://localhost:3001/api/v1/customers
+- **`.openclaw/openclaw.json`:** Core OpenClaw configuration, including global model routing, agent-specific overrides, API providers, and various settings.
+- **`skyland-command-center/frontend/public/config/pricing.json`:** Custom pricing definitions for models used in the Context & Cost Monitor.
+- **`skyland-command-center/frontend/.env`:** Environment variables for frontend (e.g., ElevenLabs API keys, SCC Backend URL).
 
-# Create activity
-curl -X POST http://localhost:3001/api/v1/activities \
-  -H "Content-Type: application/json" \
-  -d '{"agent": "test_agent", "action": "test_action", "event_type": "test"}'
-```
+## 5. Next Steps / Ongoing Tasks
 
----
+- **Complete ElevenLabs Voice Setup:** Finalize webhook configuration in ElevenLabs dashboard for `openclaw_tools` tool (update URL, ensure correct JSON schema for body parameters).
+- **Implement Project-Specific Routing:** Refine `routing.tiers.use_for` definitions as needed for specific agent tasks.
+- **Backup Strategy:** Implement a robust backup strategy for `.openclaw/` and `memory/` directories.
+- **AI Influencer Project:** Continue development of content strategy, auto-posting workflows, and visual assets.
 
-## Test Checklist
+--- 
 
-### 1. Starta backend + frontend
-
-```bash
-# Terminal 1 – Backend
-cd backend && npm run dev
-
-# Terminal 2 – Frontend
-cd frontend && npm run dev
-```
-
-### 2. Verifiera `/health` och `/status`
-
-```bash
-curl http://localhost:3001/api/v1/health
-# ✅ Förväntat: { "status": "ok", "supabase": { "ok": true } }
-
-curl http://localhost:3001/api/v1/status
-# ✅ Förväntat: time, supabase.ok, counts (customers, tasks_open, suggest_pending)
-```
-
-### 3. Testa `/chat` (skapa SUGGEST-task)
-
-```bash
-curl -X POST http://localhost:3001/api/v1/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "skapa en uppgift för axel", "channel": "web"}'
-# ✅ Förväntat: response med proposed_actions innehållande en task i status 'review'
-```
-
-### 4. Approve task
-
-- [ ] Öppna dashboard: `http://localhost:5174/`
-- [ ] "Pending Approvals" visar den nya tasken
-- [ ] Klicka **Approve** → tasken försvinner från listan
-
-### 5. Se att ActivityLog uppdateras
-
-- [ ] ActivityLog visar ny rad med `task.approved` eller liknande
-
-### 6. Klicka på kund i 3D-vy
-
-- [ ] Hovra över en sfär → tooltip visas (name, slug, open_tasks)
-- [ ] Klicka på sfär → "Filtering: [slug]" visas i header
-- [ ] ActivityLog och PendingApprovals filtreras på vald kund
-
-### 7. Verifiera beacon-färger
-
-| Status   | Förväntad färg |
-|----------|----------------|
-| `active` | 🟢 Grön        |
-| `warning`| 🟠 Orange      |
-| `error`  | 🔴 Röd         |
-
----
-
-✅ **Alla steg klara = MVP fungerar!**
+**Generated by Alex (AI Assistant) - 2026-02-13**

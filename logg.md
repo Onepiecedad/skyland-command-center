@@ -2,6 +2,68 @@
 
 ---
 
+## 2026-02-13 — Frontend Deployment Fix (scc.skylandai.se)
+
+### 📋 Status: ✅ SLUTFÖRD (2026-02-13 09:58)
+
+**Mål:** Fixa "Cannot GET /" på `scc.skylandai.se` — appen var aldrig deployad med frontend.
+
+### Problem
+
+`render.yaml` deployade bara backend (Docker) — frontenden byggdes aldrig och serverades inte. Render visade enbart Express API:t.
+
+### Lösning
+
+| Fil | Ändring |
+|-----|---------|
+| `Dockerfile` | 3-stegs build: `frontend-builder` → `backend-builder` → production. Vite-build kopieras till `/app/public` |
+| `server.ts` | `express.static('public')` + SPA catch-all (`*` → `index.html`). Uppdaterat Helmet CSP (fonts, connectSrc) och CORS (produktionsdomän) |
+| `render.yaml` | `dockerContext: .` (repo root istället för `./backend`) |
+
+### Git
+
+- Commit `06a1d67`: `fix: serve React frontend from Express backend on Render`
+
+---
+
+## 2026-02-13 — Alex's Automatiska Förbättringar (Context Monitor, Avatars, Voice Bridge)
+
+### 📋 Status: ✅ SLUTFÖRD (2026-02-13 09:05)
+
+**Mål:** Granska, testa och committa Alex's nya features.
+
+### Nya features
+
+| Feature | Filer | Beskrivning |
+|---------|-------|-------------|
+| **Context Monitor** | `ContextMonitor.tsx` + `context-monitor.css` | Realtids cost/token/context-pressure i System-dashboarden |
+| **Avatar Selector** | `AlexView.tsx` + `alex.css` + 3 SVG:er | 3 valbara avatars (Cyborg, Tech, Social) med hover-effekt |
+| **Voice ↔ Gateway Bridge** | `voice.ts` (+197 rader) | Ersatte direkta OpenAI-anrop med `ask_alex` (gateway hook) och `gateway_tool` |
+| **Modellpriser** | `pricing.json` | Config med priser per modell för Context Monitor |
+| **Avatar Identity Brief** | `AVATAR_IDENTITY_BRIEF.md` | Design-doc med prompts för framtida avatargenering |
+
+### Konfiguration
+
+- `CLAWDBOT_GATEWAY_URL` + `CLAWDBOT_GATEWAY_TOKEN` i `config.ts`
+- 3-tier modellrouting: Gemini Flash (primär) → Kimi K2.5 (kod) → Claude Sonnet 4 (komplex)
+
+### Fix
+
+- TS-bugg i `ContextMonitor.tsx` — `sessionKey`/`inputTokens`/`outputTokens` → `key`/`tokenCount`/`lastMessageAt` (matchade GatewaySession-interfacet)
+
+### Byggresultat
+
+| Komponent | Resultat |
+|-----------|----------|
+| Frontend `tsc --noEmit` | ✅ (3 pre-existerande IdeasView-warnings kvarstår) |
+| Backend `tsc --noEmit` | ✅ Clean |
+
+### Git
+
+- Commit `87b607f`: `feat: Context Monitor, avatar selector, voice gateway bridge, model pricing`
+
+---
+
 ## 2026-02-12 — Röst-Agent: SCC Data Tools & ElevenLabs MCP
 
 ### 📋 Status: ✅ SLUTFÖRD (2026-02-12 22:05)

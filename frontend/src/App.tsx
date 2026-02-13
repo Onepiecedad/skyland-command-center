@@ -133,19 +133,12 @@ function App() {
 
         {/* View Content — Zoom transitions */}
         <main className="dashboard-v2-main">
+          {/* AlexView stays mounted (hidden) to preserve WebSocket connection */}
+          <div style={{ display: currentView === 'alex' ? 'contents' : 'none' }}>
+            <AlexView />
+          </div>
+
           <AnimatePresence mode="wait">
-            {currentView === 'alex' && (
-              <motion.div
-                key="alex"
-                className="view-container"
-                variants={VIEW_VARIANTS}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-              >
-                <AlexView />
-              </motion.div>
-            )}
             {currentView === 'customers' && (
               <motion.div
                 key="customers"
