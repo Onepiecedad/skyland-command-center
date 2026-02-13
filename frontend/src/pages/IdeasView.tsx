@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import {
     Plus,
     Lightbulb,
-    Filter,
     Search,
     Tag,
     Calendar,
@@ -11,8 +10,6 @@ import {
     Clock,
     Archive,
     Trash2,
-    Edit3,
-    MoreHorizontal,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { API_URL } from '../config';
