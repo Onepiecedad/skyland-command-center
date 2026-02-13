@@ -30,7 +30,7 @@ class SupabaseRealtimeService {
     }
 
     const supabaseUrl = config?.url || process.env.SUPABASE_URL;
-    const supabaseKey = config?.key || process.env.SUPABASE_ANON_KEY;
+    const supabaseKey = config?.key || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
       logger.warn('Supabase credentials not found, running without realtime');
@@ -66,7 +66,7 @@ class SupabaseRealtimeService {
 
     // Subscribe to activities table changes
     this.subscribeToTable('activities');
-    
+
     // Subscribe to skills table changes
     this.subscribeToTable('skills');
 
@@ -115,7 +115,7 @@ class SupabaseRealtimeService {
    * Handle database changes and broadcast to WebSocket clients
    */
   private handleDatabaseChange(
-    tableName: string, 
+    tableName: string,
     payload: {
       eventType: 'INSERT' | 'UPDATE' | 'DELETE';
       new: Record<string, unknown>;
@@ -168,7 +168,7 @@ class SupabaseRealtimeService {
     }
 
     const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-    
+
     logger.warn({
       message: 'Attempting to reconnect Supabase realtime subscription',
       tableName,
