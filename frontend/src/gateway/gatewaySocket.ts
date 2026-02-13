@@ -274,6 +274,14 @@ export class GatewaySocket {
         return sessionKey;
     }
 
+    /**
+     * Public JSON-RPC call — allows external modules like fleetApi
+     * to call gateway RPC methods directly (e.g. sessions.list).
+     */
+    async rpc(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+        return this.request(method, params);
+    }
+
     async searchMemory(query: string, limit = 20): Promise<MemoryEntry[]> {
         // Use SCC backend API instead of gateway RPC
         try {
@@ -552,6 +560,14 @@ const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'ws://127.0.0.1:18789';
 const GATEWAY_TOKEN = import.meta.env.VITE_GATEWAY_TOKEN || '';
 
 let sharedSocket: GatewaySocket | null = null;
+
+/**
+ * Register an externally-created socket as the shared singleton.
+ * Called by useGateway so that fleetApi can reuse its connected socket.
+ */
+export function setSharedSocket(socket: GatewaySocket | null): void {
+    sharedSocket = socket;
+}
 
 export function getGatewaySocket(handlers?: GatewayEventHandlers): GatewaySocket {
     if (!sharedSocket) {

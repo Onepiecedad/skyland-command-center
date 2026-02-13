@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
     GatewaySocket,
+    setSharedSocket,
     type GatewayStatus,
     type AlexState,
     type GatewayMessage,
@@ -187,11 +188,14 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
         }, GATEWAY_TOKEN || undefined);
 
         socketRef.current = socket;
+        // Register as shared singleton so fleetApi can reuse this connection
+        setSharedSocket(socket);
         socket.start();
 
         return () => {
             socket.stop();
             socketRef.current = null;
+            setSharedSocket(null);
         };
     }, [handleChatEvent, disabled]);
 

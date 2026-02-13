@@ -1,17 +1,12 @@
 /**
- * Fleet API — Gateway HTTP bridge for agent session data
+ * Fleet API — Gateway WebSocket bridge for agent session data
  *
- * Uses the Clawdbot Gateway's POST /tools/invoke endpoint to call
- * sessions_list and sessions_history tools from the frontend.
+ * Uses the shared GatewaySocket's rpc() method to call
+ * sessions.list and chat.history over WebSocket,
+ * bypassing CORS restrictions that block direct HTTP POST calls.
  */
 
-const RAW_GATEWAY = (import.meta.env.VITE_GATEWAY_URL || 'ws://127.0.0.1:18789')
-    .replace('ws://', 'http://')
-    .replace('wss://', 'https://');
-
-// In dev mode, use the Vite proxy to avoid CORS; in production, hit the gateway directly
-const GATEWAY_HTTP_URL = import.meta.env.DEV ? '/gateway' : RAW_GATEWAY;
-const GATEWAY_TOKEN = import.meta.env.VITE_GATEWAY_TOKEN || '';
+import { getGatewaySocket, type GatewaySocket } from './gatewaySocket';
 
 // ─── Types ───
 
@@ -54,26 +49,14 @@ function isUuid(s: string): boolean {
 
 /**
  * Build a friendly display name from the session key + metadata.
- *
- * Key patterns from the gateway:
- *   agent:skyland:main              → "Alex"
- *   agent:skyland:scc:test-ping:*   → "SCC Test Ping"
- *   agent:skyland:scc:e2e-test-001:*→ "SCC E2E Test"
- *   agent:skyland:scc:<uuid>:<uuid> → "SCC Session #3"
- *   agent:skyland:cron:<uuid>       → "Cron Job #1"
- *   agent:skyland:hook:<uuid>       → "Hook Trigger #1"
  */
 function formatAgentName(key: string, displayName?: string): string {
     const parts = key.split(':');
 
-    // agent:skyland:main → "Alex"
     if (parts.includes('main')) return 'Alex';
 
-    // Named test sessions: agent:skyland:scc:test-ping:test-run
-    const channelType = parts[2]; // 'scc', 'cron', 'hook'
+    const channelType = parts[2];
     const identParts = parts.slice(3);
-
-    // Filter out UUID segments, keep named ones
     const namedParts = identParts.filter(p => !isUuid(p));
 
     if (namedParts.length > 0) {
@@ -85,9 +68,7 @@ function formatAgentName(key: string, displayName?: string): string {
         return prefix ? `${prefix} ${label}` : label;
     }
 
-    // All-UUID segments — use a short hash + channel prefix
     if (channelType === 'scc') {
-        // Use displayName (phone number) if available
         if (displayName && displayName !== '' && displayName !== 'unknown') {
             return `SCC Chat (${displayName})`;
         }
@@ -103,29 +84,22 @@ function formatAgentName(key: string, displayName?: string): string {
         return `Hook ${shortId}`;
     }
 
-    // Fallback
     const raw = parts[parts.length - 1];
     return isUuid(raw) ? `Agent ${raw.slice(0, 6)}` : raw.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 function deriveRole(key: string, channel?: string): string {
     const lower = key.toLowerCase();
-
-    // Main Alex agent
     if (lower.includes(':main')) return 'Huvudagent';
-
-    // Channel type from key structure
     if (lower.includes(':cron:')) return 'Schemalagt jobb';
     if (lower.includes(':hook:')) return 'Webhook-trigger';
 
-    // SCC sessions — differentiate by named vs anonymous
     if (lower.includes(':scc:')) {
         if (lower.includes('test') || lower.includes('e2e')) return 'Testning';
         if (channel === 'whatsapp') return 'WhatsApp-session';
         return 'SCC-chatt';
     }
 
-    // Named agent patterns
     if (lower.includes('strategy')) return 'Strategi & Analys';
     if (lower.includes('prospect-finder')) return 'Prospektering';
     if (lower.includes('prospect-researcher')) return 'Research';
@@ -168,7 +142,6 @@ function formatUptime(updatedAt?: number): string {
 
 function extractCurrentTask(messages?: unknown[]): string {
     if (!messages || messages.length === 0) return 'Ingen aktiv uppgift';
-    // Get last user-role message as task context
     for (let i = messages.length - 1; i >= 0; i--) {
         const msg = messages[i] as Record<string, unknown>;
         if (msg.role === 'user' && typeof msg.content === 'string') {
@@ -179,71 +152,55 @@ function extractCurrentTask(messages?: unknown[]): string {
     return 'Senaste aktivitet saknas';
 }
 
-// ─── API Call ───
+// ─── Gateway RPC via WebSocket ───
 
-async function invokeGatewayTool(tool: string, args: Record<string, unknown> = {}): Promise<unknown> {
-    const res = await fetch(`${GATEWAY_HTTP_URL}/tools/invoke`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            ...(GATEWAY_TOKEN ? { Authorization: `Bearer ${GATEWAY_TOKEN}` } : {}),
-        },
-        body: JSON.stringify({ tool, action: 'json', args }),
-    });
-    if (!res.ok) {
-        throw new Error(`Gateway ${tool} failed: ${res.status}`);
-    }
-    const data = await res.json();
-    if (!data.ok && data.error) {
-        throw new Error(data.error.message || `Tool ${tool} error`);
-    }
+/** Get the shared gateway socket instance */
+function getSocket(): GatewaySocket {
+    return getGatewaySocket();
+}
 
-    // The gateway returns: { ok: true, result: { content: [{ type: "text", text: "JSON string" }] } }
-    // We need to unwrap the MCP content array and parse the inner JSON.
-    const result = data.result ?? data;
+/**
+ * Call a gateway JSON-RPC method directly over WebSocket.
+ * Uses native methods like 'sessions.list' and 'chat.history'.
+ */
+async function gatewayRpc(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
+    const socket = getSocket();
 
-    // Handle MCP content array format
-    if (result.content && Array.isArray(result.content)) {
-        const textBlock = result.content.find(
-            (c: { type: string; text?: string }) => c.type === 'text' && typeof c.text === 'string'
-        );
-        if (textBlock) {
-            try {
-                return JSON.parse(textBlock.text);
-            } catch {
-                return textBlock.text;
-            }
-        }
+    if (!socket.connected) {
+        throw new Error('Gateway not connected');
     }
 
-    return result;
+    return socket.rpc(method, params);
 }
 
 // ─── Public API ───
 
 export async function fetchAgentSessions(): Promise<AgentData[]> {
-    const result = await invokeGatewayTool('sessions_list', {
-        messageLimit: 2,
+    const result = await gatewayRpc('sessions.list', {
+        agentId: 'main',
     }) as Record<string, unknown>;
 
-    // invokeGatewayTool now returns the parsed JSON: { count, sessions: [...] }
     const sessions = (result.sessions as Record<string, unknown>[]) || [];
 
     return sessions.map(session => {
-        const key = (session.key as string) || '';
-        const updatedAt = typeof session.updatedAt === 'number' ? session.updatedAt : undefined;
+        const key = (session.key as string) || (session.sessionKey as string) || '';
+        const updatedAt = typeof session.updatedAt === 'number'
+            ? session.updatedAt
+            : typeof session.lastMessageAt === 'string'
+                ? new Date(session.lastMessageAt).getTime()
+                : undefined;
 
         return {
             id: (session.sessionId as string) || key,
             name: formatAgentName(key, session.displayName as string | undefined),
             role: deriveRole(key, session.channel as string | undefined),
-            status: deriveStatus(session),
+            status: deriveStatus({ ...session, updatedAt }),
             currentTask: extractCurrentTask(session.messages as unknown[]),
             uptime: formatUptime(updatedAt),
             model: session.model as string | undefined,
             channel: session.channel as string | undefined,
             contextTokens: session.contextTokens as number | undefined,
-            totalTokens: session.totalTokens as number | undefined,
+            totalTokens: (session.tokenCount as number) || (session.totalTokens as number) || undefined,
             sessionKey: key,
             updatedAt,
             messages: (session.messages as MessageEntry[]) || [],
@@ -252,17 +209,13 @@ export async function fetchAgentSessions(): Promise<AgentData[]> {
 }
 
 export async function fetchAgentDetail(sessionKey: string): Promise<AgentDetail | null> {
-    // Fetch history for the specific session
-    const result = await invokeGatewayTool('sessions_history', {
+    const result = await gatewayRpc('chat.history', {
         sessionKey,
         limit: 20,
-        includeTools: false,
     }) as Record<string, unknown>;
 
-    // invokeGatewayTool now returns the parsed JSON directly
     const messages = (result.messages as Record<string, unknown>[]) || [];
 
-    // Build logs from recent messages
     const logs = messages.slice(-10).map(msg => ({
         time: typeof msg.timestamp === 'string'
             ? new Date(msg.timestamp).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })
@@ -275,7 +228,7 @@ export async function fetchAgentDetail(sessionKey: string): Promise<AgentDetail 
     return {
         id: sessionKey,
         name: formatAgentName(sessionKey),
-        role: deriveRole(sessionKey),  // channel not available for detail calls
+        role: deriveRole(sessionKey),
         status: 'active',
         currentTask: extractCurrentTask(messages as unknown[]),
         uptime: '—',
