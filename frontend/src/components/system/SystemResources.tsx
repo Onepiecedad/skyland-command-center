@@ -31,28 +31,41 @@ export function SystemResources() {
     const [cronJobs, setCronJobs] = useState<CronJob[]>([]);
 
     const fetchResources = useCallback(async () => {
+        // Check backend health
+        let backendOk = false;
+        let backendDetail = 'Offline';
         try {
-            const API = API_URL;
-            const res = await fetch(`${API}/api/v1/status`);
+            const res = await fetch(`${API_URL}/health`);
             if (res.ok) {
                 const data = await res.json();
-                setResources([
-                    { label: 'Supabase', ok: data.supabase?.ok ?? false, detail: data.supabase?.ok ? 'Connected' : 'Disconnected', icon: Database },
-                    { label: 'SCC Backend', ok: true, detail: `${data.counts?.customers ?? 0} kunder`, icon: Server },
-                    { label: 'Gateway', ok: true, detail: 'Port 18789', icon: Activity },
-                    { label: 'API Quotas', ok: true, detail: 'Inom gräns', icon: Shield },
-                ]);
-            } else {
-                throw new Error('API unavailable');
+                backendOk = data.status === 'healthy';
+                backendDetail = backendOk ? `Uptime ${Math.floor(data.uptime / 60)}m` : 'Unhealthy';
             }
-        } catch {
-            setResources([
-                { label: 'Supabase', ok: false, detail: 'Ej tillgänglig', icon: Database },
-                { label: 'SCC Backend', ok: false, detail: 'Offline', icon: Server },
-                { label: 'Gateway', ok: true, detail: 'Port 18789', icon: Activity },
-                { label: 'API Quotas', ok: true, detail: 'Okänt', icon: Shield },
-            ]);
-        }
+        } catch { /* offline */ }
+
+        // Check Supabase connectivity
+        let supabaseOk = false;
+        let supabaseDetail = 'Ej tillgänglig';
+        try {
+            const sbUrl = import.meta.env.VITE_SUPABASE_URL;
+            if (sbUrl) {
+                const sbRes = await fetch(`${sbUrl}/rest/v1/`, {
+                    method: 'HEAD',
+                    headers: {
+                        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+                    },
+                });
+                supabaseOk = sbRes.ok || sbRes.status === 200;
+                supabaseDetail = supabaseOk ? 'Connected' : `HTTP ${sbRes.status}`;
+            }
+        } catch { /* offline */ }
+
+        setResources([
+            { label: 'Supabase', ok: supabaseOk, detail: supabaseDetail, icon: Database },
+            { label: 'SCC Backend', ok: backendOk, detail: backendDetail, icon: Server },
+            { label: 'Gateway', ok: true, detail: 'Port 18789', icon: Activity },
+            { label: 'API Quotas', ok: true, detail: 'Inom gräns', icon: Shield },
+        ]);
     }, []);
 
     useEffect(() => { fetchResources(); }, [fetchResources]);
