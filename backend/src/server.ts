@@ -42,6 +42,7 @@ import alexMemoryRouter from './routes/alexMemory.js';
 import adminRouter from './routes/admin.js';
 import openworkWebhookRouter from './routes/openworkWebhook.js';
 import voiceRouter from './routes/voice.js';
+import gatewayRouter from './routes/gateway.js';
 
 // Import services
 import gatewaySocket from './services/gatewaySocket.js';
@@ -167,6 +168,7 @@ class Server {
     this.app.use('/api/v1/admin', adminRouter);
     this.app.use('/api/v1/webhooks/openwork', openworkWebhookRouter);
     this.app.use('/api/v1/voice', voiceRouter);
+    this.app.use('/api/v1/gateway', gatewayRouter);
 
     // ================================================================
     // Static frontend — serve the built React SPA from public/

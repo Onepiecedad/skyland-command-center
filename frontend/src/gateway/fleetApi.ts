@@ -1,12 +1,11 @@
 /**
- * Fleet API — Gateway WebSocket bridge for agent session data
+ * Fleet API — Backend REST bridge for agent session data
  *
- * Uses the shared GatewaySocket's rpc() method to call
- * sessions.list and chat.history over WebSocket,
- * bypassing CORS restrictions that block direct HTTP POST calls.
+ * All data fetched from the SCC backend (which proxies to the
+ * OpenClaw gateway), eliminating the fragile direct-WebSocket approach.
  */
 
-import { getGatewaySocket, type GatewaySocket } from './gatewaySocket';
+import { fetchWithAuth, API_BASE } from '../api/base';
 
 // ─── Types ───
 
@@ -152,45 +151,17 @@ function extractCurrentTask(messages?: unknown[]): string {
     return 'Senaste aktivitet saknas';
 }
 
-// ─── Gateway RPC via WebSocket ───
-
-/** Get the shared gateway socket instance */
-function getSocket(): GatewaySocket {
-    return getGatewaySocket();
-}
-
-/**
- * Call a gateway JSON-RPC method directly over WebSocket.
- * Waits up to 5 seconds for the socket to connect (handles mount race).
- */
-async function gatewayRpc(method: string, params: Record<string, unknown> = {}): Promise<unknown> {
-    const socket = getSocket();
-
-    // Wait for socket to connect (useGateway may still be in its useEffect)
-    if (!socket.connected) {
-        const maxWait = 5000;
-        const interval = 500;
-        let waited = 0;
-        while (!socket.connected && waited < maxWait) {
-            await new Promise(r => setTimeout(r, interval));
-            waited += interval;
-        }
-        if (!socket.connected) {
-            throw new Error('Gateway not connected');
-        }
-    }
-
-    return socket.rpc(method, params);
-}
-
-// ─── Public API ───
+// ─── Public API (REST via backend) ───
 
 export async function fetchAgentSessions(): Promise<AgentData[]> {
-    const result = await gatewayRpc('sessions.list', {
-        agentId: 'main',
-    }) as Record<string, unknown>;
+    const res = await fetchWithAuth(`${API_BASE}/gateway/sessions`);
 
-    const sessions = (result.sessions as Record<string, unknown>[]) || [];
+    if (!res.ok) {
+        throw new Error(`Gateway sessions request failed: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const sessions = (data.sessions as Record<string, unknown>[]) || [];
 
     return sessions.map(session => {
         const key = (session.key as string) || (session.sessionKey as string) || '';
@@ -219,12 +190,16 @@ export async function fetchAgentSessions(): Promise<AgentData[]> {
 }
 
 export async function fetchAgentDetail(sessionKey: string): Promise<AgentDetail | null> {
-    const result = await gatewayRpc('chat.history', {
-        sessionKey,
-        limit: 20,
-    }) as Record<string, unknown>;
+    const res = await fetchWithAuth(
+        `${API_BASE}/gateway/chat-history?sessionKey=${encodeURIComponent(sessionKey)}&limit=20`
+    );
 
-    const messages = (result.messages as Record<string, unknown>[]) || [];
+    if (!res.ok) {
+        throw new Error(`Gateway chat-history request failed: ${res.status}`);
+    }
+
+    const data = await res.json();
+    const messages = (data.messages as Record<string, unknown>[]) || [];
 
     const logs = messages.slice(-10).map(msg => ({
         time: typeof msg.timestamp === 'string'
@@ -246,4 +221,15 @@ export async function fetchAgentDetail(sessionKey: string): Promise<AgentDetail 
         logs,
         queue: [],
     };
+}
+
+/** Check if gateway is reachable via backend proxy */
+export async function checkGatewayStatus(): Promise<{ connected: boolean; reason?: string }> {
+    try {
+        const res = await fetchWithAuth(`${API_BASE}/gateway/status`);
+        if (!res.ok) return { connected: false, reason: `Backend error: ${res.status}` };
+        return await res.json();
+    } catch {
+        return { connected: false, reason: 'Backend unreachable' };
+    }
 }
