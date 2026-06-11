@@ -401,17 +401,17 @@ export class GatewaySocket {
         }
 
         const params: Record<string, unknown> = {
-            minProtocol: 3,
-            maxProtocol: 3,
+            minProtocol: 4,
+            maxProtocol: 4,
             client: {
-                id: 'webchat-ui',
+                id: 'openclaw-control-ui',
                 version: '2.0.0',
                 platform: navigator.platform || 'web',
                 mode: 'webchat',
                 instanceId: `scc-${Date.now()}`,
             },
             role: 'operator',
-            scopes: ['operator.admin', 'operator.approvals', 'operator.pairing'],
+            scopes: ['operator.admin', 'operator.approvals', 'operator.pairing', 'operator.read', 'operator.write'],
             caps: [],
             auth: this.token ? { token: this.token } : undefined,
             userAgent: navigator.userAgent,
