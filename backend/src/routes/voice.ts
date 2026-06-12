@@ -173,24 +173,93 @@ router.post('/tools', async (req: Request, res: Response) => {
                     return res.json({ result: 'Jag behöver en fråga. Vad vill du att jag frågar Alex?' });
                 }
 
-                const hookResult = await gatewayFetch('/hooks/agent', {
-                    message: question,
-                    name: 'ElevenLabs Voice',
-                    wakeMode: 'now',
-                    sessionKey: 'voice:elevenlabs',
-                    deliver: false,  // Don't deliver to WhatsApp, we want the response here
-                    channel: 'webchat',
-                });
+                const VOICE_SESSION = 'hook:voice';
+                const HISTORY_SESSION = 'agent:main:hook:voice';
 
-                if (!hookResult.ok) {
-                    result = `Kunde inte nå Alex gateway just nu. Fel: ${hookResult.data.error || 'okänt'}`;
+                // Helper: read assistant message count + last assistant text
+                const readHistory = async (): Promise<{ count: number; lastText: string }> => {
+                    const h = await gatewayFetch('/tools/invoke', {
+                        tool: 'sessions_history',
+                        args: { sessionKey: HISTORY_SESSION, limit: 20 },
+                        sessionKey: 'main',
+                    });
+                    try {
+                        const content = (h.data.result as { content?: { text?: string }[] })?.content;
+                        const parsed = JSON.parse(content?.[0]?.text || '{}');
+                        const msgs: { role: string; content: unknown }[] = parsed.messages || [];
+                        const assistants = msgs.filter(m => m.role === 'assistant');
+                        const last = assistants[assistants.length - 1];
+                        let text = '';
+                        if (last) {
+                            text = typeof last.content === 'string'
+                                ? last.content
+                                : (last.content as { type?: string; text?: string }[])
+                                    .filter(c => c?.type === 'text' && c.text)
+                                    .map(c => c.text)
+                                    .join(' ');
+                        }
+                        return { count: assistants.length, lastText: text };
+                    } catch {
+                        return { count: -1, lastText: '' };
+                    }
+                };
+
+                const before = await readHistory();
+
+                // Dispatch to the MAIN agent — same brain, skills and tool
+                // permissions as WhatsApp/webchat. Hook auth uses the hook token.
+                const hookToken = config.OPENCLAW_HOOK_TOKEN || config.CLAWDBOT_GATEWAY_TOKEN;
+                let dispatched = false;
+                try {
+                    const resp = await fetch(`${config.CLAWDBOT_GATEWAY_URL}/hooks/agent`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${hookToken}`,
+                        },
+                        body: JSON.stringify({
+                            message: `RÖSTSAMTAL (svara kort och talvänligt, max några meningar): ${question}`,
+                            name: 'ElevenLabs Voice',
+                            wakeMode: 'now',
+                            sessionKey: VOICE_SESSION,
+                            agentId: 'main',
+                            deliver: false,
+                        }),
+                    });
+                    dispatched = resp.ok;
+                    if (!resp.ok) {
+                        console.error('[voice/ask_alex] hook dispatch failed:', resp.status, await resp.text());
+                    }
+                } catch (err) {
+                    console.error('[voice/ask_alex] hook dispatch error:', err);
+                }
+
+                if (!dispatched) {
+                    result = 'Kunde inte nå Alex gateway just nu. Försök igen om en stund.';
                     break;
                 }
 
-                // The hooks/agent endpoint is async - it returns a runId.
-                // For now, confirm the message was dispatched.
-                const runId = hookResult.data.runId as string || 'unknown';
-                result = `Jag har skickat din fråga till Alex. Han bearbetar den nu. (Run: ${runId}). Alex kommer svara via den vanliga kanalen.`;
+                // Poll until a NEW assistant message appears (max ~50s,
+                // ElevenLabs tool timeout is 60s)
+                const POLL_INTERVAL_MS = 2500;
+                const MAX_WAIT_MS = 50_000;
+                const startedAt = Date.now();
+                let answer = '';
+                while (Date.now() - startedAt < MAX_WAIT_MS) {
+                    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+                    const now = await readHistory();
+                    if (now.count > before.count && now.lastText) {
+                        answer = now.lastText;
+                        break;
+                    }
+                }
+
+                if (answer) {
+                    // Trim for voice output
+                    result = answer.length > 1500 ? answer.substring(0, 1497) + '...' : answer;
+                } else {
+                    result = 'Alex jobbar fortfarande på uppgiften. Den tar lite längre tid — svaret kommer i chatten eller på WhatsApp strax.';
+                }
                 break;
             }
 
