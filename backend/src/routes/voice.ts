@@ -19,6 +19,10 @@ const router = Router();
 
 const GATEWAY_TIMEOUT_MS = 30_000; // 30s max wait for gateway responses
 
+// Tracks an in-flight ask_alex run so a follow-up call ("hur går det?") can
+// pick up the finished answer instead of dispatching a duplicate run.
+let voicePendingRun: { historyKey: string; at: number } | null = null;
+
 /** Proxy a request to the clawdbot gateway */
 async function gatewayFetch(path: string, body: Record<string, unknown>): Promise<{
     ok: boolean;
@@ -180,14 +184,19 @@ router.post('/tools', async (req: Request, res: Response) => {
                     return res.json({ result: 'Jag behöver en fråga. Vad vill du att jag frågar Alex?' });
                 }
 
-                const VOICE_SESSION = 'hook:voice';
-                const HISTORY_SESSION = 'agent:main:hook:voice';
+                const PENDING_TTL_MS = 10 * 60_000;
+
+                // Each voice question gets its OWN fresh session so dispatches
+                // never queue up behind each other on a shared key. The first
+                // assistant message in that session is THIS question's answer.
+                const VOICE_SESSION = `hook:voice-${Date.now()}`;
+                const HISTORY_SESSION = `agent:main:${VOICE_SESSION}`;
 
                 // Helper: read assistant message count + last assistant text
-                const readHistory = async (): Promise<{ count: number; lastText: string }> => {
+                const readHistoryOf = async (historyKey: string): Promise<{ count: number; lastText: string }> => {
                     const h = await gatewayFetch('/tools/invoke', {
                         tool: 'sessions_history',
-                        args: { sessionKey: HISTORY_SESSION, limit: 20 },
+                        args: { sessionKey: historyKey, limit: 20 },
                         sessionKey: 'main',
                     });
                     try {
@@ -211,10 +220,42 @@ router.post('/tools', async (req: Request, res: Response) => {
                     }
                 };
 
-                const before = await readHistory();
+                // Poll a session's history for its first/next assistant message
+                const pollForAnswer = async (historyKey: string, baseline: number, maxWaitMs: number): Promise<string> => {
+                    const POLL_INTERVAL_MS = 2500;
+                    const startedAt = Date.now();
+                    while (Date.now() - startedAt < maxWaitMs) {
+                        await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+                        const now = await readHistoryOf(historyKey);
+                        if (now.count > baseline && now.lastText) return now.lastText;
+                    }
+                    return '';
+                };
+                const trimForVoice = (s: string) => s.length > 1500 ? s.substring(0, 1497) + '...' : s;
 
-                // Dispatch to the MAIN agent — same brain, skills and tool
-                // permissions as WhatsApp/webchat. Hook auth uses the hook token.
+                // Follow-up like "hur går det?" — a prior long task is still
+                // pending. Don't dispatch a new run; resume waiting on it.
+                const isFollowUp = /hur går det|är du klar|färdig|status|klart än/i.test(question);
+                if (voicePendingRun && Date.now() - voicePendingRun.at < PENDING_TTL_MS && isFollowUp) {
+                    const done = await readHistoryOf(voicePendingRun.historyKey);
+                    if (done.count > 0 && done.lastText) {
+                        const txt = done.lastText;
+                        voicePendingRun = null;
+                        result = trimForVoice(txt);
+                        break;
+                    }
+                    const late = await pollForAnswer(voicePendingRun.historyKey, 0, 50_000);
+                    if (late) {
+                        voicePendingRun = null;
+                        result = trimForVoice(late);
+                    } else {
+                        result = 'Jag jobbar fortfarande på det. Fråga igen om en liten stund.';
+                    }
+                    break;
+                }
+
+                // Dispatch to the MAIN agent in a FRESH session — same brain,
+                // skills and tool permissions as WhatsApp/webchat.
                 const hookToken = config.OPENCLAW_HOOK_TOKEN || config.CLAWDBOT_GATEWAY_TOKEN;
                 let dispatched = false;
                 try {
@@ -246,26 +287,16 @@ router.post('/tools', async (req: Request, res: Response) => {
                     break;
                 }
 
-                // Poll until a NEW assistant message appears (max ~50s,
-                // ElevenLabs tool timeout is 60s)
-                const POLL_INTERVAL_MS = 2500;
-                const MAX_WAIT_MS = 50_000;
-                const startedAt = Date.now();
-                let answer = '';
-                while (Date.now() - startedAt < MAX_WAIT_MS) {
-                    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
-                    const now = await readHistory();
-                    if (now.count > before.count && now.lastText) {
-                        answer = now.lastText;
-                        break;
-                    }
-                }
+                // Fresh session → baseline 0, the answer is the first assistant msg
+                const answer = await pollForAnswer(HISTORY_SESSION, 0, 50_000);
 
                 if (answer) {
-                    // Trim for voice output
-                    result = answer.length > 1500 ? answer.substring(0, 1497) + '...' : answer;
+                    voicePendingRun = null;
+                    result = trimForVoice(answer);
                 } else {
-                    result = 'Alex jobbar fortfarande på uppgiften. Den tar lite längre tid — svaret kommer i chatten eller på WhatsApp strax.';
+                    // Long task — remember the session so a follow-up retrieves it
+                    voicePendingRun = { historyKey: HISTORY_SESSION, at: Date.now() };
+                    result = 'Jag jobbar fortfarande på det. Fråga "hur går det?" om en liten stund så får du svaret.';
                 }
                 break;
             }
