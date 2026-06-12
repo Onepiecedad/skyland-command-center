@@ -138,7 +138,14 @@ router.get('/status', (_req: Request, res: Response) => {
 //   - query_tasks: Supabase direct query
 // ============================================================================
 router.post('/tools', async (req: Request, res: Response) => {
-    const { tool_name, params } = req.body;
+    let { tool_name, params } = req.body;
+
+    // ElevenLabs' ask_alex webhook posts { question } at top level without
+    // tool_name — map it. Same for { tool: ... } from openclaw_tools variants.
+    if (!tool_name && typeof req.body.question === 'string') {
+        tool_name = 'ask_alex';
+        params = { question: req.body.question };
+    }
 
     console.log('[voice/tools] Incoming tool call:', { tool_name, params });
 
