@@ -26,3 +26,8 @@ npm-debug.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# secret backups (never commit)
+.env.bak*
+backend/.env.bak*
+*.env.bak*

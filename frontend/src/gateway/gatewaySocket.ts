@@ -294,7 +294,7 @@ export class GatewaySocket {
         // Use SCC backend API instead of gateway RPC
         try {
             const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
-            const res = await fetch(`${apiUrl}/api/v1/alex/search`, {
+            const res = await fetch(`${apiUrl}/api/v1/alex-memory/search`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ query, limit }),
@@ -321,7 +321,7 @@ export class GatewaySocket {
         // Use SCC backend API instead of gateway RPC
         try {
             const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
-            const res = await fetch(`${apiUrl}/api/v1/alex/list?limit=${limit}`);
+            const res = await fetch(`${apiUrl}/api/v1/alex-memory/list?limit=${limit}`);
             if (!res.ok) {
                 console.warn('[GW] alex/list failed:', res.status);
                 return [];

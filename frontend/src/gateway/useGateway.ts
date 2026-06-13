@@ -33,6 +33,17 @@ function isSystemMessage(msg: { role?: string; content?: string }): boolean {
     return SYSTEM_MSG_PATTERNS.some(p => c.includes(p));
 }
 
+// Keep only real user-facing conversation threads in the sidebar.
+// Hides internal/system sessions: hook dispatches (voice, mail bridge, tests),
+// cron jobs, and SCC dispatch sessions. Key format: agent:<id>:<channel>:<...>
+const INTERNAL_CHANNELS = new Set(['hook', 'cron', 'scc', 'scc-dispatch']);
+function keepUserSession(s: { key?: string }): boolean {
+    const key = s.key || '';
+    if (key.endsWith(':heartbeat')) return false; // isolated heartbeat session
+    const channel = key.split(':')[2] || '';
+    return !INTERNAL_CHANNELS.has(channel);
+}
+
 export interface ThreadPreview {
     lastMessage: string;
     messageCount: number;
@@ -219,7 +230,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                 } catch { /* ignore */ }
                 try {
                     const s = await socket.getSessions();
-                    setSessions(s);
+                    setSessions(s.filter(keepUserSession));
                 } catch { /* ignore */ }
             },
             onError: (err) => {
@@ -248,7 +259,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                 .then(setNodes)
                 .catch(() => { });
             socketRef.current?.getSessions()
-                .then(setSessions)
+                .then(s => setSessions(s.filter(keepUserSession)))
                 .catch(() => { });
         }, 30000);
         return () => clearInterval(interval);
@@ -332,7 +343,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
     const refreshSessions = useCallback(() => {
         if (!socketRef.current?.connected) return;
         socketRef.current.getSessions()
-            .then(setSessions)
+            .then(s => setSessions(s.filter(keepUserSession)))
             .catch(() => { });
     }, []);
 

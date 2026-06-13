@@ -272,6 +272,11 @@ router.post('/tools', async (req: Request, res: Response) => {
                             sessionKey: VOICE_SESSION,
                             agentId: 'main',
                             deliver: false,
+                            // Voice input is the owner (Joakim) speaking — trusted, like
+                            // webchat/WhatsApp. Without this the gateway wraps the question
+                            // in an "EXTERNAL UNTRUSTED source" notice, which makes the model
+                            // intermittently refuse to act (e.g. "I don't have mail access").
+                            allowUnsafeExternalContent: true,
                         }),
                     });
                     dispatched = resp.ok;

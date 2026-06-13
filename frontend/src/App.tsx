@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Archive, Zap, Building2, Monitor, Puzzle, Radar, Lightbulb, Mic } from 'lucide-react';
+import { Zap, Building2, Monitor, Puzzle, Mic, Briefcase } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -9,13 +9,11 @@ import AlexView from './pages/AlexView';
 import { CustomerView } from './pages/CustomerView';
 import { SystemDashboard } from './pages/SystemDashboard';
 import { SkillsView } from './pages/SkillsView';
-import ArchiveView from './pages/ArchiveView';
-import FleetMonitor from './pages/FleetMonitor';
-import { IdeasView } from './pages/IdeasView';
 import VoiceChatView from './pages/VoiceChatView';
+import OfficeView from './pages/OfficeView';
 import './styles/index.css';
 
-type View = 'alex' | 'customers' | 'system' | 'skills' | 'fleet' | 'archive' | 'ideas' | 'voicechat';
+type View = 'alex' | 'customers' | 'system' | 'skills' | 'voicechat' | 'office';
 
 interface Segment {
   key: string;
@@ -26,11 +24,9 @@ interface Segment {
 const SEGMENTS: Segment[] = [
   { key: 'alex', label: 'Alex', icon: <Zap size={14} strokeWidth={2.5} /> },
   { key: 'customers', label: 'Kunder', icon: <Building2 size={14} strokeWidth={2} /> },
-  { key: 'archive', label: 'Arkiv', icon: <Archive size={14} strokeWidth={2} /> },
+  { key: 'office', label: 'Kontor', icon: <Briefcase size={14} strokeWidth={2} /> },
   { key: 'system', label: 'System', icon: <Monitor size={14} strokeWidth={2} /> },
   { key: 'skills', label: 'Skills', icon: <Puzzle size={14} strokeWidth={2} /> },
-  { key: 'fleet', label: 'Fleet', icon: <Radar size={14} strokeWidth={2} /> },
-  { key: 'ideas', label: 'Idéer', icon: <Lightbulb size={14} strokeWidth={2} /> },
   { key: 'voicechat', label: 'Röstchat', icon: <Mic size={14} strokeWidth={2} /> },
 ];
 
@@ -85,7 +81,7 @@ function App() {
         handleViewChange('customers');
       } else if (e.key === '3') {
         e.preventDefault();
-        handleViewChange('archive');
+        handleViewChange('office');
       } else if (e.key === '4') {
         e.preventDefault();
         handleViewChange('system');
@@ -93,12 +89,6 @@ function App() {
         e.preventDefault();
         handleViewChange('skills');
       } else if (e.key === '6') {
-        e.preventDefault();
-        handleViewChange('fleet');
-      } else if (e.key === '7') {
-        e.preventDefault();
-        handleViewChange('ideas');
-      } else if (e.key === '8') {
         e.preventDefault();
         handleViewChange('voicechat');
       }
@@ -178,40 +168,16 @@ function App() {
                 <SkillsView />
               </motion.div>
             )}
-            {currentView === 'fleet' && (
+            {currentView === 'office' && (
               <motion.div
-                key="fleet"
+                key="office"
                 className="view-container"
                 variants={VIEW_VARIANTS}
                 initial="initial"
                 animate="animate"
                 exit="exit"
               >
-                <FleetMonitor />
-              </motion.div>
-            )}
-            {currentView === 'archive' && (
-              <motion.div
-                key="archive"
-                className="view-container"
-                variants={VIEW_VARIANTS}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-              >
-                <ArchiveView />
-              </motion.div>
-            )}
-            {currentView === 'ideas' && (
-              <motion.div
-                key="ideas"
-                className="view-container"
-                variants={VIEW_VARIANTS}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-              >
-                <IdeasView />
+                <OfficeView />
               </motion.div>
             )}
             {currentView === 'voicechat' && (

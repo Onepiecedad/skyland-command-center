@@ -39,6 +39,8 @@ import errorRecoveryRouter from './routes/errorRecovery.js';
 import memoryManagementRouter from './routes/memoryManagement.js';
 import memorySearchRouter from './routes/memorySearch.js';
 import alexMemoryRouter from './routes/alexMemory.js';
+import alexRoleFilesRouter from './routes/alexRoleFiles.js';
+import agentsOfficeRouter from './routes/agentsOffice.js';
 import adminRouter from './routes/admin.js';
 import openworkWebhookRouter from './routes/openworkWebhook.js';
 import voiceRouter from './routes/voice.js';
@@ -165,6 +167,8 @@ class Server {
     this.app.use('/api/v1/memory', memoryManagementRouter);
     this.app.use('/api/v1/memory', memorySearchRouter);
     this.app.use('/api/v1/alex-memory', alexMemoryRouter);
+    this.app.use('/api/v1/alex', alexRoleFilesRouter);
+    this.app.use('/api/v1/agents', agentsOfficeRouter);
     this.app.use('/api/v1/admin', adminRouter);
     this.app.use('/api/v1/webhooks/openwork', openworkWebhookRouter);
     this.app.use('/api/v1/voice', voiceRouter);
