@@ -31,3 +31,4 @@ npm-debug.log*
 .env.bak*
 backend/.env.bak*
 *.env.bak*
+database/backups/

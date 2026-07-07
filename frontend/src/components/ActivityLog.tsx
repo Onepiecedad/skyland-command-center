@@ -17,6 +17,7 @@ const FILTERS: FilterConfig[] = [
     { key: 'tool', label: 'Tool calls', icon: '🔧', query: { event_type: 'tool_call' } },
     { key: 'response', label: 'Svar', icon: '🤖', query: { event_type: 'chat_responded' } },
     { key: 'message', label: 'Meddelanden', icon: '👤', query: { event_type: 'chat_received' } },
+    { key: 'lead', label: 'Leads', icon: '🎯', query: { event_type: 'lead' } },
     { key: 'error', label: 'Fel', icon: '⚠️', query: { severity: 'error' } },
     { key: 'cron', label: 'Cron', icon: '🔄', query: { event_type: 'cron_trigger' } },
 ];
@@ -38,6 +39,7 @@ const EVENT_TYPE_ICONS: Record<string, string> = {
     run_timeout: '⏱',
     cron_trigger: '🔄',
     heartbeat: '💓',
+    lead: '🎯',
 };
 
 interface Props {
