@@ -12,6 +12,8 @@ dotenv.config();
 // Import middleware
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { authMiddleware } from './middleware/auth.js';
+import { globalLimiter, chatLimiter, adminLimiter } from './middleware/rateLimiter.js';
 
 // Import routes
 import skillsRouter from './routes/skills.js';
@@ -145,16 +147,33 @@ class Server {
     this.app.use('/api/activities', activitiesRouter);
 
     // ================================================================
+    // Routes with their OWN auth or external callers — mounted BEFORE
+    // the global auth middleware:
+    //  - /leads: validates Bearer LEADS_INTAKE_TOKEN itself (n8n → SCC)
+    //  - /webhooks/openwork: external callback (TODO: add signature check)
+    //  - /voice: called by ElevenLabs tool webhooks (TODO: add shared secret)
+    // ================================================================
+    this.app.use('/api/v1/leads', leadsRouter);
+    this.app.use('/api/v1/webhooks/openwork', openworkWebhookRouter);
+    this.app.use('/api/v1/voice', voiceRouter);
+
+    // ================================================================
+    // Global auth + rate limiting — protects everything below.
+    // Frontend sends Bearer VITE_SCC_API_TOKEN (api.ts), SSE uses ?token=.
+    // ================================================================
+    this.app.use(globalLimiter);
+    this.app.use('/api/v1', authMiddleware);
+
+    // ================================================================
     // API v1 routes (used by frontend api.ts with API_BASE /api/v1)
     // ================================================================
     this.app.use('/api/v1/skills', skillRegistryRouter);       // File-based skill registry
     this.app.use('/api/v1/skills-db', skillsRouter);           // DB-backed skills (fallback)
     this.app.use('/api/v1/activities', activitiesDbRouter); // Supabase-backed (legacy mock stays at /api/activities)
     this.app.use('/api/v1/customers', customersRouter);
-    this.app.use('/api/v1/leads', leadsRouter);             // Website lead intake (skylandai.se -> SCC)
     this.app.use('/api/v1/tasks', tasksRouter);
     this.app.use('/api/v1/runs', runsRouter);
-    this.app.use('/api/v1/chat', chatRouter);
+    this.app.use('/api/v1/chat', chatLimiter, chatRouter);
     this.app.use('/api/v1/archive', archiveRouter);
     this.app.use('/api/v1/costs', costsRouter);
     this.app.use('/api/v1/ideas', ideasRouter);
@@ -176,9 +195,7 @@ class Server {
     this.app.use('/api/v1/agents', agentsOfficeRouter);
     this.app.use('/api/v1/deliverables', deliverablesRouter);
     this.app.use('/api/v1/automations', automationsRouter);
-    this.app.use('/api/v1/admin', adminRouter);
-    this.app.use('/api/v1/webhooks/openwork', openworkWebhookRouter);
-    this.app.use('/api/v1/voice', voiceRouter);
+    this.app.use('/api/v1/admin', adminLimiter, adminRouter);
     this.app.use('/api/v1/gateway', gatewayRouter);
 
     // ================================================================

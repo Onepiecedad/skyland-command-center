@@ -1,7 +1,15 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-02-07
+> Senast uppdaterad: 2026-07-09
+
+> **VIKTIGT — arkitekturen har ändrats sedan tidigare versioner av denna fil:**
+> - Entrypoint är `backend/src/server.ts` (klassbaserad, helmet, CORS, WebSocket-gateway, statisk SPA-servering). `backend/src/index.ts` är LEGACY och körs inte (`package.json` → `dev`/`start` pekar på server.ts).
+> - Routing ligger i ~36 modulfiler under `backend/src/routes/` — inte i en stor index.ts.
+> - Global Bearer-auth (`middleware/auth.ts`, token `SCC_API_TOKEN`) + rate limiting skyddar `/api/v1/*` sedan 2026-07-09. Öppna undantag: `/health`, `/api-docs`, legacy `/api/skills` + `/api/activities`, samt `/api/v1/leads` (egen token: `LEADS_INTAKE_TOKEN`), `/api/v1/webhooks/openwork` och `/api/v1/voice` (externa anropare — TODO: egen auth).
+> - Lead-intake: hemsidan (skyland-ai-os.netlify.app) → n8n (void-submission / voice-call-ended) → `POST /api/v1/leads/intake`.
+> - Backend exponeras för närvarande via en ngrok-tunnel; `scc.skylandai.se` är INTE uppsatt ännu. Byt inte n8n:s Notify SCC-URL förrän riktig DNS/deploy finns.
+> - KÄNT SÄKERHETSPROBLEM: `VITE_SCC_API_TOKEN` + `VITE_GATEWAY_TOKEN` bakas in i frontend-bundlen. Behandla dem som publika; riktig användarauth är ett öppet arbete.
 
 ---
 
