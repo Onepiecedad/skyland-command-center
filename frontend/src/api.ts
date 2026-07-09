@@ -177,6 +177,33 @@ export async function fetchLeadDetail(id: string): Promise<LeadDetail> {
     return res.json();
 }
 
+export interface LeadUpdate {
+    name?: string | null;
+    email?: string | null;
+    company?: string | null;
+    website?: string | null;
+    phone?: string | null;
+    message?: string | null;
+    summary?: string | null;
+    score?: number | null;
+}
+
+export async function updateLead(id: string, patch: LeadUpdate): Promise<Lead> {
+    const res = await fetchWithAuth(`${API_BASE}/leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.lead;
+}
+
+export async function deleteLead(id: string): Promise<void> {
+    const res = await fetchWithAuth(`${API_BASE}/leads/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function fetchActivities(params?: {
     limit?: number;
     offset?: number;

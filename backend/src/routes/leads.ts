@@ -216,4 +216,90 @@ router.get('/:id/detail', async (req: Request, res: Response) => {
     }
 });
 
+// ============================================================================
+// PATCH /:id — edit lead details (contact fields, score, message/summary)
+// ============================================================================
+
+const leadUpdateSchema = z.object({
+    name: z.string().nullish(),
+    email: z.string().nullish(),
+    company: z.string().nullish(),
+    website: z.string().nullish(),
+    phone: z.string().nullish(),
+    message: z.string().nullish(),
+    summary: z.string().nullish(),
+    score: z.number().int().min(0).max(100).nullish(),
+}).strict();
+
+router.patch('/:id', async (req: Request, res: Response) => {
+    try {
+        const parsed = leadUpdateSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
+        }
+
+        const { data: existing, error: fetchError } = await supabase
+            .from('activities')
+            .select('id, details')
+            .eq('id', req.params.id)
+            .eq('event_type', 'lead')
+            .single();
+
+        if (fetchError || !existing) {
+            return res.status(404).json({ error: 'Lead not found' });
+        }
+
+        // Merge: only overwrite fields explicitly present in the request
+        const patch = Object.fromEntries(
+            Object.entries(parsed.data).filter(([, v]) => v !== undefined)
+        );
+        const details = { ...(existing.details as Record<string, unknown>), ...patch };
+
+        const { data, error } = await supabase
+            .from('activities')
+            .update({ details })
+            .eq('id', req.params.id)
+            .select()
+            .single();
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        logger.info('leads', `Lead updated: ${req.params.id}`, { fields: Object.keys(patch) });
+        return res.json({ status: 'updated', lead: data });
+    } catch (err) {
+        console.error('[Leads Update] Unexpected error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// DELETE /:id — remove a lead from SCC (website CRM data is left untouched)
+// ============================================================================
+
+router.delete('/:id', async (req: Request, res: Response) => {
+    try {
+        const { data, error } = await supabase
+            .from('activities')
+            .delete()
+            .eq('id', req.params.id)
+            .eq('event_type', 'lead')
+            .select('id');
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+        if (!data || data.length === 0) {
+            return res.status(404).json({ error: 'Lead not found' });
+        }
+
+        logger.info('leads', `Lead deleted: ${req.params.id}`);
+        return res.json({ status: 'deleted', id: req.params.id });
+    } catch (err) {
+        console.error('[Leads Delete] Unexpected error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 export default router;

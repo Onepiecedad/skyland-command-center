@@ -1,10 +1,33 @@
 import { useEffect, useState } from 'react';
-import { fetchLeadDetail, type Lead, type LeadDetail } from '../api';
+import { deleteLead, fetchLeadDetail, updateLead, type Lead, type LeadDetail, type LeadUpdate } from '../api';
 
 interface LeadDetailModalProps {
     lead: Lead;
     onClose: () => void;
+    /** Called after a successful edit or delete so the list can refresh. */
+    onChanged?: () => void;
 }
+
+const inputStyle: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid rgba(255,255,255,0.15)',
+    borderRadius: 8,
+    color: 'inherit',
+    padding: '7px 10px',
+    fontSize: 13,
+    width: '100%',
+    boxSizing: 'border-box',
+};
+
+const buttonStyle: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.15)',
+    color: 'inherit',
+    borderRadius: 8,
+    padding: '7px 14px',
+    fontSize: 13,
+    cursor: 'pointer',
+};
 
 const overlayStyle: React.CSSProperties = {
     position: 'fixed',
@@ -71,9 +94,14 @@ function formatDuration(seconds: number | null | undefined): string {
  * och extraherad data. Data hämtas från /leads/:id/detail som joinar
  * hemsidans Supabase (prospects, interactions, voice_calls).
  */
-export default function LeadDetailModal({ lead, onClose }: LeadDetailModalProps) {
+export default function LeadDetailModal({ lead, onClose, onChanged }: LeadDetailModalProps) {
     const [detail, setDetail] = useState<LeadDetail | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [editing, setEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [form, setForm] = useState<LeadUpdate>({});
+    const [localDetails, setLocalDetails] = useState(lead.details || {});
 
     useEffect(() => {
         let cancelled = false;
@@ -91,8 +119,46 @@ export default function LeadDetailModal({ lead, onClose }: LeadDetailModalProps)
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
 
-    const d = lead.details || {};
+    const d = localDetails;
     const isVoice = d.source === 'voice_call';
+
+    const startEdit = () => {
+        setForm({
+            name: d.name ?? '',
+            email: d.email ?? '',
+            company: d.company ?? '',
+            phone: d.phone ?? '',
+            website: d.website ?? '',
+            score: typeof d.score === 'number' ? d.score : null,
+        });
+        setEditing(true);
+    };
+
+    const saveEdit = async () => {
+        setSaving(true);
+        try {
+            const updated = await updateLead(lead.id, form);
+            setLocalDetails(updated.details || { ...d, ...form });
+            setEditing(false);
+            setError(null);
+            onChanged?.();
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Kunde inte spara');
+        }
+        setSaving(false);
+    };
+
+    const doDelete = async () => {
+        setSaving(true);
+        try {
+            await deleteLead(lead.id);
+            onChanged?.();
+            onClose();
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Kunde inte radera');
+            setSaving(false);
+        }
+    };
     const aiResponses = (detail?.interactions || []).filter((i) => i.payload?.ai_response);
     const voiceCalls = detail?.voice_calls || [];
     const extracted = (d.extracted && Object.keys(d.extracted).length > 0 ? d.extracted : null)
@@ -113,26 +179,64 @@ export default function LeadDetailModal({ lead, onClose }: LeadDetailModalProps)
                             {typeof d.score === 'number' && ` · score ${d.score}`}
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        aria-label="Stäng"
-                        style={{
-                            background: 'rgba(255,255,255,0.08)', border: 'none', color: 'inherit',
-                            borderRadius: 8, width: 32, height: 32, fontSize: 16, cursor: 'pointer',
-                        }}
-                    >
-                        ✕
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        {!editing && (
+                            <button style={buttonStyle} onClick={startEdit}>✏️ Redigera</button>
+                        )}
+                        {!confirmDelete ? (
+                            <button
+                                style={{ ...buttonStyle, borderColor: 'rgba(255,107,107,0.4)' }}
+                                onClick={() => setConfirmDelete(true)}
+                            >
+                                🗑 Radera
+                            </button>
+                        ) : (
+                            <button
+                                style={{ ...buttonStyle, background: 'rgba(255,107,107,0.25)', borderColor: '#ff6b6b' }}
+                                onClick={doDelete}
+                                disabled={saving}
+                            >
+                                Bekräfta radering
+                            </button>
+                        )}
+                        <button
+                            onClick={onClose}
+                            aria-label="Stäng"
+                            style={{
+                                background: 'rgba(255,255,255,0.08)', border: 'none', color: 'inherit',
+                                borderRadius: 8, width: 32, height: 32, fontSize: 16, cursor: 'pointer',
+                            }}
+                        >
+                            ✕
+                        </button>
+                    </div>
                 </div>
 
                 {/* Kontaktuppgifter */}
                 <div style={sectionTitleStyle}>Kontakt</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 20px', fontSize: 13 }}>
-                    <span>🏢 {d.company || '—'}</span>
-                    <span>✉️ {d.email ? <a href={`mailto:${d.email}`} style={{ color: '#7fd4a8' }}>{d.email}</a> : '—'}</span>
-                    <span>📞 {d.phone ? <a href={`tel:${d.phone}`} style={{ color: '#7fd4a8' }}>{d.phone}</a> : '—'}</span>
-                    <span>🌐 {d.website || '—'}</span>
-                </div>
+                {editing ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 16px', fontSize: 13 }}>
+                        <label>Namn<input style={inputStyle} value={form.name ?? ''} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+                        <label>E-post<input style={inputStyle} value={form.email ?? ''} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
+                        <label>Företag<input style={inputStyle} value={form.company ?? ''} onChange={(e) => setForm({ ...form, company: e.target.value })} /></label>
+                        <label>Telefon<input style={inputStyle} value={form.phone ?? ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+                        <label>Webbplats<input style={inputStyle} value={form.website ?? ''} onChange={(e) => setForm({ ...form, website: e.target.value })} /></label>
+                        <label>Score (0–100)<input style={inputStyle} type="number" min={0} max={100} value={form.score ?? ''} onChange={(e) => setForm({ ...form, score: e.target.value === '' ? null : Math.max(0, Math.min(100, Number(e.target.value))) })} /></label>
+                        <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 8, marginTop: 4 }}>
+                            <button style={{ ...buttonStyle, background: 'rgba(80,220,120,0.2)', borderColor: 'rgba(80,220,120,0.5)' }} onClick={saveEdit} disabled={saving}>
+                                {saving ? 'Sparar…' : '💾 Spara'}
+                            </button>
+                            <button style={buttonStyle} onClick={() => setEditing(false)} disabled={saving}>Avbryt</button>
+                        </div>
+                    </div>
+                ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 20px', fontSize: 13 }}>
+                        <span>🏢 {d.company || '—'}</span>
+                        <span>✉️ {d.email ? <a href={`mailto:${d.email}`} style={{ color: '#7fd4a8' }}>{d.email}</a> : '—'}</span>
+                        <span>📞 {d.phone ? <a href={`tel:${d.phone}`} style={{ color: '#7fd4a8' }}>{d.phone}</a> : '—'}</span>
+                        <span>🌐 {d.website || '—'}</span>
+                    </div>
+                )}
 
                 {/* Meddelande (formulär) */}
                 {d.message && (

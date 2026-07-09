@@ -113,7 +113,11 @@ export default function LeadsView() {
             </div>
 
             {selectedLead && (
-                <LeadDetailModal lead={selectedLead} onClose={() => setSelectedLead(null)} />
+                <LeadDetailModal
+                    lead={selectedLead}
+                    onClose={() => setSelectedLead(null)}
+                    onChanged={() => void load()}
+                />
             )}
         </div>
     );
