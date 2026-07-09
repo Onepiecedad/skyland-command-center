@@ -14,6 +14,16 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
     return fetch(url, { ...options, headers });
 }
 
+/**
+ * Build a URL with the auth token as query param — for <a href> downloads
+ * and EventSource where headers can't be set. Backend auth accepts ?token=.
+ */
+export function authedUrl(path: string): string {
+    if (!SCC_API_TOKEN) return path;
+    const sep = path.includes('?') ? '&' : '?';
+    return `${path}${sep}token=${encodeURIComponent(SCC_API_TOKEN)}`;
+}
+
 // ============================================================================
 // Types
 // ============================================================================

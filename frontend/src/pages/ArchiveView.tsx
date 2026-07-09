@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { fetchWithAuth, authedUrl } from '../api';
 
 // ─── Types mirror backend /api/v1/deliverables ───
 interface DeliverableEntry {
@@ -79,7 +80,7 @@ export default function ArchiveView() {
     try {
       for (const id of ids) {
         try {
-          const r = await fetch(`/api/v1/deliverables/${encodeURIComponent(id)}`, { method: 'DELETE' });
+          const r = await fetchWithAuth(`/api/v1/deliverables/${encodeURIComponent(id)}`, { method: 'DELETE' });
           if (!r.ok) failed++;
         } catch {
           failed++;
@@ -102,7 +103,7 @@ export default function ArchiveView() {
       if (q) params.set('q', q);
       if (statusFilter) params.set('status', statusFilter);
       if (typeFilter) params.set('type', typeFilter);
-      const res = await fetch(`/api/v1/deliverables?${params.toString()}`);
+      const res = await fetchWithAuth(`/api/v1/deliverables?${params.toString()}`);
       const data = await res.json();
       setEntries(data.entries || []);
       if (data.facets) setFacets(data.facets);
@@ -122,7 +123,7 @@ export default function ArchiveView() {
     setReport(null);
     setArtifacts([]);
     try {
-      const res = await fetch(`/api/v1/deliverables/${encodeURIComponent(id)}`);
+      const res = await fetchWithAuth(`/api/v1/deliverables/${encodeURIComponent(id)}`);
       const data = await res.json();
       setReport(data.report || '*Ingen rapport sparad för denna post.*');
       setArtifacts(data.artifacts || []);
@@ -279,7 +280,7 @@ export default function ArchiveView() {
                   {artifacts.map((a) => (
                     <a
                       key={a}
-                      href={`/api/v1/deliverables/${encodeURIComponent(selected.id)}/raw/${encodeURIComponent(a)}`}
+                      href={authedUrl(`/api/v1/deliverables/${encodeURIComponent(selected.id)}/raw/${encodeURIComponent(a)}`)}
                       target="_blank" rel="noreferrer"
                       style={{
                         fontSize: 11, padding: '3px 9px', borderRadius: 8, opacity: 0.6,

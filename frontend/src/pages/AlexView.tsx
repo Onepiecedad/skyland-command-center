@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { fetchWithAuth } from '../api';
 import {
   MessageCircle,
   ListTodo,
@@ -124,7 +125,7 @@ export default function AlexView() {
   const fetchRoleFiles = useCallback(async () => {
     setRoleLoading(true);
     try {
-      const res = await fetch('/api/v1/alex/role-files');
+      const res = await fetchWithAuth('/api/v1/alex/role-files');
       const data = await res.json();
       setRoleFiles(data.files || []);
     } catch (err) {

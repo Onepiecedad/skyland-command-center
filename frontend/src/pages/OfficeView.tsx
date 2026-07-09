@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { fetchWithAuth } from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { AgentStatus } from '../gateway/fleetApi';
 
@@ -67,7 +68,7 @@ export default function OfficeView() {
 
     const refresh = useCallback(async () => {
         try {
-            const res = await fetch('/api/v1/agents/office');
+            const res = await fetchWithAuth('/api/v1/agents/office');
             if (!res.ok) throw new Error('bad response');
             const data = await res.json();
             setConnected(true);
