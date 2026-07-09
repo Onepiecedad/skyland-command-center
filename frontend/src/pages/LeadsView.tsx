@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchLeads, type Lead } from '../api';
+import LeadDetailModal from '../components/LeadDetailModal';
 
 /**
  * LeadsView — inkommande leads från skylandai.se (formulär + röstsamtal).
@@ -10,6 +11,7 @@ export default function LeadsView() {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
     const load = useCallback(async () => {
         try {
@@ -65,12 +67,18 @@ export default function LeadsView() {
                     return (
                         <div
                             key={lead.id}
+                            onClick={() => setSelectedLead(lead)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSelectedLead(lead); }}
+                            role="button"
+                            tabIndex={0}
+                            title="Klicka för detaljer"
                             style={{
                                 background: 'rgba(255,255,255,0.04)',
                                 border: '1px solid rgba(255,255,255,0.08)',
                                 borderRadius: 14,
                                 padding: '16px 20px',
                                 backdropFilter: 'blur(12px)',
+                                cursor: 'pointer',
                             }}
                         >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -103,6 +111,10 @@ export default function LeadsView() {
                     );
                 })}
             </div>
+
+            {selectedLead && (
+                <LeadDetailModal lead={selectedLead} onClose={() => setSelectedLead(null)} />
+            )}
         </div>
     );
 }

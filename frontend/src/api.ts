@@ -119,6 +119,64 @@ export async function fetchLeads(limit = 50): Promise<Lead[]> {
     return data.leads || [];
 }
 
+export interface LeadInteraction {
+    id: string;
+    session_uuid: string;
+    type: 'form' | 'voice' | string;
+    payload: {
+        ai_response?: string;
+        transcript?: string;
+        summary?: string;
+        score?: number;
+        best_match_similarity?: number;
+        duration_seconds?: number;
+        extracted_data?: Record<string, unknown>;
+        [key: string]: unknown;
+    };
+    created_at: string;
+}
+
+export interface LeadVoiceCall {
+    id: string;
+    session_uuid: string;
+    transcript: string | null;
+    summary: string | null;
+    started_at: string | null;
+    ended_at: string | null;
+    duration_seconds: number | null;
+    recording_url: string | null;
+    extracted_data: Record<string, unknown> | null;
+    [key: string]: unknown;
+}
+
+export interface LeadProspect {
+    id: string;
+    session_uuid: string;
+    name: string | null;
+    email: string | null;
+    company: string | null;
+    website: string | null;
+    phone: string | null;
+    message: string | null;
+    score: number | null;
+    created_at: string;
+    [key: string]: unknown;
+}
+
+export interface LeadDetail {
+    activity: Lead & { details: Lead['details'] };
+    prospect: LeadProspect | null;
+    interactions: LeadInteraction[];
+    voice_calls: LeadVoiceCall[];
+    website_data_available: boolean;
+}
+
+export async function fetchLeadDetail(id: string): Promise<LeadDetail> {
+    const res = await fetchWithAuth(`${API_BASE}/leads/${id}/detail`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
 export async function fetchActivities(params?: {
     limit?: number;
     offset?: number;

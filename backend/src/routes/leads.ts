@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
-import { supabase } from '../services/supabase';
+import { supabase, websiteSupabase } from '../services/supabase';
 import { config } from '../config';
 import { logger } from '../services/logger';
 
@@ -147,6 +147,71 @@ router.get('/', async (req: Request, res: Response) => {
         return res.json({ leads: data, count: data?.length || 0 });
     } catch (err) {
         console.error('[Leads] Unexpected error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// GET /:id/detail — full lead detail: activity + website-side data
+// (prospect, interactions incl. AI responses, voice call transcripts)
+// ============================================================================
+
+router.get('/:id/detail', async (req: Request, res: Response) => {
+    try {
+        const { data: activity, error } = await supabase
+            .from('activities')
+            .select('*')
+            .eq('id', req.params.id)
+            .eq('event_type', 'lead')
+            .single();
+
+        if (error || !activity) {
+            return res.status(404).json({ error: 'Lead not found' });
+        }
+
+        const details = (activity.details || {}) as Record<string, unknown>;
+        const sessionUuid = typeof details.session_uuid === 'string' ? details.session_uuid : null;
+
+        if (!websiteSupabase || !sessionUuid) {
+            return res.json({
+                activity,
+                prospect: null,
+                interactions: [],
+                voice_calls: [],
+                website_data_available: Boolean(websiteSupabase),
+            });
+        }
+
+        const [prospectRes, interactionsRes, voiceCallsRes] = await Promise.all([
+            websiteSupabase
+                .from('prospects')
+                .select('*')
+                .eq('session_uuid', sessionUuid)
+                .order('created_at', { ascending: false })
+                .limit(1),
+            websiteSupabase
+                .from('interactions')
+                .select('*')
+                .eq('session_uuid', sessionUuid)
+                .order('created_at', { ascending: true })
+                .limit(50),
+            websiteSupabase
+                .from('voice_calls')
+                .select('*')
+                .eq('session_uuid', sessionUuid)
+                .order('started_at', { ascending: true })
+                .limit(20),
+        ]);
+
+        return res.json({
+            activity,
+            prospect: prospectRes.data?.[0] || null,
+            interactions: interactionsRes.data || [],
+            voice_calls: voiceCallsRes.data || [],
+            website_data_available: true,
+        });
+    } catch (err) {
+        console.error('[Leads Detail] Unexpected error:', err);
         return res.status(500).json({ error: 'Internal server error' });
     }
 });
