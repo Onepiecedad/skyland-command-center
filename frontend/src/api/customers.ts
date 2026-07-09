@@ -35,6 +35,34 @@ export async function fetchActivities(params?: {
     return data.activities || [];
 }
 
+export interface Lead {
+    id: string;
+    action: string;
+    created_at: string;
+    details: {
+        source?: 'void_form' | 'voice_call';
+        session_uuid?: string;
+        prospect_id?: string | null;
+        name?: string | null;
+        email?: string | null;
+        company?: string | null;
+        website?: string | null;
+        phone?: string | null;
+        message?: string | null;
+        score?: number | null;
+        summary?: string | null;
+        extracted?: Record<string, unknown> | null;
+        [key: string]: unknown;
+    };
+}
+
+export async function fetchLeads(limit = 50): Promise<Lead[]> {
+    const res = await fetchWithAuth(`${API_BASE}/leads?limit=${limit}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.leads || [];
+}
+
 export async function fetchCustomerContext(slug: string): Promise<{
     customer: Customer & { errors_24h: number; warnings_24h: number; open_tasks: number; failed_tasks_24h: number; last_activity: string | null };
     context: {

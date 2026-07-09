@@ -567,18 +567,19 @@ export class GatewaySocket {
         this.heartbeatInterval = setInterval(() => {
             if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-            // Send a lightweight ping request
-            this.request('ping', {})
-                .then(() => {
-                    // Pong received — connection alive
-                    if (this.heartbeatTimeout) {
-                        clearTimeout(this.heartbeatTimeout);
-                        this.heartbeatTimeout = null;
-                    }
-                })
-                .catch(() => {
-                    // Ping failed — don't act yet, timeout will handle it
-                });
+            // Send a lightweight ping request. ANY reply — success OR an error
+            // response like "unknown method: ping" — proves the link is alive
+            // (the gateway answered). Only a true no-response (the timeout below)
+            // means the connection is dead. Clearing on both stops the false
+            // "heartbeat timeout → reconnect" storm against gateways that don't
+            // implement `ping`.
+            const alive = () => {
+                if (this.heartbeatTimeout) {
+                    clearTimeout(this.heartbeatTimeout);
+                    this.heartbeatTimeout = null;
+                }
+            };
+            this.request('ping', {}).then(alive).catch(alive);
 
             // Set a timeout — if no pong within 5s, connection is dead
             this.heartbeatTimeout = setTimeout(() => {

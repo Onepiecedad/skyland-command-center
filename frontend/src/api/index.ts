@@ -29,7 +29,8 @@ export type {
 } from './types';
 
 // Customer domain
-export { fetchCustomers, fetchActivities, fetchCustomerContext } from './customers';
+export { fetchCustomers, fetchActivities, fetchCustomerContext, fetchLeads } from './customers';
+export type { Lead } from './customers';
 
 // Task domain
 export {

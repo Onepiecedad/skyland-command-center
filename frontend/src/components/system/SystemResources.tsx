@@ -55,8 +55,15 @@ export function SystemResources() {
                         'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '',
                     },
                 });
-                supabaseOk = sbRes.ok || sbRes.status === 200;
-                supabaseDetail = supabaseOk ? 'Connected' : `HTTP ${sbRes.status}`;
+                // A 401/403 means Supabase RESPONDED (it's reachable) but rejected
+                // the empty browser key — not an outage. Treat as up, label honestly.
+                if (sbRes.ok || sbRes.status === 200) {
+                    supabaseOk = true; supabaseDetail = 'Connected';
+                } else if (sbRes.status === 401 || sbRes.status === 403) {
+                    supabaseOk = true; supabaseDetail = 'Uppe (frontend-nyckel saknas)';
+                } else {
+                    supabaseOk = false; supabaseDetail = `HTTP ${sbRes.status}`;
+                }
             }
         } catch { /* offline */ }
 
@@ -76,14 +83,29 @@ export function SystemResources() {
         return () => clearInterval(interval);
     }, [fetchResources]);
 
-    // Mock cron jobs based on actual clawdbot cron config
+    // Real cron jobs from the gateway's scheduled-jobs DB (not mock).
     useEffect(() => {
-        setCronJobs([
-            { id: '1', name: 'Proactive Check-in', schedule: '0 7 * * *', nextRun: getNextCron('07:00'), status: 'active' },
-            { id: '2', name: 'Afternoon Research', schedule: '0 14 * * *', nextRun: getNextCron('14:00'), status: 'active' },
-            { id: '3', name: 'Night Build', schedule: '0 2 * * *', nextRun: getNextCron('02:00'), status: 'active' },
-            { id: '4', name: 'n8n → Git Sync', schedule: '0 */6 * * *', nextRun: getNextCron('18:00'), status: 'paused' },
-        ]);
+        const load = async () => {
+            try {
+                const res = await fetch(`${API_URL}/api/v1/automations`);
+                const data = await res.json();
+                setCronJobs((data.jobs || []).map((j: {
+                    id: string; name: string; schedule: string | null;
+                    nextRun: string | null; enabled: boolean;
+                }) => ({
+                    id: j.id,
+                    name: j.name,
+                    schedule: j.schedule || '—',
+                    nextRun: j.nextRun,
+                    status: j.enabled ? 'active' : 'paused',
+                })));
+            } catch {
+                setCronJobs([]);
+            }
+        };
+        load();
+        const interval = setInterval(load, 60000);
+        return () => clearInterval(interval);
     }, []);
 
     return (
@@ -138,15 +160,6 @@ export function SystemResources() {
 }
 
 // ─── Helpers ───
-function getNextCron(time: string): string {
-    const [h, m] = time.split(':').map(Number);
-    const now = new Date();
-    const next = new Date(now);
-    next.setHours(h, m, 0, 0);
-    if (next <= now) next.setDate(next.getDate() + 1);
-    return next.toISOString();
-}
-
 function formatCronTime(iso: string | null): string {
     if (!iso) return '—';
     const d = new Date(iso);

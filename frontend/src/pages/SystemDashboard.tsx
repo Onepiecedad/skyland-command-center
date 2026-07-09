@@ -5,8 +5,6 @@ import { GitPanel } from '../components/system/GitPanel';
 import { EventFeedPanel } from '../components/system/EventFeedPanel';
 import { ErrorRecoveryPanel } from '../components/system/ErrorRecoveryPanel';
 import { ContextMonitor } from '../components/system/ContextMonitor';
-import { RouteErrorBoundary } from '../components/ErrorBoundary';
-import FleetMonitor from './FleetMonitor';
 
 export function SystemDashboard() {
     return (
@@ -17,7 +15,7 @@ export function SystemDashboard() {
                     AI System Dashboard
                 </h2>
                 <p className="sys-dashboard-subtitle">
-                    Realtidsöverblick — Workflows · Agenter · Resurser · Context · Events · Fel · Git · Fleet
+                    Realtidsöverblick — Schemalagda jobb · Agent · Resurser · Context · Events · Fel · Git
                 </p>
             </div>
 
@@ -34,11 +32,6 @@ export function SystemDashboard() {
             </div>
 
             <GitPanel />
-
-            {/* Fleet — agentflotta, infogad här vid konsolideringen av System + Fleet */}
-            <RouteErrorBoundary>
-                <FleetMonitor />
-            </RouteErrorBoundary>
         </div>
     );
 }

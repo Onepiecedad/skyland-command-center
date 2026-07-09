@@ -19,16 +19,16 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://127.0.0.1:3001',
         changeOrigin: true
       },
       '/gateway': {
-        target: 'http://localhost:18789',
+        target: 'http://127.0.0.1:18789',
         changeOrigin: true,
         rewrite: (path: string) => path.replace(/^\/gateway/, '')
       },
       '/ws': {
-        target: 'ws://localhost:3001',
+        target: 'ws://127.0.0.1:3001',
         ws: true
       }
     }
