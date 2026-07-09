@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { supabase, websiteSupabase } from '../services/supabase';
 import { config } from '../config';
 import { logger } from '../services/logger';
+import { authMiddleware } from '../middleware/auth';
 
 /**
  * Leads Intake — website (skylandai.se) → SCC
@@ -129,7 +130,7 @@ router.post('/intake', intakeAuth, async (req: Request, res: Response) => {
 // GET / — list received leads (newest first)
 // ============================================================================
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', authMiddleware, async (req: Request, res: Response) => {
     try {
         const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 200);
 
@@ -156,7 +157,7 @@ router.get('/', async (req: Request, res: Response) => {
 // (prospect, interactions incl. AI responses, voice call transcripts)
 // ============================================================================
 
-router.get('/:id/detail', async (req: Request, res: Response) => {
+router.get('/:id/detail', authMiddleware, async (req: Request, res: Response) => {
     try {
         const { data: activity, error } = await supabase
             .from('activities')
@@ -231,7 +232,7 @@ const leadUpdateSchema = z.object({
     score: z.number().int().min(0).max(100).nullish(),
 }).strict();
 
-router.patch('/:id', async (req: Request, res: Response) => {
+router.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
     try {
         const parsed = leadUpdateSchema.safeParse(req.body);
         if (!parsed.success) {
@@ -278,7 +279,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
 // DELETE /:id — remove a lead from SCC (website CRM data is left untouched)
 // ============================================================================
 
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
     try {
         const { data, error } = await supabase
             .from('activities')
