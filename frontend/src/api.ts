@@ -987,3 +987,60 @@ export async function runMemoryCleanup(): Promise<{
     return res.json();
 }
 
+// ============================================================================
+// Website analytics (Hemsida-fliken)
+// ============================================================================
+
+export interface WebsiteStats {
+    days: number;
+    kpis: {
+        sessions: number;
+        engaged: number;
+        leads: number;
+        voice_calls: number;
+        avg_call_seconds: number;
+        booking_clicks: number;
+        conversion_pct: number;
+    };
+    funnel: { sessions: number; engaged: number; leads: number; booking_clicks: number };
+    event_counts: Record<string, number>;
+    lang_split: Record<string, number>;
+    roi_signals: Array<{ session_uuid: string; hours: number; rate: number; at: string }>;
+    daily_sessions: Array<{ day: string; sessions: number }>;
+}
+
+export interface WebsiteSession {
+    session_uuid: string;
+    first_seen: string;
+    last_seen: string;
+    prospect: { name: string | null; company: string | null; score: number | null } | null;
+    events: Array<{ type: string; data: Record<string, unknown>; at: string }>;
+}
+
+export interface WorkflowHealth {
+    name: string;
+    total: number;
+    errors: number;
+    last_status: string;
+    last_run: string;
+}
+
+export async function fetchWebsiteStats(days = 7): Promise<WebsiteStats> {
+    const res = await fetchWithAuth(`${API_BASE}/website/stats?days=${days}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function fetchWebsiteSessions(limit = 25): Promise<WebsiteSession[]> {
+    const res = await fetchWithAuth(`${API_BASE}/website/sessions?limit=${limit}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.sessions || [];
+}
+
+export async function fetchWebsiteWorkflows(): Promise<WorkflowHealth[]> {
+    const res = await fetchWithAuth(`${API_BASE}/website/workflows`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.workflows || [];
+}

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Zap, Building2, Monitor, Puzzle, Mic, Briefcase, Archive, Target } from 'lucide-react';
+import { Zap, Building2, Monitor, Puzzle, Mic, Briefcase, Archive, Target, Globe } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -13,9 +13,10 @@ import VoiceChatView from './pages/VoiceChatView';
 import OfficeView from './pages/OfficeView';
 import ArchiveView from './pages/ArchiveView';
 import LeadsView from './pages/LeadsView';
+import WebsiteView from './pages/WebsiteView';
 import './styles/index.css';
 
-type View = 'alex' | 'customers' | 'leads' | 'system' | 'skills' | 'voicechat' | 'office' | 'archive';
+type View = 'alex' | 'customers' | 'leads' | 'website' | 'system' | 'skills' | 'voicechat' | 'office' | 'archive';
 
 interface Segment {
   key: string;
@@ -27,6 +28,7 @@ const SEGMENTS: Segment[] = [
   { key: 'alex', label: 'Alex', icon: <Zap size={14} strokeWidth={2.5} /> },
   { key: 'customers', label: 'Kunder', icon: <Building2 size={14} strokeWidth={2} /> },
   { key: 'leads', label: 'Leads', icon: <Target size={14} strokeWidth={2} /> },
+  { key: 'website', label: 'Hemsida', icon: <Globe size={14} strokeWidth={2} /> },
   { key: 'office', label: 'Kontor', icon: <Briefcase size={14} strokeWidth={2} /> },
   { key: 'archive', label: 'Arkiv', icon: <Archive size={14} strokeWidth={2} /> },
   { key: 'system', label: 'System', icon: <Monitor size={14} strokeWidth={2} /> },
@@ -202,6 +204,18 @@ function App() {
                 exit="exit"
               >
                 <LeadsView />
+              </motion.div>
+            )}
+            {currentView === 'website' && (
+              <motion.div
+                key="website"
+                className="view-container"
+                variants={VIEW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <WebsiteView />
               </motion.div>
             )}
             {currentView === 'voicechat' && (

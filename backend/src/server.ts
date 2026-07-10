@@ -51,6 +51,7 @@ import leadsRouter from './routes/leads.js';
 import activitiesDbRouter from './routes/activitiesDb.js';
 import voiceRouter from './routes/voice.js';
 import gatewayRouter from './routes/gateway.js';
+import websiteRouter from './routes/website.js';
 
 // Import services
 import gatewaySocket from './services/gatewaySocket.js';
@@ -197,6 +198,7 @@ class Server {
     this.app.use('/api/v1/automations', automationsRouter);
     this.app.use('/api/v1/admin', adminLimiter, adminRouter);
     this.app.use('/api/v1/gateway', gatewayRouter);
+    this.app.use('/api/v1/website', websiteRouter);   // Hemside-analytics (auth-skyddad)
 
     // ================================================================
     // Static frontend — serve the built React SPA from public/
