@@ -50,8 +50,11 @@ function intakeAuth(req: Request, res: Response, next: NextFunction): void {
 
 const leadIntakeSchema = z.object({
     source: z.enum(['void_form', 'voice_call']),
-    // Website-side identifiers (website Supabase project)
-    session_uuid: z.string().min(1),
+    // Website-side identifiers (website Supabase project).
+    // session_uuid is optional: a voice-call-ended callback that omits it must
+    // still be logged rather than silently rejected with a 400. A fallback id
+    // is generated below when both session_uuid and prospect_id are missing.
+    session_uuid: z.string().min(1).nullish(),
     prospect_id: z.string().uuid().nullish(),
     // Contact
     name: z.string().nullish(),
@@ -84,8 +87,11 @@ router.post('/intake', intakeAuth, async (req: Request, res: Response) => {
 
         const lead = parsed.data;
 
-        // Idempotency: skip if we already logged this prospect/session+source
-        const dedupeKey = lead.prospect_id || lead.session_uuid;
+        // Idempotency: skip if we already logged this prospect/session+source.
+        // Fall back to a generated id when neither identifier is present so a
+        // callback missing both is still logged (with a non-null dedupe key)
+        // instead of being dropped or collapsing all such leads into one.
+        const dedupeKey = lead.prospect_id || lead.session_uuid || `gen-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
         const { data: existing } = await supabase
             .from('activities')
             .select('id')

@@ -27,7 +27,7 @@ const EVENT_LABELS: Record<string, string> = {
     form_submit: 'Formulär skickat',
     form_error: 'Formulärfel',
     roi_input: 'ROI-kalkyl',
-    cta_book_click: 'Calendly-klick',
+    cta_book_click: 'Bokningsklick',
 };
 
 const EVENT_ICONS: Record<string, string> = {

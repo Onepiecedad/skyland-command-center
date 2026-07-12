@@ -56,6 +56,11 @@ const envSchema = z.object({
     CLAWDBOT_GATEWAY_URL: z.string().default('http://127.0.0.1:18789'),
     CLAWDBOT_GATEWAY_TOKEN: z.string().optional(),
 
+    // --- Cal.com (voice agent appointment booking) ---
+    CALCOM_API_KEY: z.string().optional(),
+    CALCOM_EVENT_TYPE_ID: z.coerce.number().optional(),
+    CALCOM_API_BASE_URL: z.string().default('https://api.cal.com/v2'),
+
     // --- Rate limiting ---
     CLAW_MAX_CONCURRENT_PER_CUSTOMER: z.coerce.number().default(3),
     CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER: z.coerce.number().default(20),

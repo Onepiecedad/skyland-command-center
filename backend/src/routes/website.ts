@@ -43,11 +43,11 @@ router.get('/stats', async (req: Request, res: Response) => {
                 .limit(10000),
             websiteSupabase
                 .from('prospects')
-                .select('id, created_at')
+                .select('id, session_uuid, created_at')
                 .gte('created_at', since),
             websiteSupabase
                 .from('voice_calls')
-                .select('id, duration_seconds, created_at')
+                .select('id, session_uuid, duration_seconds, created_at')
                 .gte('created_at', since),
         ]);
 
@@ -87,6 +87,30 @@ router.get('/stats', async (req: Request, res: Response) => {
             const day = ev.created_at.slice(0, 10);
             if (!daily[day]) daily[day] = new Set();
             daily[day].add(ev.session_uuid);
+        }
+
+        // Reconcile the funnel with server-side truth. The client-side events
+        // table (voice_start/voice_end/cta_book_click) is frequently missing —
+        // e.g. a voice call that produced a prospect but never fired browser
+        // telemetry. Without this, the funnel shows false zeros while the KPI
+        // cards (which read prospects/voice_calls directly) show real numbers.
+        // A session that reached a prospect or a voice call is, by definition,
+        // engaged and a lead — so fold those sessions in. Sets dedupe, so this
+        // never double-counts a session already counted from an event.
+        for (const call of calls) {
+            const sid = (call as { session_uuid?: string }).session_uuid;
+            if (sid) {
+                sessions.add(sid);
+                engaged.add(sid);
+            }
+        }
+        for (const prospect of prospects) {
+            const sid = (prospect as { session_uuid?: string }).session_uuid;
+            if (sid) {
+                sessions.add(sid);
+                engaged.add(sid);
+                leads.add(sid);
+            }
         }
 
         const avgCallSeconds = calls.length

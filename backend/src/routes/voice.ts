@@ -70,6 +70,134 @@ async function gatewayFetch(path: string, body: Record<string, unknown>): Promis
 }
 
 // ============================================================================
+// Activity logging — persist voice-call outcomes so they surface in the SCC
+// dashboard. Previously NO branch in /tools wrote to the DB, so bookings and
+// other tool calls made during a call vanished. This is OBSERVE-level logging
+// (per AGENT_POLICY) and is best-effort: a logging failure must never break
+// the voice response the caller is waiting on.
+// ============================================================================
+
+// severity values must match the activities.severity CHECK constraint
+// (schema.sql): only 'info', 'warn', 'error' are accepted.
+interface VoiceActivityInput {
+    action: string;
+    eventType?: string;
+    severity?: 'info' | 'warn' | 'error';
+    details: Record<string, unknown>;
+}
+
+async function logVoiceActivity(input: VoiceActivityInput): Promise<void> {
+    try {
+        const { error } = await supabase.from('activities').insert({
+            customer_id: null,
+            agent: 'voice',
+            action: input.action,
+            event_type: input.eventType ?? 'voice',
+            severity: input.severity ?? 'info',
+            autonomy_level: 'OBSERVE',
+            details: input.details,
+        });
+        if (error) {
+            console.error('[voice/activity] Insert failed:', error.message);
+        }
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        console.error('[voice/activity] Unexpected logging error:', message);
+    }
+}
+
+// ============================================================================
+// Cal.com booking — the voice agent's book_appointment tool calls this.
+// Books directly against a configured Cal.com event type (v2 API) so SCC
+// owns the booking outcome instead of it happening outside the system.
+// ============================================================================
+
+interface BookAppointmentArgs {
+    name?: string;
+    email?: string;
+    start?: string; // ISO 8601 start time
+    phone?: string;
+    notes?: string;
+    timeZone?: string;
+    sessionUuid?: string;
+}
+
+interface BookAppointmentResult {
+    ok: boolean;
+    bookingId?: string | number;
+    bookingUid?: string;
+    start?: string;
+    error?: string;
+}
+
+async function bookCalcomAppointment(args: BookAppointmentArgs): Promise<BookAppointmentResult> {
+    const apiKey = config.CALCOM_API_KEY;
+    const eventTypeId = config.CALCOM_EVENT_TYPE_ID;
+
+    if (!apiKey || !eventTypeId) {
+        return { ok: false, error: 'Cal.com är inte konfigurerat (CALCOM_API_KEY / CALCOM_EVENT_TYPE_ID saknas).' };
+    }
+    if (!args.start) {
+        return { ok: false, error: 'Bokningen saknar starttid.' };
+    }
+    if (!args.email || !args.name) {
+        return { ok: false, error: 'Bokningen saknar namn eller e-postadress.' };
+    }
+
+    const url = `${config.CALCOM_API_BASE_URL}/bookings`;
+
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), GATEWAY_TIMEOUT_MS);
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+                'cal-api-version': '2024-08-13',
+            },
+            body: JSON.stringify({
+                eventTypeId,
+                start: args.start,
+                attendee: {
+                    name: args.name,
+                    email: args.email,
+                    timeZone: args.timeZone || 'Europe/Stockholm',
+                    ...(args.phone ? { phoneNumber: args.phone } : {}),
+                },
+                ...(args.notes ? { bookingFieldsResponses: { notes: args.notes } } : {}),
+            }),
+            signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+
+        if (!response.ok) {
+            const errMsg = ((payload.error as Record<string, unknown>)?.message as string)
+                || (payload.message as string)
+                || `HTTP ${response.status}`;
+            console.error('[voice/calcom] Booking failed:', errMsg);
+            return { ok: false, error: errMsg };
+        }
+
+        const data = (payload.data ?? payload) as Record<string, unknown>;
+        return {
+            ok: true,
+            bookingId: (data.id as string | number) ?? undefined,
+            bookingUid: (data.uid as string) ?? undefined,
+            start: (data.start as string) ?? args.start,
+        };
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        console.error('[voice/calcom] Error:', message);
+        return { ok: false, error: `Cal.com ej nåbar: ${message}` };
+    }
+}
+
+// ============================================================================
 // GET /api/v1/voice/signed-url
 // Returns a signed WebSocket URL for ElevenLabs Conversational AI
 // ============================================================================
@@ -346,6 +474,83 @@ router.post('/tools', async (req: Request, res: Response) => {
                 } else {
                     result = `Verktyget "${toolName}" returnerade inget resultat.`;
                 }
+
+                // Persist gateway tool calls so nothing done during a call is
+                // lost. Booking-related tools are tagged as booking events so
+                // they surface distinctly in the dashboard even when the agent
+                // books via the gateway rather than book_appointment.
+                const isBooking = /book|appointment|calcom|cal\.com|boka|bokning/i.test(toolName);
+                await logVoiceActivity({
+                    action: isBooking ? 'voice.booking.gateway' : 'voice.gateway_tool',
+                    eventType: isBooking ? 'booking' : 'voice',
+                    severity: 'info',
+                    details: {
+                        source: 'voice_call',
+                        tool: toolName,
+                        action,
+                        args: toolArgs,
+                        result_preview: typeof result === 'string' ? result.substring(0, 500) : undefined,
+                    },
+                });
+                break;
+            }
+
+            // ==============================================================
+            // book_appointment — Books a Cal.com appointment AND logs the
+            // outcome as an activity so it appears in the SCC dashboard.
+            // This closes the voice → booking → activity loop.
+            // ==============================================================
+            case 'book_appointment': {
+                const bookingArgs: BookAppointmentArgs = {
+                    name: (parsedParams.name as string) || (parsedParams.namn as string) || undefined,
+                    email: (parsedParams.email as string) || (parsedParams.epost as string) || undefined,
+                    start: (parsedParams.start as string) || (parsedParams.starttid as string) || (parsedParams.time as string) || undefined,
+                    phone: (parsedParams.phone as string) || (parsedParams.telefon as string) || undefined,
+                    notes: (parsedParams.notes as string) || (parsedParams.meddelande as string) || undefined,
+                    timeZone: (parsedParams.timeZone as string) || (parsedParams.tidszon as string) || undefined,
+                    sessionUuid: (parsedParams.session_uuid as string) || (parsedParams.sessionUuid as string) || undefined,
+                };
+
+                const booking = await bookCalcomAppointment(bookingArgs);
+
+                if (booking.ok) {
+                    await logVoiceActivity({
+                        action: 'voice.booking.created',
+                        eventType: 'booking',
+                        severity: 'info',
+                        details: {
+                            source: 'voice_call',
+                            calcom_booking_id: booking.bookingId,
+                            calcom_booking_uid: booking.bookingUid,
+                            start: booking.start,
+                            name: bookingArgs.name,
+                            email: bookingArgs.email,
+                            phone: bookingArgs.phone,
+                            session_uuid: bookingArgs.sessionUuid,
+                        },
+                    });
+                    const when = booking.start
+                        ? new Date(booking.start).toLocaleString('sv-SE', { timeZone: bookingArgs.timeZone || 'Europe/Stockholm' })
+                        : 'den valda tiden';
+                    result = `Bokningen är klar för ${bookingArgs.name} (${bookingArgs.email}) den ${when}. En bekräftelse har skickats.`;
+                } else {
+                    // Log the failed attempt too — a missed booking is a signal
+                    // the operator wants to see, not something to swallow.
+                    await logVoiceActivity({
+                        action: 'voice.booking.failed',
+                        eventType: 'booking',
+                        severity: 'warn',
+                        details: {
+                            source: 'voice_call',
+                            error: booking.error,
+                            name: bookingArgs.name,
+                            email: bookingArgs.email,
+                            start: bookingArgs.start,
+                            session_uuid: bookingArgs.sessionUuid,
+                        },
+                    });
+                    result = `Jag kunde inte slutföra bokningen: ${booking.error}. Vill du att jag försöker igen med andra uppgifter?`;
+                }
                 break;
             }
 
@@ -432,7 +637,7 @@ router.post('/tools', async (req: Request, res: Response) => {
             }
 
             default: {
-                result = `Verktyget "${tool_name}" finns inte. Tillgängliga verktyg: ask_alex (fråga Alex vad som helst), gateway_tool (direkt verktygsanrop), get_status, get_time, query_customers, query_tasks.`;
+                result = `Verktyget "${tool_name}" finns inte. Tillgängliga verktyg: ask_alex (fråga Alex vad som helst), gateway_tool (direkt verktygsanrop), book_appointment (boka möte i Cal.com), get_status, get_time, query_customers, query_tasks.`;
                 console.warn('[voice/tools] Unknown tool:', tool_name);
             }
         }
