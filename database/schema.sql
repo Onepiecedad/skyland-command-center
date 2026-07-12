@@ -139,6 +139,19 @@ CREATE OR REPLACE VIEW customer_status AS WITH recent_activities AS (
     FROM tasks
     WHERE customer_id IS NOT NULL
     GROUP BY customer_id
+  ),
+  -- SCC-22/24: CRM signal per customer (additive, does not affect status).
+  crm_contacts AS (
+    SELECT customer_id, COUNT(*) as contacts_count
+    FROM contacts
+    WHERE customer_id IS NOT NULL
+    GROUP BY customer_id
+  ),
+  crm_opps AS (
+    SELECT customer_id, COUNT(*) as open_opportunities
+    FROM opportunities
+    WHERE status = 'open' AND customer_id IS NOT NULL
+    GROUP BY customer_id
   )
 SELECT c.id,
   c.name,
@@ -154,10 +167,14 @@ SELECT c.id,
     WHEN COALESCE(ra.warnings_24h, 0) > 2
     OR COALESCE(pt.open_tasks, 0) > 10 THEN 'warning'
     ELSE 'active'
-  END as status
+  END as status,
+  COALESCE(cc.contacts_count, 0) as contacts_count,
+  COALESCE(co.open_opportunities, 0) as open_opportunities
 FROM customers c
   LEFT JOIN recent_activities ra ON ra.customer_id = c.id
-  LEFT JOIN pending_tasks pt ON pt.customer_id = c.id;
+  LEFT JOIN pending_tasks pt ON pt.customer_id = c.id
+  LEFT JOIN crm_contacts cc ON cc.customer_id = c.id
+  LEFT JOIN crm_opps co ON co.customer_id = c.id;
 -- ============================================================================
 -- TASK RUNS TABLE (Run History/Logs)
 -- ============================================================================
@@ -207,3 +224,62 @@ CREATE TABLE costs (
 CREATE INDEX idx_costs_date ON costs(date);
 CREATE INDEX idx_costs_provider ON costs(provider);
 CREATE INDEX idx_costs_agent ON costs(agent);
+-- ============================================================================
+-- CONTACTS TABLE (SCC-22, F1: CRM-kärnan)
+-- Normaliserad kontaktentitet. Se database/migrations/ticket22_contacts.sql
+-- ============================================================================
+CREATE TABLE contacts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id uuid REFERENCES customers(id) ON DELETE SET NULL,
+  name text,
+  email text,
+  phone text,
+  company text,
+  website text,
+  tags text[] NOT NULL DEFAULT '{}',
+  custom jsonb NOT NULL DEFAULT '{}',
+  status text NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'working', 'qualified', 'won', 'lost')),
+  source text,
+  dedupe_key text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX idx_contacts_dedupe_key ON contacts(dedupe_key) WHERE dedupe_key IS NOT NULL;
+CREATE INDEX idx_contacts_customer ON contacts(customer_id);
+CREATE INDEX idx_contacts_email ON contacts(email) WHERE email IS NOT NULL;
+CREATE INDEX idx_contacts_status ON contacts(status);
+CREATE INDEX idx_contacts_created ON contacts(created_at DESC);
+-- ============================================================================
+-- PIPELINES / STAGES / OPPORTUNITIES (SCC-24, F1)
+-- Se database/migrations/ticket24_pipelines.sql
+-- ============================================================================
+CREATE TABLE pipelines (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id uuid REFERENCES customers(id) ON DELETE SET NULL,
+  name text NOT NULL,
+  is_default boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE stages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  pipeline_id uuid NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  position int NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_stages_pipeline ON stages(pipeline_id, position);
+CREATE TABLE opportunities (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  contact_id uuid REFERENCES contacts(id) ON DELETE CASCADE,
+  pipeline_id uuid NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+  stage_id uuid REFERENCES stages(id) ON DELETE SET NULL,
+  customer_id uuid REFERENCES customers(id) ON DELETE SET NULL,
+  title text NOT NULL,
+  value_sek numeric(12, 2),
+  status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'won', 'lost')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_opportunities_pipeline ON opportunities(pipeline_id);
+CREATE INDEX idx_opportunities_stage ON opportunities(stage_id);
+CREATE INDEX idx_opportunities_contact ON opportunities(contact_id);

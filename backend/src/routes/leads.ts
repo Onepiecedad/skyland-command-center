@@ -4,6 +4,7 @@ import { supabase, websiteSupabase } from '../services/supabase';
 import { config } from '../config';
 import { logger } from '../services/logger';
 import { authMiddleware } from '../middleware/auth';
+import { upsertContactFromLead } from '../services/contacts';
 
 /**
  * Leads Intake — website (skylandai.se) → SCC
@@ -125,7 +126,16 @@ router.post('/intake', intakeAuth, async (req: Request, res: Response) => {
 
         logger.info('leads', `New ${lead.source} lead: ${lead.name || lead.session_uuid}`, { email: lead.email, activity_id: data.id });
 
-        return res.status(201).json({ status: 'accepted', activity_id: data.id });
+        // SCC-23: upsert a normalized contact on top of the activity log. The
+        // activity stays as the audit event; the contact is the queryable CRM
+        // entity. Non-blocking: a CRM hiccup must not fail lead intake.
+        const contact = await upsertContactFromLead(lead, dedupeKey);
+
+        return res.status(201).json({
+            status: 'accepted',
+            activity_id: data.id,
+            contact_id: contact?.id ?? null,
+        });
     } catch (err) {
         console.error('[Leads Intake] Unexpected error:', err);
         return res.status(500).json({ error: 'Internal server error' });

@@ -48,6 +48,8 @@ import automationsRouter from './routes/automations.js';
 import adminRouter from './routes/admin.js';
 import openworkWebhookRouter from './routes/openworkWebhook.js';
 import leadsRouter from './routes/leads.js';
+import contactsRouter from './routes/contacts.js';
+import pipelinesRouter from './routes/pipelines.js';
 import activitiesDbRouter from './routes/activitiesDb.js';
 import voiceRouter from './routes/voice.js';
 import gatewayRouter from './routes/gateway.js';
@@ -172,6 +174,8 @@ class Server {
     this.app.use('/api/v1/skills-db', skillsRouter);           // DB-backed skills (fallback)
     this.app.use('/api/v1/activities', activitiesDbRouter); // Supabase-backed (legacy mock stays at /api/activities)
     this.app.use('/api/v1/customers', customersRouter);
+    this.app.use('/api/v1/contacts', contactsRouter);
+    this.app.use('/api/v1/pipelines', pipelinesRouter);
     this.app.use('/api/v1/tasks', tasksRouter);
     this.app.use('/api/v1/runs', runsRouter);
     this.app.use('/api/v1/chat', chatLimiter, chatRouter);

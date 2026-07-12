@@ -126,6 +126,69 @@ export const ALEX_TOOLS: ToolDefinition[] = [
                 }
             }
         }
+    },
+    {
+        name: 'list_contacts',
+        description: 'Lista kontakter i CRM:et. Kan filtreras på status (new/working/qualified/won/lost) och fritextsökning på namn/e-post/företag.',
+        parameters: {
+            type: 'object',
+            properties: {
+                status: {
+                    type: 'string',
+                    description: 'Filtrera på status',
+                    enum: ['new', 'working', 'qualified', 'won', 'lost']
+                },
+                search: {
+                    type: 'string',
+                    description: 'Fritextsökning på namn, e-post eller företag'
+                },
+                limit: {
+                    type: 'string',
+                    description: 'Max antal (default: 20, max: 100)'
+                }
+            }
+        }
+    },
+    {
+        name: 'get_contact',
+        description: 'Hämta en enskild kontakt med alla fält. Ange contact_id, eller sök med email/name.',
+        parameters: {
+            type: 'object',
+            properties: {
+                contact_id: { type: 'string', description: 'Kontaktens UUID' },
+                email: { type: 'string', description: 'Sök på e-post (om id saknas)' },
+                name: { type: 'string', description: 'Sök på namn (om id saknas)' }
+            }
+        }
+    },
+    {
+        name: 'move_opportunity',
+        description: 'Flytta en opportunity till en annan stage i pipelinen. Detta är en kund-påverkande skrivning och loggas som activity. Ange opportunity_id och stage_id.',
+        parameters: {
+            type: 'object',
+            properties: {
+                opportunity_id: { type: 'string', description: 'Opportunityns UUID' },
+                stage_id: { type: 'string', description: 'Mål-stagens UUID' }
+            },
+            required: ['opportunity_id', 'stage_id']
+        }
+    },
+    {
+        name: 'log_interaction',
+        description: 'Logga en interaktion (t.ex. samtal, mötesanteckning, notering) mot en kontakt. Skapar ett message i kontaktens tråd så det syns i unified inbox.',
+        parameters: {
+            type: 'object',
+            properties: {
+                contact_id: { type: 'string', description: 'Kontaktens UUID' },
+                content: { type: 'string', description: 'Vad som hände / vad som sades' },
+                channel: {
+                    type: 'string',
+                    description: 'Kanal för interaktionen (default: chat)',
+                    enum: ['chat', 'voice', 'email', 'sms', 'whatsapp', 'webhook']
+                }
+            },
+            required: ['contact_id', 'content']
+        }
     }
 ];
 
@@ -158,6 +221,14 @@ export async function executeToolCall(
                 return await handleListOpenTasks(args);
             case 'get_customer_errors':
                 return await handleGetCustomerErrors(args);
+            case 'list_contacts':
+                return await handleListContacts(args);
+            case 'get_contact':
+                return await handleGetContact(args);
+            case 'move_opportunity':
+                return await handleMoveOpportunity(args);
+            case 'log_interaction':
+                return await handleLogInteraction(args);
             default:
                 return { success: false, error: `Unknown tool: ${name}` };
         }
@@ -372,6 +443,105 @@ async function handleGetCustomerErrors(args: Record<string, unknown>): Promise<T
 // Helper: Format tool results for LLM context
 // ============================================================================
 
+// ----------------------------------------------------------------------------
+// SCC-27 — CRM tool handlers
+// ----------------------------------------------------------------------------
+
+async function handleListContacts(args: Record<string, unknown>): Promise<ToolResult> {
+    const status = args.status as string | undefined;
+    const search = args.search ? String(args.search).trim() : undefined;
+    const limit = Math.min(parseInt(String(args.limit || '20'), 10) || 20, 100);
+
+    let query = supabase
+        .from('contacts')
+        .select('id, name, email, company, status, created_at')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+    if (status) query = query.eq('status', status);
+    if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`);
+
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: { contacts: data, count: data?.length || 0 } };
+}
+
+async function handleGetContact(args: Record<string, unknown>): Promise<ToolResult> {
+    const { contact_id, email, name } = args;
+
+    let query = supabase.from('contacts').select('*');
+    if (contact_id) query = query.eq('id', contact_id);
+    else if (email) query = query.ilike('email', `%${email}%`);
+    else if (name) query = query.ilike('name', `%${name}%`);
+    else return { success: false, error: 'Ange contact_id, email eller name' };
+
+    const { data, error } = await query.limit(1).maybeSingle();
+    if (error) return { success: false, error: error.message };
+    if (!data) return { success: false, error: 'Kontakt hittades inte' };
+    return { success: true, data };
+}
+
+async function handleMoveOpportunity(args: Record<string, unknown>): Promise<ToolResult> {
+    const { opportunity_id, stage_id } = args;
+    if (!opportunity_id || !stage_id) {
+        return { success: false, error: 'opportunity_id och stage_id krävs' };
+    }
+
+    const { data, error } = await supabase
+        .from('opportunities')
+        .update({ stage_id, updated_at: new Date().toISOString() })
+        .eq('id', opportunity_id)
+        .select('*, stage:stages(name)')
+        .single();
+    if (error) return { success: false, error: error.message };
+    if (!data) return { success: false, error: 'Opportunity hittades inte' };
+
+    const stageName = (data.stage as { name?: string } | null)?.name ?? String(stage_id);
+
+    await supabase.from('activities').insert({
+        customer_id: data.customer_id ?? null,
+        agent: 'alex',
+        action: 'opportunity.moved',
+        event_type: 'opportunity',
+        severity: 'info',
+        autonomy_level: 'ACT',
+        details: { opportunity_id: data.id, title: data.title, stage_id, stage_name: stageName },
+    });
+
+    return { success: true, data: { opportunity_id: data.id, title: data.title, stage_name: stageName } };
+}
+
+async function handleLogInteraction(args: Record<string, unknown>): Promise<ToolResult> {
+    const { contact_id, content, channel } = args;
+    if (!contact_id || !content) {
+        return { success: false, error: 'contact_id och content krävs' };
+    }
+
+    const { data: contact, error: cErr } = await supabase
+        .from('contacts')
+        .select('id, customer_id')
+        .eq('id', contact_id)
+        .maybeSingle();
+    if (cErr) return { success: false, error: cErr.message };
+    if (!contact) return { success: false, error: 'Kontakt hittades inte' };
+
+    const { data, error } = await supabase
+        .from('messages')
+        .insert({
+            customer_id: contact.customer_id ?? null,
+            role: 'system',
+            channel: (channel as string) || 'chat',
+            direction: 'internal',
+            content: String(content),
+            metadata: { contact_id: contact.id, logged_by: 'alex' },
+        })
+        .select('id')
+        .single();
+    if (error) return { success: false, error: error.message };
+
+    return { success: true, data: { message_id: data.id, contact_id: contact.id } };
+}
+
 export function formatToolResultForLLM(name: string, result: ToolResult): string {
     if (!result.success) {
         return `Verktyg "${name}" misslyckades: ${result.error}`;
@@ -441,6 +611,25 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
             }
 
             return output.trim();
+        }
+        case 'list_contacts': {
+            const r = data as { contacts: Array<{ name: string | null; email: string | null; company: string | null; status: string }>; count: number };
+            if (r.count === 0) return 'Inga kontakter hittades.';
+            return `${r.count} kontakter:\n${r.contacts.map(c =>
+                `- ${c.name || '(namnlös)'}${c.company ? ` @ ${c.company}` : ''}${c.email ? ` <${c.email}>` : ''} [${c.status}]`
+            ).join('\n')}`;
+        }
+        case 'get_contact': {
+            const c = data as Record<string, unknown>;
+            return `Kontakt: ${c.name || '(namnlös)'}\nFöretag: ${c.company || '—'}\nE-post: ${c.email || '—'}\nTelefon: ${c.phone || '—'}\nStatus: ${c.status}`;
+        }
+        case 'move_opportunity': {
+            const o = data as { title: string; stage_name: string };
+            return `✅ Flyttade "${o.title}" till stage: ${o.stage_name}`;
+        }
+        case 'log_interaction': {
+            const m = data as { message_id: string };
+            return `✅ Interaktion loggad (message ${m.message_id}). Syns nu i kontaktens tråd.`;
         }
         default:
             return JSON.stringify(data, null, 2);

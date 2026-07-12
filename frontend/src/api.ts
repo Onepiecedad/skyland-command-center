@@ -1044,3 +1044,119 @@ export async function fetchWebsiteWorkflows(): Promise<WorkflowHealth[]> {
     const data = await res.json();
     return data.workflows || [];
 }
+
+// ============================================================================
+// CRM — Contacts, Pipelines, Opportunities (F1: SCC-22..27)
+// ============================================================================
+
+export interface Contact {
+    id: string;
+    customer_id: string | null;
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    company: string | null;
+    website: string | null;
+    tags: string[];
+    custom: Record<string, unknown>;
+    status: 'new' | 'working' | 'qualified' | 'won' | 'lost';
+    source: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Stage {
+    id: string;
+    pipeline_id: string;
+    name: string;
+    position: number;
+}
+
+export interface Pipeline {
+    id: string;
+    name: string;
+    is_default: boolean;
+    stages: Stage[];
+}
+
+export interface Opportunity {
+    id: string;
+    contact_id: string | null;
+    pipeline_id: string;
+    stage_id: string | null;
+    title: string;
+    value_sek: number | null;
+    status: 'open' | 'won' | 'lost';
+    contact?: { id: string; name: string | null; company: string | null; email: string | null } | null;
+}
+
+export interface BoardColumn {
+    stage: Stage;
+    opportunities: Opportunity[];
+}
+
+export interface ConversationMessage {
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    channel: 'chat' | 'voice' | 'email' | 'sms' | 'whatsapp' | 'webhook';
+    direction: 'internal' | 'inbound' | 'outbound';
+    content: string;
+    created_at: string;
+}
+
+export async function fetchContacts(params?: { status?: string; search?: string; limit?: number }): Promise<Contact[]> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.search) qs.set('search', params.search);
+    qs.set('limit', String(params?.limit ?? 100));
+    const res = await fetchWithAuth(`${API_BASE}/contacts?${qs.toString()}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.contacts || [];
+}
+
+export async function fetchContactConversation(id: string): Promise<{ contact: Partial<Contact>; messages: ConversationMessage[] }> {
+    const res = await fetchWithAuth(`${API_BASE}/contacts/${id}/conversation`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function fetchPipelines(): Promise<Pipeline[]> {
+    const res = await fetchWithAuth(`${API_BASE}/pipelines`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.pipelines || [];
+}
+
+export async function fetchBoard(pipelineId: string): Promise<BoardColumn[]> {
+    const res = await fetchWithAuth(`${API_BASE}/pipelines/${pipelineId}/board`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.columns || [];
+}
+
+export async function moveOpportunity(opportunityId: string, stageId: string): Promise<void> {
+    const res = await fetchWithAuth(`${API_BASE}/pipelines/opportunities/${opportunityId}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage_id: stageId }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+export async function createOpportunity(input: {
+    title: string;
+    pipeline_id: string;
+    contact_id?: string | null;
+    stage_id?: string | null;
+    value_sek?: number | null;
+}): Promise<Opportunity> {
+    const res = await fetchWithAuth(`${API_BASE}/pipelines/opportunities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.opportunity;
+}
