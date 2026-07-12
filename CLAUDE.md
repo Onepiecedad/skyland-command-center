@@ -3,6 +3,21 @@
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
 > Senast uppdaterad: 2026-07-12
 
+> ## 🧭 BÖRJA HÄR (nuläge, läs först)
+> Ny session? Läs dessa två i ordning innan du gör något:
+> 1. `docs/HANDOVER-CRM-F1-och-leadlista.md` — senaste läget: F1 CRM-kärnan levererad,
+>    affärsmodellen (kursen/MEXPAND), lead-listans status, GHL-läget, öppna beslut.
+> 2. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
+>
+> **Var vi står (2026-07-12):** F1 CRM-kärnan är byggd, testad, committad och körd skarpt
+> mot Supabase `wfwqjxsuvbacvcmpiesl`. Nästa planerade block är **F2** (utgående e-post/SMS +
+> kalender/bokning). **Pågående sidospår:** bygga en ~100-lead-lista (tatuerare + liknande
+> lokala i Mölndal/Göteborg) via Google Maps — öppet beslut: landa i både SCC contacts och GHL.
+>
+> **Att veta:** externa kopplingar (Supabase-MCP, GHL LeadConnector-MCP, ev. Chrome) måste
+> anslutas per session. Git i den mountade `.git` tillåter inte `unlink` — flytta undan
+> `*.lock` med `mv` vid behov. Push sker från Joakims egen terminal.
+
 > **VIKTIGT — arkitekturen har ändrats sedan tidigare versioner av denna fil:**
 > - Entrypoint är `backend/src/server.ts` (klassbaserad, helmet, CORS, WebSocket-gateway, statisk SPA-servering). `backend/src/index.ts` är LEGACY och körs inte (`package.json` → `dev`/`start` pekar på server.ts).
 > - Routing ligger i ~36 modulfiler under `backend/src/routes/` — inte i en stor index.ts.
