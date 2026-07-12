@@ -1,10 +1,17 @@
-# Skyland Command Center - Specifikation v1.1
+# Skyland Command Center - Specifikation v1.2
 
 ## Översikt
 
 Skyland Command Center är ett 3D-baserat command center för Skyland Core - multi-tenant kunddrift, automation och agentstyrning. En hexagon-disk som flyter i rymden där varje struktur representerar en modul, agent eller kundinstans.
 
 **Mål med v1:** Bygga Skyland HQ som en fullt fungerande vertikal slice - 3D-byggnad, dashboard-UI, Master Brain agent, databas och workflows. Internt verktyg för operatör (Joakim).
+
+> **Nytt i v1.2 (2026-07-12) — CRM-kärnan (F1):** SCC har fått en ägd CRM-datamodell
+> (`contacts`, `pipelines`, `stages`, `opportunities`), en drag-bar kanban, unified inbox
+> per kontakt och fyra Alex CRM-verktyg. Detta är steg 1 i att bygga bort behovet av
+> GoHighLevel. Se de nya avsnitten "Datamodell v1.2 — CRM (F1)", API-endpoints för
+> Contacts/Pipelines, samt `docs/TICKETS_F1_CRM.md`. Nästa steg är F2 (utgående
+> e-post/SMS + kalender/bokning).
 
 ---
 
@@ -315,6 +322,71 @@ LEFT JOIN pending_tasks pt ON pt.customer_id = c.id;
 - `warning`: Mer än 2 warnings senaste 24h ELLER mer än 10 öppna tasks
 - `active`: Allt annat (default)
 
+> **v1.2:** Vyn är utökad med två additiva kolumner — `contacts_count` och
+> `open_opportunities` (per kund). Statuslogiken ovan är oförändrad.
+
+---
+
+## Datamodell v1.2 — CRM-kärna (F1)
+
+Tillägg som gör leads till hanterbara entiteter i stället för loggrader. Migrationer:
+`database/migrations/ticket22_contacts.sql`, `ticket24_pipelines.sql`.
+
+### Tabell: contacts (SCC-22)
+
+```sql
+CREATE TABLE contacts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id uuid REFERENCES customers(id) ON DELETE SET NULL,
+  name text, email text, phone text, company text, website text,
+  tags text[] NOT NULL DEFAULT '{}',
+  custom jsonb NOT NULL DEFAULT '{}',
+  status text NOT NULL DEFAULT 'new'
+    CHECK (status IN ('new', 'working', 'qualified', 'won', 'lost')),
+  source text,
+  dedupe_key text,               -- idempotent upsert från lead-intake
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX idx_contacts_dedupe_key ON contacts(dedupe_key) WHERE dedupe_key IS NOT NULL;
+```
+
+Lead-intake (`routes/leads.ts`) upsertar nu en contact via `services/contacts.ts`
+(idempotent på `dedupe_key`). Activity-loggen behålls som audit-event.
+
+### Tabeller: pipelines / stages / opportunities (SCC-24)
+
+```sql
+CREATE TABLE pipelines (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id uuid REFERENCES customers(id) ON DELETE SET NULL,
+  name text NOT NULL, is_default boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE stages (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  pipeline_id uuid NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+  name text NOT NULL, position int NOT NULL DEFAULT 0
+);
+CREATE TABLE opportunities (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  contact_id uuid REFERENCES contacts(id) ON DELETE CASCADE,
+  pipeline_id uuid NOT NULL REFERENCES pipelines(id) ON DELETE CASCADE,
+  stage_id uuid REFERENCES stages(id) ON DELETE SET NULL,
+  customer_id uuid REFERENCES customers(id) ON DELETE SET NULL,
+  title text NOT NULL, value_sek numeric(12,2),
+  status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'won', 'lost')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+```
+
+Seedad default-pipeline "Sales": New → Contacted → Qualified → Proposal → Won → Lost.
+
+> **OBS två pipelines i affärsmodellen:** operatörens *prospekterings*-pipeline (skaffa
+> kunder) och kundens *leverans*-pipeline (MEXPAND: lead → SMS → samtal → bokning →
+> återbokning) är olika. Datamodellen ovan bär båda; skilj dem åt per `pipeline`-rad.
+
 ---
 
 ## Autonominivåer
@@ -418,6 +490,25 @@ LEFT JOIN pending_tasks pt ON pt.customer_id = c.id;
 }
 ```
 
+### Contacts (v1.2, SCC-23)
+
+| Method | Endpoint | Beskrivning |
+|--------|----------|-------------|
+| GET | `/contacts` | Lista kontakter (filter: `status`, `search`, `limit`) |
+| GET | `/contacts/:id` | Hämta en kontakt |
+| PATCH | `/contacts/:id` | Uppdatera kontaktfält |
+| GET | `/contacts/:id/conversation` | Unified inbox: alla messages för kontakten, alla kanaler |
+
+### Pipelines (v1.2, SCC-24)
+
+| Method | Endpoint | Beskrivning |
+|--------|----------|-------------|
+| GET | `/pipelines` | Lista pipelines med stages |
+| GET | `/pipelines/:id/board` | Kanban-payload: stages med opportunities |
+| POST | `/pipelines/opportunities` | Skapa opportunity |
+| POST | `/pipelines/opportunities/:id/move` | Flytta opportunity till annan stage (loggar activity) |
+| PATCH | `/pipelines/opportunities/:id` | Uppdatera title/value/status |
+
 ### System
 
 | Method | Endpoint | Beskrivning |
@@ -439,6 +530,15 @@ LEFT JOIN pending_tasks pt ON pt.customer_id = c.id;
 | DELEGATE | "Be Content Agent skriva ett utkast" | Skapar SUGGEST-task för Content Agent |
 | SUMMARY | "Ge mig en briefing" | Sammanfattar status för alla kunder |
 | HELP | "Vad kan du göra?" | Visar kapabiliteter |
+
+**v1.2 — CRM-verktyg (SCC-27, `llm/tools.ts`):**
+
+| Verktyg | Exempel | Handling |
+|---------|---------|----------|
+| `list_contacts` | "Visa nya leads" | Listar kontakter (filter status/sök) |
+| `get_contact` | "Vem är kontakten på Berg AB?" | Hämtar en kontakt |
+| `move_opportunity` | "Flytta Anna till Proposal" | Byter stage (ACT, loggas som activity) |
+| `log_interaction` | "Logga att jag ringde Erik" | Skapar message i kontaktens tråd |
 
 ### Intent-klassificering
 
@@ -634,8 +734,9 @@ skyland-command-center/
 |---------|-------|-----------|
 | 1.0 | 2026-01-31 | Initial spec |
 | 1.1 | 2026-01-31 | Clawdbot feedback: Härledd customer_status (view), event_type + severity, SUGGEST för extern output, proposed_actions i API, Three.js istället för Antigravity, drift-krav i DoD, separerade Internal Modules / Customer Realms |
+| 1.2 | 2026-07-12 | F1 CRM-kärnan: nya tabeller contacts/pipelines/stages/opportunities, lead-intake → contact-upsert, kanban + unified inbox, Alex CRM-verktyg, customer_status utökad med contacts_count + open_opportunities, API-endpoints för Contacts/Pipelines. Se docs/TICKETS_F1_CRM.md. |
 
 ---
 
 *Dokument skapat: 2026-01-31*
-*Version: 1.1*
+*Version: 1.2 (uppdaterad 2026-07-12)*

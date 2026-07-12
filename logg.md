@@ -1894,4 +1894,26 @@ npx tsc --noEmit  # ✅ 0 fel
 
 **Separat epic:** `skyland-agent-skills` repo (8 tickets, se userstory)
 
-*Senast uppdaterad: 2026-02-12 00:48*
+---
+
+## 2026-07-12 — Röst-bokning, telemetri-fix & F1 CRM-kärnan
+
+**Röstsamtal → bokning → loggning (commit `159e554`)**
+
+- `book_appointment`-tool i `voice.ts` (Cal.com v2) + activity-loggning av bokningar.
+- `gateway_tool` loggar nu varje anrop. Härdad `leads.ts`-intake (optional `session_uuid`).
+- Telemetri hemsida→dashboard fixad (funnel läste tom `events`-tabell). Se `docs/HANDOVER_2026-07-12.md`.
+
+**F1 CRM-kärnan (commits `b1a18f4`, `bbfe8c9`)**
+
+- **SCC-22** `contacts`-tabell + backfill från lead-activities (migration + schema). 5 leads → 5 contacts.
+- **SCC-23** lead-intake upsertar en normaliserad contact. `services/contacts.ts` + `contacts.test.ts` (9 tester gröna — repot har nu tester).
+- **SCC-24** `pipelines/stages/opportunities` + seedad default-pipeline "Sales" (6 stages). `routes/pipelines.ts`.
+- **SCC-25/26** frontend: `PipelineBoard.tsx` (drag-kanban), `ConversationInbox.tsx`, `CrmView.tsx`, CRM-flik.
+- **SCC-27** Alex-verktyg: `get_contact`, `list_contacts`, `move_opportunity`, `log_interaction`.
+- `customer_status`-vyn utökad med `contacts_count` + `open_opportunities`.
+- Migrationer applicerade skarpt mot Supabase `wfwqjxsuvbacvcmpiesl`. Se `docs/TICKETS_F1_CRM.md`.
+
+**Nästa:** F2 (utgående e-post/SMS + kalender/bokning). Öppen skuld: RLS av, frontend-token-läcka.
+
+*Senast uppdaterad: 2026-07-12*
