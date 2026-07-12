@@ -1,7 +1,7 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-07-09
+> Senast uppdaterad: 2026-07-12
 
 > **VIKTIGT — arkitekturen har ändrats sedan tidigare versioner av denna fil:**
 > - Entrypoint är `backend/src/server.ts` (klassbaserad, helmet, CORS, WebSocket-gateway, statisk SPA-servering). `backend/src/index.ts` är LEGACY och körs inte (`package.json` → `dev`/`start` pekar på server.ts).
@@ -10,6 +10,9 @@
 > - Lead-intake: hemsidan (skyland-ai-os.netlify.app) → n8n (void-submission / voice-call-ended) → `POST /api/v1/leads/intake`.
 > - Backend exponeras för närvarande via en ngrok-tunnel; `scc.skylandai.se` är INTE uppsatt ännu. Byt inte n8n:s Notify SCC-URL förrän riktig DNS/deploy finns.
 > - KÄNT SÄKERHETSPROBLEM: `VITE_SCC_API_TOKEN` + `VITE_GATEWAY_TOKEN` bakas in i frontend-bundlen. Behandla dem som publika; riktig användarauth är ett öppet arbete.
+> - **DATABAS (rättat 2026-07-12):** Rätt Supabase-projekt är `skyland-command-center`, ref `wfwqjxsuvbacvcmpiesl` (`https://wfwqjxsuvbacvcmpiesl.supabase.co`) — det som backendens `.env` faktiskt pekar på. Den gamla ref:en `sahrizknasraftvqbaor` som förr stod här var INAKTUELL; använd den inte.
+> - **KÄNT SÄKERHETSPROBLEM (RLS):** Row Level Security är AVSTÄNGT på alla kärntabeller (`customers, activities, tasks, messages, agent_configs, task_runs, costs, contacts`). Med anon-nyckeln är varje rad läs-/skrivbar. OK så länge SCC är internt bakom Bearer-token, men MÅSTE stängas innan extern kunddata (F4/white-label). Aktivera inte RLS utan policies — det låser all åtkomst direkt.
+> - **F1 CRM-kärnan LEVERERAD (2026-07-12, commit `feat(crm): F1 core`):** Nya tabeller `contacts`, `pipelines`, `stages`, `opportunities` (migrations `ticket22_contacts.sql`, `ticket24_pipelines.sql`, applicerade). Lead-intake upsertar nu en contact. Nya routes `contacts.ts` + `pipelines.ts`. Nya Alex-verktyg: `get_contact`, `list_contacts`, `move_opportunity`, `log_interaction`. Frontend: CRM-flik (kanban + unified inbox). Se `docs/TICKETS_F1_CRM.md`. Leads lagras fortfarande ÄVEN som activities (audit) — men contacts är nu den queryabla entiteten.
 
 ---
 
@@ -27,7 +30,7 @@ Skyland Command Center (SCC) är ett internt operatörsverktyg för att styra oc
 
 ### Backend (Express + TypeScript, port 3001)
 - REST API med 20+ endpoints under `/api/v1`
-- Supabase (PostgreSQL) som databas med 5 tabeller + 1 view
+- Supabase (PostgreSQL) som databas — kärntabeller + CRM-tabeller (contacts/pipelines/stages/opportunities) + customer_status-view
 - Master Brain AI-chat med intent-klassificering och tool calling
 - Task-system med approve-flöde (SUGGEST → review → approve → dispatch)
 - Dispatcher som kan köra uppgifter via:
@@ -164,7 +167,7 @@ skyland-command-center/
 
 ```bash
 # Databas
-SUPABASE_URL=https://sahrizknasraftvqbaor.supabase.co
+SUPABASE_URL=https://wfwqjxsuvbacvcmpiesl.supabase.co   # projekt: skyland-command-center
 SUPABASE_SERVICE_ROLE_KEY=<hemlig>
 
 # Server
