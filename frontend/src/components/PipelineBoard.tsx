@@ -57,6 +57,14 @@ function toolBtn(active: boolean): React.CSSProperties {
     };
 }
 
+const cardLink: React.CSSProperties = {
+    color: '#9ecbff',
+    textDecoration: 'none',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+};
+
 export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProps) {
     const [columns, setColumns] = useState<BoardColumn[]>([]);
     const [loading, setLoading] = useState(true);
@@ -182,12 +190,9 @@ export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProp
                                     </span>
                                 )}
                             </div>
-                            {(opp.contact?.custom?.instagram || opp.contact?.custom?.rating) && (
+                            {opp.contact?.custom?.rating && (
                                 <div style={{ fontSize: 12, opacity: 0.6, marginTop: 3 }}>
-                                    {opp.contact?.custom?.instagram ? `@${opp.contact.custom.instagram}` : ''}
-                                    {opp.contact?.custom?.instagram && opp.contact?.custom?.rating ? '  ·  ' : ''}
-                                    {opp.contact?.custom?.rating ? `${opp.contact.custom.rating} ★` : ''}
-                                    {opp.contact?.custom?.reviews ? ` (${opp.contact.custom.reviews})` : ''}
+                                    {opp.contact.custom.rating} ★{opp.contact?.custom?.reviews ? ` (${opp.contact.custom.reviews})` : ''}
                                 </div>
                             )}
                             {opp.contact?.custom?.booking_flow && (
@@ -195,6 +200,27 @@ export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProp
                                     <span>{flowLabel[opp.contact.custom.booking_flow] ?? opp.contact.custom.booking_flow}</span>
                                     <span style={{ opacity: 0.4 }}>·</span>
                                     <span>{opp.contact?.email ? 'email + IG DM' : 'IG DM'}</span>
+                                </div>
+                            )}
+                            {(opp.contact?.phone || opp.contact?.email || opp.contact?.custom?.website || opp.contact?.custom?.instagram) && (
+                                <div
+                                    style={{ fontSize: 11, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    {opp.contact?.custom?.instagram && (
+                                        <a href={`https://instagram.com/${opp.contact.custom.instagram}`} target="_blank" rel="noreferrer" style={cardLink}>
+                                            IG · @{opp.contact.custom.instagram}
+                                        </a>
+                                    )}
+                                    {opp.contact?.phone && (
+                                        <a href={`tel:${opp.contact.phone.replace(/\s+/g, '')}`} style={cardLink}>Tel · {opp.contact.phone}</a>
+                                    )}
+                                    {opp.contact?.email && (
+                                        <a href={`mailto:${opp.contact.email}`} style={cardLink}>Mail · {opp.contact.email}</a>
+                                    )}
+                                    {opp.contact?.custom?.website && (
+                                        <a href={opp.contact.custom.website} target="_blank" rel="noreferrer" style={cardLink}>Webb · {opp.contact.custom.website.replace(/^https?:\/\/(www\.)?/, '')}</a>
+                                    )}
                                 </div>
                             )}
                             {typeof opp.value_sek === 'number' && (
