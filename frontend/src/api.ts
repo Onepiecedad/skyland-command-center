@@ -1083,6 +1083,7 @@ export interface ContactCustom {
     score?: number;
     instagram?: string | null;
     email?: string | null;
+    website?: string | null;
     booking_flow?: 'manual' | 'form' | 'online';
     rating?: string | null;
     reviews?: string | null;
