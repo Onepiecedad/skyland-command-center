@@ -100,9 +100,17 @@ class Server {
       }
     }));
 
-    // CORS
+    // CORS — configured origins plus any localhost port in dev (Vite falls back to 5174+ when 5173 is busy).
+    const allowedOrigins = process.env.FRONTEND_URL
+      ? [process.env.FRONTEND_URL]
+      : ['http://localhost:5173', 'https://scc.skylandai.se'];
     this.app.use(cors({
-      origin: process.env.FRONTEND_URL || ['http://localhost:5173', 'https://scc.skylandai.se'],
+      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        if (!origin) return callback(null, true); // non-browser clients (curl, server-to-server)
+        const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+        if (allowedOrigins.includes(origin) || isLocalhost) return callback(null, true);
+        return callback(new Error(`CORS: origin not allowed: ${origin}`));
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id']
