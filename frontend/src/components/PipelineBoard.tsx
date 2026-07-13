@@ -37,12 +37,34 @@ const flowLabel: Record<string, string> = {
     online: 'Online-bokning',
 };
 
+type Tier = 'A' | 'B' | 'C';
+
+function tierOf(score: number): Tier {
+    if (score >= 85) return 'A';
+    if (score >= 70) return 'B';
+    return 'C';
+}
+
+function toolBtn(active: boolean): React.CSSProperties {
+    return {
+        fontSize: 12,
+        padding: '4px 10px',
+        borderRadius: 8,
+        cursor: 'pointer',
+        border: '1px solid rgba(255,255,255,0.14)',
+        background: active ? 'rgba(120,180,255,0.22)' : 'rgba(255,255,255,0.05)',
+        color: 'inherit',
+    };
+}
+
 export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProps) {
     const [columns, setColumns] = useState<BoardColumn[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [dragId, setDragId] = useState<string | null>(null);
     const [dropStage, setDropStage] = useState<string | null>(null);
+    const [sortByScore, setSortByScore] = useState(true);
+    const [tierFilter, setTierFilter] = useState<'all' | Tier>('all');
 
     const load = useCallback(async () => {
         try {
@@ -88,9 +110,34 @@ export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProp
     if (loading) return <p style={{ opacity: 0.6 }}>Laddar pipeline…</p>;
     if (error) return <p style={{ color: '#ff6b6b' }}>Fel: {error}</p>;
 
+    const viewColumns = columns.map((col) => {
+        const filtered = tierFilter === 'all'
+            ? col.opportunities
+            : col.opportunities.filter((o) => {
+                const s = o.contact?.custom?.score;
+                return typeof s === 'number' && tierOf(s) === tierFilter;
+            });
+        const ordered = sortByScore
+            ? [...filtered].sort((a, b) => (b.contact?.custom?.score ?? -1) - (a.contact?.custom?.score ?? -1))
+            : filtered;
+        return { ...col, opportunities: ordered };
+    });
+
     return (
-        <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
-            {columns.map((col) => (
+        <div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+                <button onClick={() => setSortByScore((v) => !v)} style={toolBtn(sortByScore)}>
+                    {sortByScore ? '↓ Score' : 'Standardordning'}
+                </button>
+                <span style={{ opacity: 0.4, fontSize: 12, marginLeft: 4 }}>Tier:</span>
+                {(['all', 'A', 'B', 'C'] as const).map((t) => (
+                    <button key={t} onClick={() => setTierFilter(t)} style={toolBtn(tierFilter === t)}>
+                        {t === 'all' ? 'Alla' : t}
+                    </button>
+                ))}
+            </div>
+            <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
+            {viewColumns.map((col) => (
                 <div
                     key={col.stage.id}
                     style={{
@@ -163,6 +210,7 @@ export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProp
                     )}
                 </div>
             ))}
+            </div>
         </div>
     );
 }
