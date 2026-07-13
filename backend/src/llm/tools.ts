@@ -167,6 +167,40 @@ export const ALEX_TOOLS: ToolDefinition[] = [
         }
     },
     {
+        name: 'update_contact',
+        description: 'Uppdatera fält på en kontakt: status, telefon, e-post, webb, företag, taggar samt custom-data (score, instagram, adress, dm_hook m.m.). Custom-fält MERGAS in — befintliga nycklar som inte skickas med behålls; sätt en nyckel till null för att radera den. Ändringen loggas som activity. Kräver contact_id (använd get_contact först om du bara har namnet).',
+        parameters: {
+            type: 'object',
+            properties: {
+                contact_id: { type: 'string', description: 'Kontaktens UUID (obligatoriskt)' },
+                status: {
+                    type: 'string',
+                    description: 'Ny status',
+                    enum: ['new', 'working', 'qualified', 'won', 'lost']
+                },
+                phone: { type: 'string', description: 'Nytt telefonnummer' },
+                email: { type: 'string', description: 'Ny e-post' },
+                website: { type: 'string', description: 'Ny webbadress' },
+                company: { type: 'string', description: 'Nytt företagsnamn' },
+                add_tags: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Taggar att lägga till (t.ex. ["tier:B", "contacted"])'
+                },
+                remove_tags: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Taggar att ta bort'
+                },
+                custom: {
+                    type: 'object',
+                    description: 'Custom-fält att merga in (t.ex. {"instagram": "nytt_handle", "address": "..."}). null som värde raderar nyckeln.'
+                }
+            },
+            required: ['contact_id']
+        }
+    },
+    {
         name: 'list_opportunities',
         description: 'Lista opportunities i en pipeline, t.ex. alla prospekt i en viss stage. Filtrera på pipeline-namn (t.ex. "Prospecting"), stage-namn (t.ex. "Contacted") och status. Returnerar kontaktnamn, score och stage per opportunity.',
         parameters: {
@@ -256,6 +290,8 @@ export async function executeToolCall(
                 return await handleListContacts(args);
             case 'get_contact':
                 return await handleGetContact(args);
+            case 'update_contact':
+                return await handleUpdateContact(args);
             case 'list_opportunities':
                 return await handleListOpportunities(args);
             case 'move_opportunity':
@@ -534,6 +570,85 @@ async function handleGetContact(args: Record<string, unknown>): Promise<ToolResu
     return { success: true, data: { ...data, opportunities: opportunities ?? [] } };
 }
 
+async function handleUpdateContact(args: Record<string, unknown>): Promise<ToolResult> {
+    const contactId = args.contact_id ? String(args.contact_id) : undefined;
+    if (!contactId) return { success: false, error: 'contact_id krävs — använd get_contact för att hitta id först' };
+
+    const { data: existing, error: fetchError } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('id', contactId)
+        .maybeSingle();
+    if (fetchError) return { success: false, error: fetchError.message };
+    if (!existing) return { success: false, error: 'Kontakt hittades inte' };
+
+    const updates: Record<string, unknown> = {};
+    const changedFields: string[] = [];
+
+    const VALID_STATUSES = ['new', 'working', 'qualified', 'won', 'lost'];
+    if (args.status !== undefined) {
+        const status = String(args.status);
+        if (!VALID_STATUSES.includes(status)) {
+            return { success: false, error: `Ogiltig status "${status}". Tillåtna: ${VALID_STATUSES.join(', ')}` };
+        }
+        updates.status = status;
+        changedFields.push('status');
+    }
+
+    for (const field of ['phone', 'email', 'website', 'company'] as const) {
+        if (args[field] !== undefined) {
+            updates[field] = String(args[field]);
+            changedFields.push(field);
+        }
+    }
+
+    const addTags = Array.isArray(args.add_tags) ? (args.add_tags as string[]).map(String) : [];
+    const removeTags = Array.isArray(args.remove_tags) ? (args.remove_tags as string[]).map(String) : [];
+    if (addTags.length > 0 || removeTags.length > 0) {
+        const currentTags: string[] = Array.isArray(existing.tags) ? existing.tags : [];
+        const newTags = [...new Set([...currentTags.filter(t => !removeTags.includes(t)), ...addTags])].sort();
+        updates.tags = newTags;
+        changedFields.push('tags');
+    }
+
+    if (args.custom !== undefined && typeof args.custom === 'object' && args.custom !== null) {
+        const patch = args.custom as Record<string, unknown>;
+        const merged: Record<string, unknown> = { ...(existing.custom as Record<string, unknown> | null ?? {}) };
+        for (const [key, value] of Object.entries(patch)) {
+            if (value === null) delete merged[key];
+            else merged[key] = value;
+        }
+        updates.custom = merged;
+        changedFields.push(`custom (${Object.keys(patch).join(', ')})`);
+    }
+
+    if (changedFields.length === 0) {
+        return { success: false, error: 'Inga fält att uppdatera angavs' };
+    }
+
+    updates.updated_at = new Date().toISOString();
+
+    const { data: updated, error: updateError } = await supabase
+        .from('contacts')
+        .update(updates)
+        .eq('id', contactId)
+        .select('*')
+        .single();
+    if (updateError) return { success: false, error: updateError.message };
+
+    await supabase.from('activities').insert({
+        customer_id: existing.customer_id ?? null,
+        agent: 'alex',
+        action: 'contact.updated',
+        event_type: 'contact',
+        severity: 'info',
+        autonomy_level: 'ACT',
+        details: { contact_id: contactId, contact_name: existing.name, changed_fields: changedFields },
+    });
+
+    return { success: true, data: { contact: updated, changed_fields: changedFields } };
+}
+
 async function handleListOpportunities(args: Record<string, unknown>): Promise<ToolResult> {
     const pipeline = args.pipeline ? String(args.pipeline).trim() : undefined;
     const stage = args.stage ? String(args.stage).trim() : undefined;
@@ -771,6 +886,10 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
                 }
             }
             return lines.join('\n');
+        }
+        case 'update_contact': {
+            const r = data as { contact: Record<string, unknown>; changed_fields: string[] };
+            return `✅ Kontakt "${r.contact.name || r.contact.id}" uppdaterad.\nÄndrade fält: ${r.changed_fields.join(', ')}\nÄndringen är loggad som activity.`;
         }
         case 'list_opportunities': {
             const r = data as {
