@@ -58,7 +58,7 @@ router.get('/:id/board', async (req: Request, res: Response) => {
 
         const { data: opps, error: oErr } = await supabase
             .from('opportunities')
-            .select('*, contact:contacts(id, name, company, email)')
+            .select('*, contact:contacts(id, name, company, email, phone, tags, custom)')
             .eq('pipeline_id', req.params.id)
             .order('updated_at', { ascending: false });
         if (oErr) return res.status(500).json({ error: oErr.message });

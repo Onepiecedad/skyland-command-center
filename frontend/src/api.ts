@@ -1079,6 +1079,27 @@ export interface Pipeline {
     stages: Stage[];
 }
 
+export interface ContactCustom {
+    score?: number;
+    instagram?: string | null;
+    email?: string | null;
+    booking_flow?: 'manual' | 'form' | 'online';
+    rating?: string | null;
+    reviews?: string | null;
+    niche?: string | null;
+    area?: string | null;
+}
+
+export interface OpportunityContact {
+    id: string;
+    name: string | null;
+    company: string | null;
+    email: string | null;
+    phone?: string | null;
+    tags?: string[] | null;
+    custom?: ContactCustom | null;
+}
+
 export interface Opportunity {
     id: string;
     contact_id: string | null;
@@ -1087,7 +1108,7 @@ export interface Opportunity {
     title: string;
     value_sek: number | null;
     status: 'open' | 'won' | 'lost';
-    contact?: { id: string; name: string | null; company: string | null; email: string | null } | null;
+    contact?: OpportunityContact | null;
 }
 
 export interface BoardColumn {

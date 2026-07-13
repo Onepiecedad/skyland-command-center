@@ -25,6 +25,18 @@ const glassCol: React.CSSProperties = {
     minHeight: 200,
 };
 
+function scoreBg(score: number): string {
+    if (score >= 85) return '#7ee787'; // tier A
+    if (score >= 70) return '#f0c674'; // tier B
+    return '#9aa0a6'; // tier C
+}
+
+const flowLabel: Record<string, string> = {
+    manual: 'Manuell / DM',
+    form: 'Formulär',
+    online: 'Online-bokning',
+};
+
 export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProps) {
     const [columns, setColumns] = useState<BoardColumn[]>([]);
     const [loading, setLoading] = useState(true);
@@ -109,10 +121,33 @@ export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProp
                                 opacity: dragId === opp.id ? 0.4 : 1,
                             }}
                         >
-                            <div style={{ fontSize: 14, fontWeight: 600 }}>{opp.title}</div>
-                            {opp.contact && (
-                                <div style={{ fontSize: 12, opacity: 0.6, marginTop: 2 }}>
-                                    {opp.contact.name || '(namnlös)'}{opp.contact.company ? ` · ${opp.contact.company}` : ''}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                <div style={{ fontSize: 14, fontWeight: 600 }}>{opp.title}</div>
+                                {typeof opp.contact?.custom?.score === 'number' && (
+                                    <span
+                                        title="Prospect-score"
+                                        style={{
+                                            fontSize: 11, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
+                                            background: scoreBg(opp.contact.custom.score), color: '#0b0b0f', whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        {opp.contact.custom.score}
+                                    </span>
+                                )}
+                            </div>
+                            {(opp.contact?.custom?.instagram || opp.contact?.custom?.rating) && (
+                                <div style={{ fontSize: 12, opacity: 0.6, marginTop: 3 }}>
+                                    {opp.contact?.custom?.instagram ? `@${opp.contact.custom.instagram}` : ''}
+                                    {opp.contact?.custom?.instagram && opp.contact?.custom?.rating ? '  ·  ' : ''}
+                                    {opp.contact?.custom?.rating ? `${opp.contact.custom.rating} ★` : ''}
+                                    {opp.contact?.custom?.reviews ? ` (${opp.contact.custom.reviews})` : ''}
+                                </div>
+                            )}
+                            {opp.contact?.custom?.booking_flow && (
+                                <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <span>{flowLabel[opp.contact.custom.booking_flow] ?? opp.contact.custom.booking_flow}</span>
+                                    <span style={{ opacity: 0.4 }}>·</span>
+                                    <span>{opp.contact?.email ? 'email + IG DM' : 'IG DM'}</span>
                                 </div>
                             )}
                             {typeof opp.value_sek === 'number' && (
