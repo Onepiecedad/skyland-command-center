@@ -129,7 +129,7 @@ export const ALEX_TOOLS: ToolDefinition[] = [
     },
     {
         name: 'list_contacts',
-        description: 'Lista kontakter i CRM:et. Kan filtreras på status (new/working/qualified/won/lost) och fritextsökning på namn/e-post/företag.',
+        description: 'Lista kontakter i CRM:et. Kan filtreras på status (new/working/qualified/won/lost), prospekt-tier (A/B/C) och fritextsökning på namn/e-post/företag. Returnerar även score, tier och bokningsflöde för prospekt.',
         parameters: {
             type: 'object',
             properties: {
@@ -137,6 +137,11 @@ export const ALEX_TOOLS: ToolDefinition[] = [
                     type: 'string',
                     description: 'Filtrera på status',
                     enum: ['new', 'working', 'qualified', 'won', 'lost']
+                },
+                tier: {
+                    type: 'string',
+                    description: 'Filtrera på prospekt-tier (taggen tier:A/B/C). Tier-filtrerade listor sorteras på score.',
+                    enum: ['A', 'B', 'C']
                 },
                 search: {
                     type: 'string',
@@ -151,7 +156,7 @@ export const ALEX_TOOLS: ToolDefinition[] = [
     },
     {
         name: 'get_contact',
-        description: 'Hämta en enskild kontakt med alla fält. Ange contact_id, eller sök med email/name.',
+        description: 'Hämta en enskild kontakt med alla fält (inkl. score, bokningsflöde, Instagram, adress, DM-hook) samt kontaktens opportunities med pipeline och stage. Ange contact_id, eller sök med email/name.',
         parameters: {
             type: 'object',
             properties: {
@@ -449,21 +454,34 @@ async function handleGetCustomerErrors(args: Record<string, unknown>): Promise<T
 
 async function handleListContacts(args: Record<string, unknown>): Promise<ToolResult> {
     const status = args.status as string | undefined;
+    const tier = args.tier ? String(args.tier).toUpperCase() : undefined;
     const search = args.search ? String(args.search).trim() : undefined;
     const limit = Math.min(parseInt(String(args.limit || '20'), 10) || 20, 100);
 
     let query = supabase
         .from('contacts')
-        .select('id, name, email, company, status, created_at')
+        .select('id, name, email, company, status, tags, custom, created_at')
         .order('created_at', { ascending: false })
         .limit(limit);
 
     if (status) query = query.eq('status', status);
+    if (tier) query = query.contains('tags', [`tier:${tier}`]);
     if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`);
 
     const { data, error } = await query;
     if (error) return { success: false, error: error.message };
-    return { success: true, data: { contacts: data, count: data?.length || 0 } };
+
+    const contacts = data ?? [];
+    if (tier) {
+        contacts.sort((a, b) => {
+            const scoreOf = (c: { custom?: unknown }) => {
+                const custom = c.custom as { score?: number } | null | undefined;
+                return typeof custom?.score === 'number' ? custom.score : -1;
+            };
+            return scoreOf(b) - scoreOf(a);
+        });
+    }
+    return { success: true, data: { contacts, count: contacts.length } };
 }
 
 async function handleGetContact(args: Record<string, unknown>): Promise<ToolResult> {
@@ -478,7 +496,14 @@ async function handleGetContact(args: Record<string, unknown>): Promise<ToolResu
     const { data, error } = await query.limit(1).maybeSingle();
     if (error) return { success: false, error: error.message };
     if (!data) return { success: false, error: 'Kontakt hittades inte' };
-    return { success: true, data };
+
+    const { data: opportunities, error: oppError } = await supabase
+        .from('opportunities')
+        .select('id, title, status, value_sek, stage:stages(name), pipeline:pipelines(name)')
+        .eq('contact_id', data.id);
+    if (oppError) return { success: false, error: oppError.message };
+
+    return { success: true, data: { ...data, opportunities: opportunities ?? [] } };
 }
 
 async function handleMoveOpportunity(args: Record<string, unknown>): Promise<ToolResult> {
@@ -613,15 +638,58 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
             return output.trim();
         }
         case 'list_contacts': {
-            const r = data as { contacts: Array<{ name: string | null; email: string | null; company: string | null; status: string }>; count: number };
+            const r = data as {
+                contacts: Array<{
+                    name: string | null;
+                    email: string | null;
+                    company: string | null;
+                    status: string;
+                    tags?: string[] | null;
+                    custom?: { score?: number; booking_flow?: string } | null;
+                }>;
+                count: number;
+            };
             if (r.count === 0) return 'Inga kontakter hittades.';
-            return `${r.count} kontakter:\n${r.contacts.map(c =>
-                `- ${c.name || '(namnlös)'}${c.company ? ` @ ${c.company}` : ''}${c.email ? ` <${c.email}>` : ''} [${c.status}]`
-            ).join('\n')}`;
+            return `${r.count} kontakter:\n${r.contacts.map(c => {
+                const tier = c.tags?.find(t => t.startsWith('tier:'))?.slice(5);
+                const extras = [
+                    typeof c.custom?.score === 'number' ? `score ${c.custom.score}` : null,
+                    tier ? `tier ${tier}` : null,
+                    c.custom?.booking_flow ? `bokning: ${c.custom.booking_flow}` : null,
+                ].filter(Boolean).join(', ');
+                return `- ${c.name || '(namnlös)'}${c.company ? ` @ ${c.company}` : ''}${c.email ? ` <${c.email}>` : ''} [${c.status}]${extras ? ` (${extras})` : ''}`;
+            }).join('\n')}`;
         }
         case 'get_contact': {
             const c = data as Record<string, unknown>;
-            return `Kontakt: ${c.name || '(namnlös)'}\nFöretag: ${c.company || '—'}\nE-post: ${c.email || '—'}\nTelefon: ${c.phone || '—'}\nStatus: ${c.status}`;
+            const custom = (c.custom ?? {}) as Record<string, unknown>;
+            const tags = Array.isArray(c.tags) ? (c.tags as string[]) : [];
+            const lines = [
+                `Kontakt: ${c.name || '(namnlös)'}`,
+                `Företag: ${c.company || '—'}`,
+                `E-post: ${c.email || custom.email || '—'}`,
+                `Telefon: ${c.phone || '—'}`,
+                `Status: ${c.status}`,
+            ];
+            if (tags.length > 0) lines.push(`Taggar: ${tags.join(', ')}`);
+            if (typeof custom.score === 'number') lines.push(`Score: ${custom.score}`);
+            if (custom.booking_flow) lines.push(`Bokningsflöde: ${custom.booking_flow}${custom.booking_flow_verified ? ` (verifierat ${custom.booking_flow_verified})` : ''}`);
+            if (custom.instagram) lines.push(`Instagram: @${custom.instagram}`);
+            if (c.website || custom.website) lines.push(`Webb: ${c.website || custom.website}`);
+            if (custom.address) lines.push(`Adress: ${custom.address}`);
+            if (custom.rating) lines.push(`Betyg: ${custom.rating} ★${custom.reviews ? ` (${custom.reviews} omdömen)` : ''}`);
+            if (custom.dm_hook) lines.push(`DM-hook: ${custom.dm_hook}${custom.dm_hook_source ? ` (källa: ${custom.dm_hook_source})` : ''}`);
+            const opps = Array.isArray(c.opportunities) ? (c.opportunities as Array<Record<string, unknown>>) : [];
+            if (opps.length > 0) {
+                lines.push('Pipeline-läge:');
+                for (const o of opps) {
+                    const stageName = (o.stage as { name?: string } | null)?.name ?? 'okänd stage';
+                    const pipelineName = (o.pipeline as { name?: string } | null)?.name ?? 'okänd pipeline';
+                    const value = typeof o.value_sek === 'number' ? ` — ${o.value_sek.toLocaleString('sv-SE')} kr` : '';
+                    lines.push(`- ${o.title} [${o.status}]: ${pipelineName} → ${stageName}${value}`);
+                }
+            }
+            return lines.join('\n');
         }
         case 'move_opportunity': {
             const o = data as { title: string; stage_name: string };
