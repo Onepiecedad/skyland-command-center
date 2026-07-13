@@ -1,18 +1,22 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-07-12
+> Senast uppdaterad: 2026-07-13
 
 > ## 🧭 BÖRJA HÄR (nuläge, läs först)
-> Ny session? Läs dessa två i ordning innan du gör något:
-> 1. `docs/HANDOVER-CRM-F1-och-leadlista.md` — senaste läget: F1 CRM-kärnan levererad,
->    affärsmodellen (kursen/MEXPAND), lead-listans status, GHL-läget, öppna beslut.
-> 2. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
+> Ny session? Läs dessa i ordning innan du gör något:
+> 1. `docs/HANDOVER_2026-07-13.md` — SENASTE läget: prospekterings-pipeline + 37 scorade
+>    tatuerar-leads, CRM-kort med score/IG/filter, GHL-MCP-verifiering.
+> 2. `docs/HANDOVER-CRM-F1-och-leadlista.md` — bakgrund: F1 CRM-kärnan, affärsmodellen
+>    (kursen/MEXPAND), GHL-strategin, öppna beslut.
+> 3. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
 >
-> **Var vi står (2026-07-12):** F1 CRM-kärnan är byggd, testad, committad och körd skarpt
-> mot Supabase `wfwqjxsuvbacvcmpiesl`. Nästa planerade block är **F2** (utgående e-post/SMS +
-> kalender/bokning). **Pågående sidospår:** bygga en ~100-lead-lista (tatuerare + liknande
-> lokala i Mölndal/Göteborg) via Google Maps — öppet beslut: landa i både SCC contacts och GHL.
+> **Var vi står (2026-07-13):** F1 CRM-kärnan levererad. Ovanpå den finns nu ett **prospekterings-spår**
+> för Joakims egen kundanskaffning: ny pipeline **"Prospecting (Agency)"** (8 stages) med **37 riktiga
+> tatuerarstudior** (Göteborg + Mölndal) inlagda som contacts + opportunities, berikade (IG/mail/webb)
+> och **scorade** (score/tier/booking_flow i `contacts.custom`). CRM-korten visar score/IG/kanal och
+> har sort/filter (commits `bb3aa99`, `4d81b4c`, pushade). Nästa: DM-outreach till tier A, ev. skala
+> listan mot ~100. Parallellt kvarstår **F2** (utgående e-post/SMS + kalender/bokning).
 >
 > **Att veta:** externa kopplingar (Supabase-MCP, GHL LeadConnector-MCP, ev. Chrome) måste
 > anslutas per session. Git i den mountade `.git` tillåter inte `unlink` — flytta undan

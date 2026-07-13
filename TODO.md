@@ -5,6 +5,15 @@
 - [ ] **RLS avstängt** på alla kärntabeller (inkl. nya `contacts`). Aktivera RLS + skriv policies. Aktivera INTE utan policies — låser all åtkomst.
 - [ ] **Frontend-token-läcka:** `VITE_SCC_API_TOKEN` + `VITE_GATEWAY_TOKEN` bakas in i bundlen. Ersätt med riktig användarauth.
 
+## Prospektering (Joakims egen kundanskaffning — pågår)
+
+- [x] Pipeline "Prospecting (Agency)" + 37 tatuerar-leads inlagda, berikade & scorade (2026-07-13).
+- [x] CRM-kort visar score/IG/kanal + sort/filter på tier.
+- [ ] **DM-öppningsrader för tier A** (7 studior) — nästa steg för outreach.
+- [ ] Skala listan mot ~100 (fler Göteborgs-områden/angränsande orter) — valfritt.
+- [ ] Verifiera de ~12 JS-renderade sajternas bokningsflöde (nu default `form`) om exaktheten behövs.
+- [ ] Outreach-modul: IG DM som huvudkanal (tatuerare bokar via DM, inte mail).
+
 ## Roadmap (från GHL-analysen)
 
 - [ ] **F2:** utgående e-post (Resend/Postmark), SMS (46elks), kalender/bokning. Se `docs/HANDOVER-CRM-F1-och-leadlista.md`.

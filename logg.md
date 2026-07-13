@@ -1916,4 +1916,36 @@ npx tsc --noEmit  # ✅ 0 fel
 
 **Nästa:** F2 (utgående e-post/SMS + kalender/bokning). Öppen skuld: RLS av, frontend-token-läcka.
 
-*Senast uppdaterad: 2026-07-12*
+---
+
+## 2026-07-13 — Prospekterings-spår: 37 scorade tatuerar-leads + CRM-kort
+
+Byggt Joakims **egna kundanskaffnings-lager** ovanpå F1-CRM:t (mål: boka säljmöten med tatuerarstudior).
+
+**Data (skarpt i Supabase `wfwqjxsuvbacvcmpiesl`):**
+- Ny pipeline **"Prospecting (Agency)"** (`customer_id=null`), 8 stages: New Prospect → Qualified →
+  Outreach Ready → Contacted → Replied → Meeting Booked → Won → No Fit.
+- **37 riktiga tatuerarstudior** (32 Göteborg + 5 Mölndal) skrapade via Google Maps (Chrome-MCP),
+  inlagda som `contacts` (source `google_maps`) + en `opportunity` var i New Prospect.
+- Berikade via websök: **36 IG, 21 webb, 16 mail, 31 telefon**. Lagrat i `contacts.custom`
+  (`instagram`, `email`, `website`, `rating`, `reviews`, `niche`, `area`).
+- **Scoring** (`custom.score` + `tier:A/B/C`-tagg): volym (omdömen) + kvalitet (betyg) +
+  bokningsflöde (`custom.booking_flow`: manual 50 / form 35 / online 12). Sajter kollade individuellt —
+  **ingen studio har riktig online-bokning** (allt DM/telefon/formulär), vilket stärker pitchen.
+  Topp (tier A): TELLO 98, Ink Brothers 95, Rita Simonn 95, Unikum 93, Crazy Colour 93, Skindiver 87, Ivory Tower 87.
+- CSV-backup: `ai-agency-course-extract/leads-prospecting-batch1.csv`.
+
+**Frontend (commits `bb3aa99`, `4d81b4c` — pushade):**
+- `pipelines.ts` board-endpoint skickar nu med `contact.custom/phone/tags`.
+- `PipelineBoard.tsx`: kort visar score-badge (färg per tier), `@instagram`, betyg/omdömen,
+  bokningsflöde + kanal. Ny toolbar: sortera på score + filtrera på tier (A/B/C).
+- `api.ts`: typade `ContactCustom` + `OpportunityContact`. `tsc --noEmit` grönt i båda projekten.
+
+**GHL-MCP (verifierat mot officiell doc):** endpoint `https://services.leadconnectorhq.com/mcp/`,
+auth via Private Integration Token (header) + `locationId`. 36 verktyg. Write finns för **data**
+(kontakter, tags, opportunities, meddelanden) men **inte struktur** (pipelines/fält/workflows/kalender).
+Claude Desktop kan behöva npx-wrapper/n8n då den rena HTTP-endpointen inte alltid stöds.
+
+**Nästa:** DM-öppningsrader för tier A; ev. skala listan mot ~100; F2 kvarstår.
+
+*Senast uppdaterad: 2026-07-13*
