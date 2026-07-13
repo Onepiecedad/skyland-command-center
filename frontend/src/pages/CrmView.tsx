@@ -1,7 +1,20 @@
 import { useEffect, useState } from 'react';
-import { fetchPipelines, type Pipeline } from '../api';
+import { fetchPipelines, type Pipeline, type Opportunity } from '../api';
 import PipelineBoard from '../components/PipelineBoard';
 import ConversationInbox from '../components/ConversationInbox';
+import ContactDetail from '../components/ContactDetail';
+
+function tabBtn(active: boolean): React.CSSProperties {
+    return {
+        fontSize: 12,
+        padding: '4px 12px',
+        borderRadius: 8,
+        cursor: 'pointer',
+        border: '1px solid rgba(255,255,255,0.14)',
+        background: active ? 'rgba(120,180,255,0.22)' : 'rgba(255,255,255,0.05)',
+        color: 'inherit',
+    };
+}
 
 /**
  * CrmView (F1) — säljtratt + unified inbox.
@@ -13,7 +26,8 @@ export default function CrmView() {
     const [activeId, setActiveId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selected, setSelected] = useState<{ contactId: string; title: string } | null>(null);
+    const [selected, setSelected] = useState<Opportunity | null>(null);
+    const [detailTab, setDetailTab] = useState<'detail' | 'inbox'>('detail');
 
     useEffect(() => {
         (async () => {
@@ -59,16 +73,25 @@ export default function CrmView() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <PipelineBoard
                             pipelineId={activeId}
-                            onSelectContact={(contactId, title) => setSelected({ contactId, title })}
+                            onSelectContact={(opp) => { setSelected(opp); setDetailTab('detail'); }}
                         />
                     </div>
-                    {selected && (
-                        <div style={{ flex: '0 0 380px', height: '70vh', position: 'sticky', top: 16 }}>
-                            <ConversationInbox
-                                contactId={selected.contactId}
-                                title={selected.title}
-                                onClose={() => setSelected(null)}
-                            />
+                    {selected && selected.contact && (
+                        <div style={{ flex: '0 0 400px', position: 'sticky', top: 16 }}>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                                <button onClick={() => setDetailTab('detail')} style={tabBtn(detailTab === 'detail')}>Detaljer</button>
+                                <button onClick={() => setDetailTab('inbox')} style={tabBtn(detailTab === 'inbox')}>Konversation</button>
+                                <button
+                                    onClick={() => setSelected(null)}
+                                    style={{ marginLeft: 'auto', ...tabBtn(false), padding: '4px 10px' }}
+                                    aria-label="Stäng"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            {detailTab === 'detail'
+                                ? <ContactDetail opportunity={selected} />
+                                : <ConversationInbox contactId={selected.contact.id} title={selected.title} />}
                         </div>
                     )}
                 </div>

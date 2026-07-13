@@ -10,7 +10,7 @@ import { fetchBoard, moveOpportunity, type BoardColumn, type Opportunity } from 
 
 interface PipelineBoardProps {
     pipelineId: string;
-    onSelectContact?: (contactId: string, title: string) => void;
+    onSelectContact?: (opportunity: Opportunity) => void;
 }
 
 const glassCol: React.CSSProperties = {
@@ -166,7 +166,7 @@ export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProp
                             key={opp.id}
                             draggable
                             onDragStart={() => setDragId(opp.id)}
-                            onClick={() => opp.contact?.id && onSelectContact?.(opp.contact.id, opp.title)}
+                            onClick={() => opp.contact?.id && onSelectContact?.(opp)}
                             style={{
                                 background: 'rgba(255,255,255,0.06)',
                                 border: '1px solid rgba(255,255,255,0.10)',
