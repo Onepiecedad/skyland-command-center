@@ -1085,6 +1085,7 @@ export interface ContactCustom {
     email?: string | null;
     website?: string | null;
     booking_flow?: 'manual' | 'form' | 'online';
+    address?: string | null;
     rating?: string | null;
     reviews?: string | null;
     niche?: string | null;

@@ -202,6 +202,18 @@ export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProp
                                     <span>{opp.contact?.email ? 'email + IG DM' : 'IG DM'}</span>
                                 </div>
                             )}
+                            {opp.contact?.custom?.address && (
+                                <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }} onClick={(e) => e.stopPropagation()}>
+                                    <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(opp.contact.custom.address)}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={cardLink}
+                                    >
+                                        📍 {opp.contact.custom.address}
+                                    </a>
+                                </div>
+                            )}
                             {(opp.contact?.phone || opp.contact?.email || opp.contact?.custom?.website || opp.contact?.custom?.instagram) && (
                                 <div
                                     style={{ fontSize: 11, marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}
