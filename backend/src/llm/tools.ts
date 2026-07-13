@@ -167,6 +167,32 @@ export const ALEX_TOOLS: ToolDefinition[] = [
         }
     },
     {
+        name: 'list_opportunities',
+        description: 'Lista opportunities i en pipeline, t.ex. alla prospekt i en viss stage. Filtrera på pipeline-namn (t.ex. "Prospecting"), stage-namn (t.ex. "Contacted") och status. Returnerar kontaktnamn, score och stage per opportunity.',
+        parameters: {
+            type: 'object',
+            properties: {
+                pipeline: {
+                    type: 'string',
+                    description: 'Pipeline-namn, delmatchning räcker (t.ex. "Prospecting" eller "Sales")'
+                },
+                stage: {
+                    type: 'string',
+                    description: 'Stage-namn, delmatchning räcker (t.ex. "Contacted", "Meeting Booked")'
+                },
+                status: {
+                    type: 'string',
+                    description: 'Filtrera på status (default: alla)',
+                    enum: ['open', 'won', 'lost']
+                },
+                limit: {
+                    type: 'string',
+                    description: 'Max antal (default: 50, max: 100)'
+                }
+            }
+        }
+    },
+    {
         name: 'move_opportunity',
         description: 'Flytta en opportunity till en annan stage i pipelinen. Detta är en kund-påverkande skrivning och loggas som activity. Ange opportunity_id och stage_id.',
         parameters: {
@@ -230,6 +256,8 @@ export async function executeToolCall(
                 return await handleListContacts(args);
             case 'get_contact':
                 return await handleGetContact(args);
+            case 'list_opportunities':
+                return await handleListOpportunities(args);
             case 'move_opportunity':
                 return await handleMoveOpportunity(args);
             case 'log_interaction':
@@ -506,6 +534,59 @@ async function handleGetContact(args: Record<string, unknown>): Promise<ToolResu
     return { success: true, data: { ...data, opportunities: opportunities ?? [] } };
 }
 
+async function handleListOpportunities(args: Record<string, unknown>): Promise<ToolResult> {
+    const pipeline = args.pipeline ? String(args.pipeline).trim() : undefined;
+    const stage = args.stage ? String(args.stage).trim() : undefined;
+    const status = args.status as string | undefined;
+    const limit = Math.min(parseInt(String(args.limit || '50'), 10) || 50, 100);
+
+    let pipelineId: string | undefined;
+    if (pipeline) {
+        const { data: p, error: pError } = await supabase
+            .from('pipelines')
+            .select('id, name')
+            .ilike('name', `%${pipeline}%`)
+            .limit(1)
+            .maybeSingle();
+        if (pError) return { success: false, error: pError.message };
+        if (!p) return { success: false, error: `Hittade ingen pipeline som matchar "${pipeline}"` };
+        pipelineId = p.id;
+    }
+
+    let stageIds: string[] | undefined;
+    if (stage) {
+        let stageQuery = supabase.from('stages').select('id, name').ilike('name', `%${stage}%`);
+        if (pipelineId) stageQuery = stageQuery.eq('pipeline_id', pipelineId);
+        const { data: stages, error: sError } = await stageQuery;
+        if (sError) return { success: false, error: sError.message };
+        if (!stages || stages.length === 0) return { success: false, error: `Hittade ingen stage som matchar "${stage}"` };
+        stageIds = stages.map(s => s.id);
+    }
+
+    let query = supabase
+        .from('opportunities')
+        .select('id, title, status, value_sek, created_at, stage:stages(name), pipeline:pipelines(name), contact:contacts(id, name, tags, custom)')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+    if (pipelineId) query = query.eq('pipeline_id', pipelineId);
+    if (stageIds) query = query.in('stage_id', stageIds);
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
+
+    const opportunities = (data ?? []).sort((a, b) => {
+        const scoreOf = (o: { contact?: unknown }) => {
+            const contact = o.contact as { custom?: { score?: number } | null } | null | undefined;
+            return typeof contact?.custom?.score === 'number' ? contact.custom.score : -1;
+        };
+        return scoreOf(b) - scoreOf(a);
+    });
+
+    return { success: true, data: { opportunities, count: opportunities.length } };
+}
+
 async function handleMoveOpportunity(args: Record<string, unknown>): Promise<ToolResult> {
     const { opportunity_id, stage_id } = args;
     if (!opportunity_id || !stage_id) {
@@ -690,6 +771,30 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
                 }
             }
             return lines.join('\n');
+        }
+        case 'list_opportunities': {
+            const r = data as {
+                opportunities: Array<{
+                    id: string;
+                    title: string;
+                    status: string;
+                    value_sek: number | null;
+                    stage?: { name?: string } | null;
+                    pipeline?: { name?: string } | null;
+                    contact?: { name?: string | null; tags?: string[] | null; custom?: { score?: number; booking_flow?: string } | null } | null;
+                }>;
+                count: number;
+            };
+            if (r.count === 0) return 'Inga opportunities hittades.';
+            return `${r.count} opportunities:\n${r.opportunities.map(o => {
+                const tier = o.contact?.tags?.find(t => t.startsWith('tier:'))?.slice(5);
+                const extras = [
+                    typeof o.contact?.custom?.score === 'number' ? `score ${o.contact.custom.score}` : null,
+                    tier ? `tier ${tier}` : null,
+                    typeof o.value_sek === 'number' ? `${o.value_sek.toLocaleString('sv-SE')} kr` : null,
+                ].filter(Boolean).join(', ');
+                return `- ${o.title} [${o.status}] — ${o.pipeline?.name ?? '?'} → ${o.stage?.name ?? '?'}${extras ? ` (${extras})` : ''} (opportunity_id: ${o.id})`;
+            }).join('\n')}`;
         }
         case 'move_opportunity': {
             const o = data as { title: string; stage_name: string };
