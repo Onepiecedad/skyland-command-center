@@ -1,5 +1,7 @@
 // API wrapper for Skyland Command Center
-export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001/api/v1';
+// Fallback är RELATIV (samma origin) — SPA:n serveras av backend i prod (SCC-36).
+// Lokal dev sätter VITE_API_BASE i frontend/.env (pekar på prod eller localhost:3001).
+export const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
 const SCC_API_TOKEN = import.meta.env.VITE_SCC_API_TOKEN || '';
 
 /**
