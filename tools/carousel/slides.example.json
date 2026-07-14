@@ -1,0 +1,57 @@
+{
+  "brand": "SKYLAND",
+  "footerDefault": "SKYLAND AI · GÖTEBORG / MÖLNDAL",
+  "slides": [
+    {
+      "blocks": [
+        { "kind": "kicker", "text": "21:47", "color": "orange" },
+        { "kind": "headline", "text": "Kunden skrev\ntill dig\nkl ~21:47~." },
+        { "kind": "sub", "text": "Du svarade\ndagen efter." },
+        { "kind": "note", "text": "Då hade hon redan bokat\nnågon annan." }
+      ]
+    },
+    {
+      "blocks": [
+        { "kind": "kicker", "text": "SÅ HÄR SER DET UT — VARJE VECKA", "color": "gray" },
+        { "kind": "card", "header": "NYTT MEDDELANDE · 21:47", "text": "\"Hej! Har ni tid för en liten tatuering nästa vecka?\"" },
+        { "kind": "headline", "size": "m", "text": "Du sitter mitt i en\nsittning. Eller så sover du." },
+        { "kind": "note", "text": "Helt rimligt.", "italic": true, "color": "gray" }
+      ]
+    },
+    {
+      "blocks": [
+        { "kind": "sub", "text": "Men här är grejen\ningen berättar:" },
+        { "kind": "headline", "text": "Hon skrev inte\nbara till dig." },
+        { "kind": "pills", "items": ["STUDIO A", "DU", "STUDIO C"], "active": 1 },
+        { "kind": "note", "text": "Den som svarar först\nvinner bokningen. ~Nästan alltid.~" }
+      ]
+    },
+    {
+      "blocks": [
+        { "kind": "sub", "size": "s", "text": "Ett missat DM är inte\n\"ett missat meddelande\"." },
+        { "kind": "headline", "size": "m", "text": "Det är en bokad stol\ndu aldrig fick." },
+        { "kind": "calc", "text": "10 MISSADE DM × 2 000 KR" },
+        { "kind": "bignumber", "text": "20 000", "suffix": "kr" },
+        { "kind": "note", "text": "I månaden. Ut genom fönstret." },
+        { "kind": "sub", "size": "s", "text": "Det är inte småpengar. Det är en hyra." }
+      ]
+    },
+    {
+      "blocks": [
+        { "kind": "kicker", "text": "OCH NEJ —", "color": "orange" },
+        { "kind": "headline", "text": "Det är inte för\natt du är slarvig." },
+        { "kind": "sub", "text": "Du blev tatuerare\nför att *tatuera*. Inte för att sitta\nsom kundtjänst mellan\nvarje nål." },
+        { "kind": "quote", "lead": "Problemet är inte du.", "text": "Det är att svaret måste komma direkt — och du kan inte vara på två ställen." }
+      ]
+    },
+    {
+      "blocks": [
+        { "kind": "headline", "size": "m", "text": "Tänk om varje\nsådant DM fick svar\ninom ~minuter~." },
+        { "kind": "sub", "text": "Dygnet runt. Utan att du\nlyfte ett finger." },
+        { "kind": "note", "text": "Det är precis det jag bygger\nåt studios här i Göteborg." },
+        { "kind": "cta", "text": "Skriv \"stol\" i en DM →" },
+        { "kind": "footer", "text": "SKYLAND AI · GÖTEBORG / MÖLNDAL" }
+      ]
+    }
+  ]
+}
