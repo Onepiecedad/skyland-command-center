@@ -3,6 +3,8 @@
  * Ticket 21 - Alex AI Integration
  */
 
+import { VOICE_PROFILE } from './voiceProfile';
+
 // Customer info type (loaded from DB at runtime)
 export interface CustomerInfo {
     id: string;
@@ -63,7 +65,9 @@ EXECUTOR-TYPER:
 - n8n:research - för research-tasks som körs via n8n
 - claw:research - för research-tasks som körs via OpenClaw
 - n8n:content - för content-generering via n8n
-- local:echo - för test-tasks (endast eko av input)`;
+- local:echo - för test-tasks (endast eko av input)
+
+${VOICE_PROFILE}`;
 }
 
 /**
