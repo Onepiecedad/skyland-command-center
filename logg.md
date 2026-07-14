@@ -1949,3 +1949,44 @@ Claude Desktop kan behöva npx-wrapper/n8n då den rena HTTP-endpointen inte all
 **Nästa:** DM-öppningsrader för tier A; ev. skala listan mot ~100; F2 kvarstår.
 
 *Senast uppdaterad: 2026-07-13*
+
+---
+
+## 2026-07-14 — Produktionsdag: deploy, F2-start, DM-motor live, första utskicken
+
+Den dag SCC gick från laptop-tunnel till produktionssystem, och det första riktiga
+säljutskicket lämnade huset.
+
+**Deploy & infrastruktur (F2 påbörjad):**
+- **SCC live på Render** (`scc.skylandai.se`, Frankfurt, Starter, Docker). ngrok avvecklad,
+  n8n Notify-URL cutad över, lead-intake verifierat i produktion. `RENDER_DEPLOY.md`.
+- **E-postinfra:** Resend + `send.skylandai.se` (SPF/DKIM/DMARC verifierade). `EMAIL_INFRA.md`.
+- **SCC-30 outbound e-post:** messages-migration, Resend-adapter, `comms:email`-executor med
+  kill switch + dagsbudget. **Första testmailet skickat genom approve-flödet.**
+- **SCC-36 auth:** operatörslogin med httpOnly-sessioncookie (inga tokens i bundlen).
+- **SCC-38:** backend-Alex-fallback i Alex-fliken när OpenClaw-gatewayen inte nås (server-chatt
+  med CRM-verktyg → Alex funkar på live-URL/mobil).
+- **SCC-39:** DB-baserat arkiv — deliverables flyttade från disk till Supabase (14 migrerade),
+  POST-endpoint för framtida research-flöde.
+
+**Alex CRM-verktyg utökade:** full läsning (score/tier/hooks/adress + pipeline-läge),
+`list_opportunities`, `update_contact`. Adress på korten (Maps-länk).
+
+**Röst & innehåll:**
+- **Röstprofil** (`VOICE_JOAKIM.md`) skapad av Joakim, injicerad i Alex systemprompt —
+  ALL utåtriktad text genereras nu i hans ton. Alla 7 DM omskrivna mot profilen.
+- **Karusellgenerator** (`tools/carousel`): JSON-copy → IG-klara PNG:er i Skyland-designen.
+
+**Instagram DM-automation (LIVE):** Meta-app "Skyland DM" + n8n-workflow `ig-dm-autosvar`.
+Autosvar på nyckelord ("stol"/"vecka") i BÅDE DM och kommentarer (comment-to-DM). Testat
+end-to-end — svar levereras på sekunder. Samma MEXPAND-motor Skyland säljer, körande på egna
+kontot. `IG_DM_AUTOMATION.md`.
+
+**MILSTOLPE — första utskicken:** de 4 tier A-studiorna kontaktade via IG DM
+(Rita Simonn 95, Crazy Colour 93, Skindiver 87, Ivory Tower 87). Flyttade till "Contacted".
+Detta är prospekterings-spårets första riktiga steg mot första betalande kund.
+
+**Kvar/nästa:** token-refresh IG (~12 sep), koppla IG-DM → SCC-intake (contact i CRM),
+svara på tier A-svar + boka möte, SCC-31 SMS, säkerhetsskuld (RLS) före extern kunddata.
+
+*Senast uppdaterad: 2026-07-14*
