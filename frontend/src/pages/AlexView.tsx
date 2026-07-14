@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
-import { fetchWithAuth } from '../api';
+import { API_BASE, fetchWithAuth } from '../api';
+import { BackendAlexChat } from '../components/BackendAlexChat';
 import {
   MessageCircle,
   ListTodo,
@@ -84,9 +85,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 type SourceFilter = 'all' | 'skills' | 'agents' | 'mcp';
 
-const SKILLS_API = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1/skills`
-  : 'http://localhost:3001/api/v1/skills';
+// SCC-38: alltid via API_BASE (relativ i prod) + auth — aldrig hårdkodad localhost.
+const SKILLS_API = `${API_BASE}/skills`;
 
 export default function AlexView() {
   const [activeTab, setActiveTab] = useState<SidebarTab>('chat');
@@ -108,9 +108,19 @@ export default function AlexView() {
   /* ─── Gateway (lifted so sidebar threads can share state) ─── */
   const gateway = useGateway('agent:skyland:main');
 
+  /* ─── SCC-38: backend-Alex-fallback när gatewayen inte nås ───
+     Gatewayen bor på operatörens dator; från scc.skylandai.se/mobil finns den inte.
+     Efter en kort grace-period växlar chatten till serverside-Alex (/api/v1/chat). */
+  const [gatewayGraceOver, setGatewayGraceOver] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setGatewayGraceOver(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
+  const useBackendAlex = gateway.status !== 'connected' && gatewayGraceOver;
+
   /* ─── Fetch real skills from backend ─── */
   useEffect(() => {
-    fetch(SKILLS_API)
+    fetchWithAuth(SKILLS_API)
       .then(r => r.json())
       .then(data => setSkills(data.skills || []))
       .catch(err => console.error('Failed to fetch skills:', err));
@@ -211,7 +221,13 @@ export default function AlexView() {
           <div className="alex-profile-stats">
             <div className="alex-stat">
               <Activity size={10} />
-              <span>{gateway.status === 'connected' ? 'Online' : 'Offline'}</span>
+              <span>
+                {gateway.status === 'connected'
+                  ? 'Online'
+                  : useBackendAlex
+                    ? 'Online (server)'
+                    : 'Offline'}
+              </span>
             </div>
             <div className="alex-stat">
               <Layers size={10} />
@@ -331,7 +347,9 @@ export default function AlexView() {
       {/* ─── Main Content Area ─── */}
       <section className="alex-content">
         {activeTab === 'chat' && (
-          <AlexChat onTaskCreated={handleTaskCreated} gateway={gateway} />
+          useBackendAlex
+            ? <BackendAlexChat />
+            : <AlexChat onTaskCreated={handleTaskCreated} gateway={gateway} />
         )}
 
         {activeTab === 'tasks' && (
