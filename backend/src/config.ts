@@ -61,6 +61,17 @@ const envSchema = z.object({
     CALCOM_EVENT_TYPE_ID: z.coerce.number().optional(),
     CALCOM_API_BASE_URL: z.string().default('https://api.cal.com/v2'),
 
+    // --- Outbound e-post (SCC-30) ---
+    EMAIL_PROVIDER: z.enum(['resend']).default('resend'),
+    RESEND_API_KEY: z.string().optional(),
+    EMAIL_FROM: z.string().optional(),
+    EMAIL_REPLY_TO: z.string().optional(),
+    OUTBOUND_ENABLED: z
+        .string()
+        .default('false')
+        .transform((v) => v === 'true'),
+    OUTBOUND_DAILY_LIMIT: z.coerce.number().default(5),
+
     // --- Rate limiting ---
     CLAW_MAX_CONCURRENT_PER_CUSTOMER: z.coerce.number().default(3),
     CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER: z.coerce.number().default(20),

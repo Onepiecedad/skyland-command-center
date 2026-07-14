@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { config } from '../config';
 import { logger } from './logger';
+import { executeCommsEmail } from './comms';
 
 // ============================================================================
 // Rate limit configuration (Ticket 20)
@@ -469,6 +470,58 @@ export async function dispatchTask(taskId: string, workerId: string): Promise<Di
         await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_completed', 'info', {
             executor,
             duration_ms: Date.now() - new Date(run.started_at).getTime()
+        });
+
+        return { success: true, task: finalTask || updatedTask, run: { ...run, status: 'completed', output: result.output } };
+
+    } else if (executor.startsWith('comms:email')) {
+        // SCC-30: synkron utskicks-executor. Körs ENDAST för godkända tasks
+        // (dispatch nås inte utan approve). Kill switch + budget i executeCommsEmail.
+        const result = await executeCommsEmail(task, run.id);
+
+        if (!result.success) {
+            await supabase
+                .from('task_runs')
+                .update({
+                    status: 'failed',
+                    error: { code: 'comms_email_failed', message: result.error },
+                    ended_at: new Date().toISOString()
+                })
+                .eq('id', run.id);
+
+            await supabase
+                .from('tasks')
+                .update({ status: 'failed' })
+                .eq('id', taskId);
+
+            await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_failed', 'error', {
+                executor,
+                error: result.error
+            });
+
+            return { success: false, task: { ...updatedTask, status: 'failed' }, run: { ...run, status: 'failed', error: result.error }, error: result.error };
+        }
+
+        await supabase
+            .from('task_runs')
+            .update({
+                status: 'completed',
+                output: result.output,
+                ended_at: new Date().toISOString()
+            })
+            .eq('id', run.id);
+
+        const { data: finalTask } = await supabase
+            .from('tasks')
+            .update({ status: 'completed', output: result.output })
+            .eq('id', taskId)
+            .select()
+            .single();
+
+        await logTaskRunActivity(task.customer_id, taskId, run.id, 'run_completed', 'info', {
+            executor,
+            duration_ms: Date.now() - new Date(run.started_at).getTime(),
+            ...result.output
         });
 
         return { success: true, task: finalTask || updatedTask, run: { ...run, status: 'completed', output: result.output } };
