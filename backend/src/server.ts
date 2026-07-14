@@ -35,6 +35,7 @@ import contextDataRouter from './routes/contextData.js';
 import toolCallsRouter from './routes/toolCalls.js';
 import eventStreamRouter from './routes/eventStream.js';
 import dispatchRouter from './routes/dispatch.js';
+import authRouter from './routes/auth.js';
 import progressRouter from './routes/progress.js';
 import reportsRouter from './routes/reports.js';
 import errorRecoveryRouter from './routes/errorRecovery.js';
@@ -173,6 +174,11 @@ class Server {
     // Frontend sends Bearer VITE_SCC_API_TOKEN (api.ts), SSE uses ?token=.
     // ================================================================
     this.app.use(globalLimiter);
+
+    // SCC-36: operatörslogin — login/logout öppna, /me kollar själv.
+    // EFTER globalLimiter (rate limit på login-försök), FÖRE authMiddleware.
+    this.app.use('/api/v1/auth', authRouter);
+
     this.app.use('/api/v1', authMiddleware);
 
     // ================================================================

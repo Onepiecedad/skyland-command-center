@@ -61,6 +61,10 @@ const envSchema = z.object({
     CALCOM_EVENT_TYPE_ID: z.coerce.number().optional(),
     CALCOM_API_BASE_URL: z.string().default('https://api.cal.com/v2'),
 
+    // --- Operatörslogin (SCC-36) ---
+    OPERATOR_PASSWORD: z.string().optional(),
+    AUTH_SESSION_SECRET: z.string().optional(),
+
     // --- Outbound e-post (SCC-30) ---
     EMAIL_PROVIDER: z.enum(['resend']).default('resend'),
     RESEND_API_KEY: z.string().optional(),

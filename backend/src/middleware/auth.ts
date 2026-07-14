@@ -1,12 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config';
+import { COOKIE_NAME, parseCookie, verifySessionToken } from '../services/session';
 
 const SCC_API_TOKEN = config.SCC_API_TOKEN;
 
 /**
- * Bearer token authentication middleware.
- * Validates `Authorization: Bearer <token>` against SCC_API_TOKEN.
- * Also accepts `?token=<token>` query param for EventSource/SSE connections.
+ * Authentication middleware. Accepts EITHER:
+ *  1. `Authorization: Bearer <SCC_API_TOKEN>` (integrationer, lokal dev)
+ *  2. `?token=<SCC_API_TOKEN>` query param (SSE/EventSource)
+ *  3. httpOnly-sessioncookie från operatörslogin (SCC-36)
  */
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
     const header = req.headers.authorization;
@@ -26,8 +28,15 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
         token = queryToken;
     }
 
+    // SCC-36: sessioncookie som tredje väg (endast när ingen token skickats)
     if (!token) {
-        res.status(401).json({ error: 'Missing Authorization header or token query parameter' });
+        const cookieHeader = req.headers.cookie;
+        const session = cookieHeader ? parseCookie(cookieHeader, COOKIE_NAME) : null;
+        if (session && verifySessionToken(session)) {
+            next();
+            return;
+        }
+        res.status(401).json({ error: 'Missing Authorization header, token query parameter or session cookie' });
         return;
     }
 

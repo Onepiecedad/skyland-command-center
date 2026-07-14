@@ -11,7 +11,47 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
     if (SCC_API_TOKEN) {
         headers.set('Authorization', `Bearer ${SCC_API_TOKEN}`);
     }
-    return fetch(url, { ...options, headers });
+    // SCC-36: same-origin skickar sessioncookien automatiskt — explicit för tydlighet.
+    return fetch(url, { ...options, headers, credentials: 'same-origin' });
+}
+
+// ============================================================================
+// SCC-36 — Operatörslogin (httpOnly-sessioncookie; inga tokens i JS)
+// ============================================================================
+
+/** Är anropet autentiserat (via VITE-token i dev eller sessioncookie i prod)? */
+export async function checkAuth(): Promise<boolean> {
+    try {
+        const res = await fetchWithAuth(`${API_BASE}/auth/me`);
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
+/** Loggar in med operatörslösenord. Backend sätter httpOnly-cookien. */
+export async function login(password: string): Promise<{ ok: boolean; error?: string }> {
+    try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ password }),
+        });
+        if (res.ok) return { ok: true };
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        return { ok: false, error: body?.error || `Login misslyckades (${res.status})` };
+    } catch {
+        return { ok: false, error: 'Kunde inte nå servern' };
+    }
+}
+
+export async function logout(): Promise<void> {
+    try {
+        await fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'same-origin' });
+    } catch {
+        // cookie rensas server-side; tyst fel är ok
+    }
 }
 
 /**

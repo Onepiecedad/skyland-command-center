@@ -15,6 +15,8 @@ import ArchiveView from './pages/ArchiveView';
 import LeadsView from './pages/LeadsView';
 import CrmView from './pages/CrmView';
 import WebsiteView from './pages/WebsiteView';
+import { LoginView } from './components/LoginView';
+import { checkAuth } from './api';
 import './styles/index.css';
 
 type View = 'alex' | 'customers' | 'leads' | 'crm' | 'website' | 'system' | 'skills' | 'voicechat' | 'office' | 'archive';
@@ -69,6 +71,12 @@ function App() {
   const [currentView, setCurrentView] = useState<View>('alex');
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // SCC-36: auth-gate — 'checking' tills /auth/me svarat, sen 'yes'/'no'.
+  const [authState, setAuthState] = useState<'checking' | 'yes' | 'no'>('checking');
+  useEffect(() => {
+    checkAuth().then((ok) => setAuthState(ok ? 'yes' : 'no'));
+  }, []);
+
   const handleViewChange = useCallback((key: string) => {
     setCurrentView(key as View);
   }, []);
@@ -107,6 +115,14 @@ function App() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [handleViewChange]);
+
+  // SCC-36: auth-gate före allt annat
+  if (authState === 'checking') {
+    return null;
+  }
+  if (authState === 'no') {
+    return <LoginView onSuccess={() => setAuthState('yes')} />;
+  }
 
   return (
     <>
