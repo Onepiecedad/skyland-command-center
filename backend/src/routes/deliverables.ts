@@ -1,137 +1,177 @@
 import { Router, Request, Response } from 'express';
-import * as fs from 'fs';
-import * as path from 'path';
+import { supabase } from '../services/supabase';
 
 const router = Router();
 
-// The deterministic deliverables archive built by the lead pipeline / Alex.
-// Canonical store: ${OPENCLAW_WORKSPACE}/archive (default ~/clawd/archive).
-// index.json holds one entry per deliverable (report, lead run, brief, …).
-const WORKSPACE = process.env.OPENCLAW_WORKSPACE || path.join(process.env.HOME || '', 'clawd');
-const ARCHIVE_ROOT = path.join(WORKSPACE, 'archive');
-const INDEX_PATH = path.join(ARCHIVE_ROOT, 'index.json');
+/**
+ * SCC-39 — Deliverables-arkivet bor nu i Supabase (tabell `deliverables`),
+ * inte på operatörens disk. Samma svarskontrakt som den gamla filbaserade
+ * routen så att ArchiveView fungerar oförändrad:
+ *   GET  /                  → { entries, total, facets }
+ *   GET  /:id               → { entry, report, artifacts: string[] }
+ *   GET  /:id/raw/:file     → artefaktens innehåll (text/json)
+ *   POST /                  → skapa deliverable (sub-agenter/n8n/research-flödet)
+ *   DELETE /:id             → ta bort
+ *
+ * Artefakter lagras inline som [{ name, content }] i jsonb (endast text).
+ */
 
-interface DeliverableEntry {
-  id: string;
-  type: string;
-  entity?: { kind?: string; name?: string; org_nr?: string | null; slug?: string };
-  date?: string;
-  status?: string;
-  score?: number | null;
-  gate_pass?: boolean | null;
-  title?: string;
-  summary?: string;
-  tags?: string[];
-  paths?: { dir?: string; report?: string | null; research?: string | null; analysis?: string | null };
+interface DeliverableRow {
+    id: string;
+    type: string;
+    entity: Record<string, unknown>;
+    status: string | null;
+    score: number | null;
+    gate_pass: boolean | null;
+    title: string | null;
+    summary: string | null;
+    tags: string[];
+    report_md: string | null;
+    artifacts: Array<{ name: string; content?: string }>;
+    date: string | null;
+    created_at: string;
 }
 
-function readIndex(): DeliverableEntry[] {
-  try {
-    const raw = JSON.parse(fs.readFileSync(INDEX_PATH, 'utf-8'));
-    const entries: DeliverableEntry[] = Array.isArray(raw.entries) ? raw.entries : [];
-    entries.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    return entries;
-  } catch {
-    return [];
-  }
+/** Mappa DB-rad → entry-formen som frontenden förväntar sig. */
+function toEntry(row: DeliverableRow) {
+    return {
+        id: row.id,
+        type: row.type,
+        entity: row.entity,
+        date: row.date ?? row.created_at,
+        status: row.status ?? undefined,
+        score: row.score,
+        gate_pass: row.gate_pass,
+        title: row.title ?? undefined,
+        summary: row.summary ?? undefined,
+        tags: row.tags ?? [],
+    };
 }
 
-// Guard against path traversal: only allow reading files inside ARCHIVE_ROOT.
-function safeJoin(rel: string): string | null {
-  const full = path.resolve(ARCHIVE_ROOT, rel);
-  if (full !== ARCHIVE_ROOT && !full.startsWith(ARCHIVE_ROOT + path.sep)) return null;
-  return full;
-}
+// GET / — lista/sök. Query: q, status, type, tag, person, limit
+router.get('/', async (req: Request, res: Response) => {
+    const { data, error } = await supabase
+        .from('deliverables')
+        .select('id, type, entity, status, score, gate_pass, title, summary, tags, date, created_at')
+        .order('date', { ascending: false, nullsFirst: false });
+    if (error) return res.status(500).json({ error: error.message });
 
-// GET /api/v1/deliverables — list/search. Query: q, status, type, tag, person, limit
-router.get('/', (req: Request, res: Response) => {
-  let entries = readIndex();
-  const q = String(req.query.q || '').toLowerCase();
-  const status = String(req.query.status || '').toLowerCase();
-  const type = String(req.query.type || '').toLowerCase();
-  const tag = String(req.query.tag || '').toLowerCase();
-  const person = String(req.query.person || '').toLowerCase();
-  const limit = Number(req.query.limit) || 0;
+    const all = (data ?? []) as DeliverableRow[];
+    let entries = all.map(toEntry);
 
-  const hay = (e: DeliverableEntry) =>
-    [e.title, e.summary, e.entity?.name, e.entity?.slug, e.entity?.org_nr]
-      .filter(Boolean).join(' ').toLowerCase();
+    const q = String(req.query.q || '').toLowerCase();
+    const status = String(req.query.status || '').toLowerCase();
+    const type = String(req.query.type || '').toLowerCase();
+    const tag = String(req.query.tag || '').toLowerCase();
+    const person = String(req.query.person || '').toLowerCase();
+    const limit = Number(req.query.limit) || 0;
 
-  if (q) entries = entries.filter((e) => hay(e).includes(q));
-  if (status) entries = entries.filter((e) => (e.status || '').toLowerCase() === status);
-  if (type) entries = entries.filter((e) => (e.type || '').toLowerCase() === type);
-  if (tag) entries = entries.filter((e) => (e.tags || []).some((t) => t.toLowerCase() === tag));
-  if (person) entries = entries.filter((e) => hay(e).includes(person));
-  if (limit > 0) entries = entries.slice(0, limit);
+    const hay = (e: ReturnType<typeof toEntry>) => {
+        const ent = e.entity as { name?: string; slug?: string; org_nr?: string } | undefined;
+        return [e.title, e.summary, ent?.name, ent?.slug, ent?.org_nr]
+            .filter(Boolean).join(' ').toLowerCase();
+    };
 
-  // facets help the UI build filter chips
-  const all = readIndex();
-  const facets = {
-    statuses: [...new Set(all.map((e) => e.status).filter(Boolean))],
-    types: [...new Set(all.map((e) => e.type).filter(Boolean))],
-    tags: [...new Set(all.flatMap((e) => e.tags || []))],
-  };
+    if (q) entries = entries.filter((e) => hay(e).includes(q));
+    if (status) entries = entries.filter((e) => (e.status || '').toLowerCase() === status);
+    if (type) entries = entries.filter((e) => (e.type || '').toLowerCase() === type);
+    if (tag) entries = entries.filter((e) => (e.tags || []).some((t) => t.toLowerCase() === tag));
+    if (person) entries = entries.filter((e) => hay(e).includes(person));
+    if (limit > 0) entries = entries.slice(0, limit);
 
-  res.json({ entries, total: entries.length, facets });
+    const facets = {
+        statuses: [...new Set(all.map((e) => e.status).filter(Boolean))],
+        types: [...new Set(all.map((e) => e.type).filter(Boolean))],
+        tags: [...new Set(all.flatMap((e) => e.tags || []))],
+    };
+
+    return res.json({ entries, total: entries.length, facets });
 });
 
-// GET /api/v1/deliverables/:id — one entry, with the report.md body inlined.
-router.get('/:id', (req: Request, res: Response) => {
-  const entry = readIndex().find((e) => e.id === req.params.id);
-  if (!entry) return res.status(404).json({ error: 'not found' });
+// GET /:id — en post med rapport + artefaktnamn
+router.get('/:id', async (req: Request, res: Response) => {
+    const { data, error } = await supabase
+        .from('deliverables')
+        .select('*')
+        .eq('id', req.params.id)
+        .maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data) return res.status(404).json({ error: 'not found' });
 
-  let report: string | null = null;
-  if (entry.paths?.report) {
-    const full = safeJoin(entry.paths.report);
-    if (full && fs.existsSync(full)) report = fs.readFileSync(full, 'utf-8');
-  }
-  // list raw artifacts in the run dir
-  let artifacts: string[] = [];
-  if (entry.paths?.dir) {
-    const full = safeJoin(entry.paths.dir);
-    if (full && fs.existsSync(full)) {
-      try { artifacts = fs.readdirSync(full).filter((f) => f !== 'report.md'); } catch { /* ignore */ }
+    const row = data as DeliverableRow;
+    const artifacts = (row.artifacts ?? []).map((a) => a.name);
+    return res.json({ entry: toEntry(row), report: row.report_md, artifacts });
+});
+
+// GET /:id/raw/:file — artefaktinnehåll
+router.get('/:id/raw/:file', async (req: Request, res: Response) => {
+    const { data, error } = await supabase
+        .from('deliverables')
+        .select('artifacts')
+        .eq('id', req.params.id)
+        .maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    const artifacts = ((data?.artifacts ?? []) as Array<{ name: string; content?: string }>);
+    const artifact = artifacts.find((a) => a.name === req.params.file);
+    if (!artifact || artifact.content === undefined) return res.status(404).json({ error: 'not found' });
+    res.type(req.params.file.endsWith('.json') ? 'application/json' : 'text/plain');
+    return res.send(artifact.content);
+});
+
+// POST / — skapa deliverable (framtida research-flöde, n8n, sub-agent-callbacks)
+router.post('/', async (req: Request, res: Response) => {
+    const b = req.body ?? {};
+    if (typeof b.title !== 'string' && typeof b.id !== 'string') {
+        return res.status(400).json({ error: 'title eller id krävs' });
     }
-  }
-  return res.json({ entry, report, artifacts });
+    const id: string = typeof b.id === 'string' && b.id.trim()
+        ? b.id.trim()
+        : `${String(b.type || 'report')}_${Date.now()}`;
+
+    const { data, error } = await supabase
+        .from('deliverables')
+        .upsert({
+            id,
+            type: typeof b.type === 'string' ? b.type : 'report',
+            entity: typeof b.entity === 'object' && b.entity !== null ? b.entity : {},
+            status: typeof b.status === 'string' ? b.status : null,
+            score: typeof b.score === 'number' ? b.score : null,
+            gate_pass: typeof b.gate_pass === 'boolean' ? b.gate_pass : null,
+            title: typeof b.title === 'string' ? b.title : null,
+            summary: typeof b.summary === 'string' ? b.summary : null,
+            tags: Array.isArray(b.tags) ? b.tags.map(String) : [],
+            report_md: typeof b.report_md === 'string' ? b.report_md : null,
+            artifacts: Array.isArray(b.artifacts) ? b.artifacts : [],
+            source: typeof b.source === 'string' ? b.source : 'api',
+            contact_id: typeof b.contact_id === 'string' ? b.contact_id : null,
+            customer_id: typeof b.customer_id === 'string' ? b.customer_id : null,
+            date: typeof b.date === 'string' ? b.date : new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+    if (error) return res.status(500).json({ error: error.message });
+
+    await supabase.from('activities').insert({
+        customer_id: typeof b.customer_id === 'string' ? b.customer_id : null,
+        agent: 'system:archive',
+        event_type: 'deliverable',
+        action: 'deliverable_created',
+        severity: 'info',
+        details: { deliverable_id: data.id, type: b.type ?? 'report', title: b.title ?? null },
+    });
+
+    return res.status(201).json({ ok: true, id: data.id });
 });
 
-// GET /api/v1/deliverables/:id/raw/:file — fetch a raw artifact (json/md) from the run dir.
-router.get('/:id/raw/:file', (req: Request, res: Response) => {
-  const entry = readIndex().find((e) => e.id === req.params.id);
-  if (!entry?.paths?.dir) return res.status(404).json({ error: 'not found' });
-  const full = safeJoin(path.join(entry.paths.dir, req.params.file));
-  if (!full || !fs.existsSync(full)) return res.status(404).json({ error: 'not found' });
-  res.type(req.params.file.endsWith('.json') ? 'application/json' : 'text/plain');
-  return res.send(fs.readFileSync(full, 'utf-8'));
-});
-
-// DELETE /api/v1/deliverables/:id — remove an entry from the index and delete
-// its run directory from disk. Guarded to the archive root (no traversal).
-router.delete('/:id', (req: Request, res: Response) => {
-  let raw: { entries?: DeliverableEntry[] };
-  try {
-    raw = JSON.parse(fs.readFileSync(INDEX_PATH, 'utf-8'));
-  } catch {
-    return res.status(500).json({ error: 'kunde inte läsa index' });
-  }
-  const entries = Array.isArray(raw.entries) ? raw.entries : [];
-  const entry = entries.find((e) => e.id === req.params.id);
-  if (!entry) return res.status(404).json({ error: 'not found' });
-
-  // delete the run dir (guarded)
-  if (entry.paths?.dir) {
-    const full = safeJoin(entry.paths.dir);
-    if (full && full !== ARCHIVE_ROOT && fs.existsSync(full)) {
-      try { fs.rmSync(full, { recursive: true, force: true }); } catch { /* ignore */ }
-    }
-  }
-
-  const next = entries.filter((e) => e.id !== req.params.id);
-  const tmp = INDEX_PATH + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify({ ...raw, entries: next, updated_at: new Date().toISOString() }, null, 2));
-  fs.renameSync(tmp, INDEX_PATH);
-  return res.json({ ok: true, deleted: req.params.id, remaining: next.length });
+// DELETE /:id
+router.delete('/:id', async (req: Request, res: Response) => {
+    const { error, count } = await supabase
+        .from('deliverables')
+        .delete({ count: 'exact' })
+        .eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    if (!count) return res.status(404).json({ error: 'not found' });
+    return res.json({ ok: true, deleted: req.params.id });
 });
 
 export default router;
