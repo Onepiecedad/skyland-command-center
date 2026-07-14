@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Opportunity } from '../api';
 
 /**
@@ -63,6 +64,38 @@ const rowStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = { opacity: 0.55, whiteSpace: 'nowrap' };
 const linkStyle: React.CSSProperties = { color: '#9ecbff', textDecoration: 'none', textAlign: 'right', wordBreak: 'break-all' };
 
+/** Textblock med kopiera-knapp — för DM-utkast som ska in i Instagram. */
+function CopyBlock({ title, text }: { title: string; text: string }) {
+    const [copied, setCopied] = useState(false);
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+        } catch {
+            // clipboard kan vara blockerad — ingen krasch
+        }
+    };
+    return (
+        <div style={{ marginTop: 10, padding: 12, borderRadius: 10, background: 'rgba(124,140,255,0.08)', border: '1px solid rgba(124,140,255,0.22)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.85, textTransform: 'uppercase', letterSpacing: 0.5 }}>{title}</span>
+                <button
+                    onClick={copy}
+                    style={{
+                        fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999, cursor: 'pointer',
+                        border: '1px solid rgba(124,140,255,0.5)', background: copied ? '#7ee787' : 'rgba(124,140,255,0.15)',
+                        color: copied ? '#0b0b0f' : '#aab4ff',
+                    }}
+                >
+                    {copied ? 'Kopierad ✓' : 'Kopiera'}
+                </button>
+            </div>
+            <div style={{ fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{text}</div>
+        </div>
+    );
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <div style={rowStyle}>
@@ -125,6 +158,20 @@ export function ContactDetail({ opportunity }: ContactDetailProps) {
                     {igTags.map((t) => (
                         <span key={t} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.07)', opacity: 0.8 }}>{t}</span>
                     ))}
+                </div>
+            )}
+
+            {(custom.dm_draft || custom.dm_hook) && (
+                <div style={{ marginTop: 18 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Outreach — IG DM</div>
+                    {custom.dm_hook && (
+                        <div style={{ fontSize: 12, opacity: 0.65, lineHeight: 1.5, marginTop: 4 }}>
+                            <strong>Hook:</strong> {custom.dm_hook}
+                            {custom.dm_hook_source && <span style={{ opacity: 0.7 }}> (källa: {custom.dm_hook_source})</span>}
+                        </div>
+                    )}
+                    {custom.dm_draft && <CopyBlock title="Öppningsrad" text={custom.dm_draft} />}
+                    {custom.dm_followup && <CopyBlock title="Uppföljning vid svar" text={custom.dm_followup} />}
                 </div>
             )}
 

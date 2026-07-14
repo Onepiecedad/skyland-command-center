@@ -1128,6 +1128,10 @@ export interface ContactCustom {
     website?: string | null;
     booking_flow?: 'manual' | 'form' | 'online';
     address?: string | null;
+    dm_hook?: string | null;
+    dm_hook_source?: string | null;
+    dm_draft?: string | null;
+    dm_followup?: string | null;
     rating?: string | null;
     reviews?: string | null;
     niche?: string | null;
