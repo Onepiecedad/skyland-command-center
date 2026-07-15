@@ -52,6 +52,7 @@ import calcomWebhookRouter from './routes/calcomWebhook.js';
 import { config } from './config.js';
 import { startSequenceRunner } from './services/sequenceRunner.js';
 import integrationsRouter from './routes/integrations.js';
+import attributionRouter from './routes/attribution.js';
 import { startHealthMonitor } from './services/integrationHealth.js';
 import adminRouter from './routes/admin.js';
 import openworkWebhookRouter from './routes/openworkWebhook.js';
@@ -225,6 +226,7 @@ class Server {
     this.app.use('/api/v1/automations', automationsRouter);
     this.app.use('/api/v1/sequences', sequencesRouter);   // Sekvensmotor (SCC-42)
     this.app.use('/api/v1/integrations', integrationsRouter); // Integrations-hälsa (SCC-37)
+    this.app.use('/api/v1/attribution', attributionRouter);   // Attribution (SCC-36)
     this.app.use('/api/v1/admin', adminLimiter, adminRouter);
     this.app.use('/api/v1/gateway', gatewayRouter);
     this.app.use('/api/v1/website', websiteRouter);   // Hemside-analytics (auth-skyddad)
