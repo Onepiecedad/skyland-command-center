@@ -48,6 +48,7 @@ import deliverablesRouter from './routes/deliverables.js';
 import automationsRouter from './routes/automations.js';
 import sequencesRouter from './routes/sequences.js';
 import emailInboundRouter from './routes/emailInbound.js';
+import calcomWebhookRouter from './routes/calcomWebhook.js';
 import { config } from './config.js';
 import { startSequenceRunner } from './services/sequenceRunner.js';
 import adminRouter from './routes/admin.js';
@@ -173,6 +174,7 @@ class Server {
     this.app.use('/api/v1/webhooks/openwork', openworkWebhookRouter);
     this.app.use('/api/v1/voice', voiceRouter);
     this.app.use('/api/v1/webhooks/email', emailInboundRouter);  // inkommande mejl (egen token)
+    this.app.use('/api/v1/webhooks/calcom', calcomWebhookRouter); // Cal.com-bokningar (egen token)
 
     // ================================================================
     // Global auth + rate limiting — protects everything below.

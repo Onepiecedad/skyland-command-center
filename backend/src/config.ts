@@ -60,6 +60,7 @@ const envSchema = z.object({
     CALCOM_API_KEY: z.string().optional(),
     CALCOM_EVENT_TYPE_ID: z.coerce.number().optional(),
     CALCOM_API_BASE_URL: z.string().default('https://api.cal.com/v2'),
+    CALCOM_WEBHOOK_TOKEN: z.string().optional(),  // SCC-45: webhook-auth (?token= eller Bearer)
 
     // --- Operatörslogin (SCC-36) ---
     OPERATOR_PASSWORD: z.string().optional(),

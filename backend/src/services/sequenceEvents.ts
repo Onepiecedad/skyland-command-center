@@ -15,7 +15,7 @@ import { logger } from './logger';
 
 type TriggerType =
     | 'contact_created' | 'opportunity_created' | 'stage_changed'
-    | 'booking_created' | 'tag_added';
+    | 'booking_created' | 'booking_cancelled' | 'booking_no_show' | 'tag_added';
 
 /** Skriv in en kontakt i en sekvens. Unik-aktiv-spärren hanterar dedup. */
 export async function enrollContact(
@@ -107,3 +107,7 @@ export const onStageChanged = (contactId: string, pipelineId: string | null, sta
 export const onReplyReceived = (contactId: string) => fireExit('reply_received', contactId);
 export const onBookingCreated = (contactId: string, oppId?: string | null) =>
     Promise.all([fireTrigger('booking_created', contactId, {}, oppId), fireExit('booking_created', contactId)]).then(() => undefined);
+export const onBookingCancelled = (contactId: string, oppId?: string | null) =>
+    fireTrigger('booking_cancelled', contactId, {}, oppId);
+export const onBookingNoShow = (contactId: string, oppId?: string | null) =>
+    fireTrigger('booking_no_show', contactId, {}, oppId);
