@@ -10,6 +10,7 @@
 import { Router, Request, Response } from 'express';
 import { config } from '../config';
 import { supabase } from '../services/supabase';
+import { runAlexChat } from '../services/alexBrain';
 
 const router = Router();
 
@@ -103,6 +104,37 @@ async function logVoiceActivity(input: VoiceActivityInput): Promise<void> {
     } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         console.error('[voice/activity] Unexpected logging error:', message);
+    }
+}
+
+// ============================================================================
+// Server-Alex-fallback — när gatewayen (Joakims dator) inte nås körs frågan
+// genom SAMMA pipeline som textchatten (services/alexBrain: systemprompt +
+// ALEX_TOOLS + messages-loggning). Rullande konversation per instans så att
+// följdfrågor i samma samtal behåller kontext; nollställs efter 15 min tystnad.
+// ============================================================================
+
+const VOICE_CONVO_TTL_MS = 15 * 60_000;
+let voiceConvo: { id: string; lastAt: number } | null = null;
+
+async function askServerAlex(question: string): Promise<string> {
+    const now = Date.now();
+    if (!voiceConvo || now - voiceConvo.lastAt > VOICE_CONVO_TTL_MS) {
+        voiceConvo = { id: crypto.randomUUID(), lastAt: now };
+    }
+    voiceConvo.lastAt = now;
+
+    try {
+        const brain = await runAlexChat({
+            message: `RÖSTSAMTAL (svara kort och talvänligt, max några meningar, ingen markdown): ${question}`,
+            channel: 'voice',
+            conversation_id: voiceConvo.id,
+        });
+        const text = brain.response;
+        return text.length > 1500 ? text.substring(0, 1497) + '...' : text;
+    } catch (err) {
+        console.error('[voice/ask_alex] server-Alex fallback failed:', err);
+        return 'Jag kunde inte behandla frågan just nu. Försök igen om en stund.';
     }
 }
 
@@ -386,6 +418,11 @@ router.post('/tools', async (req: Request, res: Response) => {
                 // skills and tool permissions as WhatsApp/webchat.
                 const hookToken = config.OPENCLAW_HOOK_TOKEN || config.CLAWDBOT_GATEWAY_TOKEN;
                 let dispatched = false;
+                if (!hookToken) {
+                    // Ingen gateway konfigurerad (server-läge) — hoppa direkt till server-Alex.
+                    result = await askServerAlex(question);
+                    break;
+                }
                 try {
                     const resp = await fetch(`${config.CLAWDBOT_GATEWAY_URL}/hooks/agent`, {
                         method: 'POST',
@@ -416,7 +453,9 @@ router.post('/tools', async (req: Request, res: Response) => {
                 }
 
                 if (!dispatched) {
-                    result = 'Kunde inte nå Alex gateway just nu. Försök igen om en stund.';
+                    // Gatewayen (Joakims dator) nås inte — fall tillbaka till server-Alex:
+                    // samma pipeline, systemprompt och CRM-verktyg som textchatten.
+                    result = await askServerAlex(question);
                     break;
                 }
 
