@@ -84,6 +84,9 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
 
     const socketRef = useRef<GatewaySocket | null>(null);
     const streamBuf = useRef('');
+    // Ref-spegel av sessionKey så event-handlern (stabil ref) kan filtrera
+    // bort deltas från ANDRA sessioner (subagenter broadcastar på samma socket).
+    const sessionKeyRef = useRef(initialSessionKey);
     const currentRunId = useRef<string | null>(null);
     const activeTools = useRef<Map<string, { name: string; status: string }>>(new Map());
     // Stable ref for handleChatEvent — avoids socket recreation when callback changes
@@ -106,6 +109,14 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
 
         switch (chunk.kind) {
             case 'delta': {
+                // ── Filter 1: bara AKTIV session. Subagenters streams broadcastas
+                // på samma socket — utan detta interfolieras 5 parallella körningar
+                // till rappakalja i chatten.
+                if (chunk.sessionKey && chunk.sessionKey !== sessionKeyRef.current) break;
+                // ── Filter 2: bara AKTIV körning. Har vi låst på ett runId ignoreras
+                // deltas från andra körningar tills denna är klar.
+                if (rid && currentRunId.current && rid !== currentRunId.current) break;
+
                 // Gatewayn kan skicka deltas som KUMULATIVA snapshots (hela texten
                 // hittills) ELLER som äkta fragment. Blint '+=' på snapshots gav
                 // "JagJag har sökt igenomJag har sökt igenom hela..." — texten
@@ -129,6 +140,10 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
             }
 
             case 'final': {
+                // Endast finals för aktiv session — subagenters finals ska inte
+                // committas som meddelanden i den här chatten.
+                if (chunk.sessionKey && chunk.sessionKey !== sessionKeyRef.current) break;
+
                 // Dedup: if no runId, use a timing gate (ignore finals within 500ms)
                 const now = Date.now();
                 if (!rid) {
