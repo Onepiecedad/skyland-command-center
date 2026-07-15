@@ -1,0 +1,275 @@
+/* AlexDock — flytande Alex-chat, macOS-känsla */
+
+.alexdock-fab {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 1000;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(40, 42, 58, 0.72);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    color: #e8eaf6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.alexdock-fab:hover {
+    transform: scale(1.06);
+    background: rgba(52, 55, 75, 0.85);
+}
+
+.alexdock-panel {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 1001;
+    width: min(400px, calc(100vw - 32px));
+    height: min(600px, calc(100vh - 96px));
+    display: flex;
+    flex-direction: column;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(28, 29, 42, 0.82);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45), 0 1px 0 rgba(255, 255, 255, 0.07) inset;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ── Header ── */
+
+.alexdock-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+}
+
+.alexdock-header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: -0.01em;
+}
+
+.alexdock-header-sub {
+    font-size: 11px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.38);
+}
+
+.alexdock-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
+}
+
+.alexdock-header-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.alexdock-icon-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.alexdock-icon-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+.alexdock-icon-btn--active {
+    background: rgba(124, 140, 255, 0.25);
+    color: #aab4ff;
+}
+
+/* ── Meddelanden ── */
+
+.alexdock-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.alexdock-msg {
+    max-width: 82%;
+    padding: 9px 13px;
+    border-radius: 16px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.alexdock-msg--user {
+    align-self: flex-end;
+    background: #0a84ff;
+    color: #fff;
+    border-bottom-right-radius: 5px;
+}
+
+.alexdock-msg--assistant {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.08);
+    color: #e8eaf6;
+    border-bottom-left-radius: 5px;
+}
+
+.alexdock-msg--assistant p {
+    margin: 0 0 6px;
+}
+
+.alexdock-msg--assistant p:last-child {
+    margin-bottom: 0;
+}
+
+.alexdock-msg--assistant table {
+    font-size: 12px;
+    border-collapse: collapse;
+}
+
+.alexdock-msg--assistant td,
+.alexdock-msg--assistant th {
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.alexdock-thinking {
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.45);
+    padding: 2px 6px;
+}
+
+.alexdock-empty {
+    margin: auto;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 13.5px;
+}
+
+.alexdock-empty p {
+    margin: 0 0 14px;
+}
+
+.alexdock-suggestions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.alexdock-suggestions button {
+    padding: 8px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.045);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.alexdock-suggestions button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* ── Input ── */
+
+.alexdock-inputrow {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    flex-shrink: 0;
+}
+
+.alexdock-inputrow input {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(0, 0, 0, 0.3);
+    color: #fff;
+    font-size: 13.5px;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.alexdock-inputrow input:focus {
+    border-color: rgba(10, 132, 255, 0.55);
+}
+
+.alexdock-inputrow button {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: #0a84ff;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    flex-shrink: 0;
+}
+
+.alexdock-inputrow button:hover:not(:disabled) {
+    transform: scale(1.05);
+}
+
+.alexdock-inputrow button:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+/* ── Röstläge ── */
+
+.alexdock-voice {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+@media (max-width: 480px) {
+    .alexdock-panel {
+        right: 12px;
+        bottom: 12px;
+        border-radius: 16px;
+    }
+
+    .alexdock-fab {
+        right: 16px;
+        bottom: 16px;
+    }
+}

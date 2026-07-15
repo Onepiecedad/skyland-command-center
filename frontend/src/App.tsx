@@ -17,6 +17,7 @@ import CrmView from './pages/CrmView';
 import SequencesView from './pages/SequencesView';
 import WebsiteView from './pages/WebsiteView';
 import { LoginView } from './components/LoginView';
+import { AlexDock } from './components/AlexDock';
 import { checkAuth } from './api';
 import './styles/index.css';
 
@@ -280,6 +281,9 @@ function App() {
         {/* Status Bar */}
         <StatusBar />
       </div>
+
+      {/* Flytande Alex — alltid tillgänglig, oavsett vy (⌘J). Döljs på Alex-vyn som har egen chat. */}
+      <AlexDock hidden={currentView === 'alex'} />
     </>
   );
 }
