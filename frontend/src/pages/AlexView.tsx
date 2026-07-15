@@ -10,7 +10,6 @@ import {
   Clock,
   Search,
   Globe,
-  Bot,
   Shield,
   BarChart3,
   FileText,
@@ -19,9 +18,6 @@ import {
   Activity,
   Layers,
   ArrowUpRight,
-  Heart,
-  Users,
-  User,
   Database,
   Plug,
   ChevronDown,
@@ -30,6 +26,7 @@ import { AlexChat } from '../components/AlexChat';
 import { ThreadSidebar } from '../components/chat/ThreadSidebar';
 import { ThreadMemoryPanel } from '../components/chat/ThreadMemoryPanel';
 import { useGateway } from '../gateway/useGateway';
+import { CharacterSheet } from '../components/CharacterSheet';
 
 /* ─── Types ─── */
 interface Skill {
@@ -40,27 +37,7 @@ interface Skill {
   source?: 'workspace' | 'standalone' | 'subagent' | 'mcp';
 }
 
-interface RoleFile {
-  key: string;
-  label: string;
-  description: string;
-  icon: string;
-  filename: string;
-  content: string | null;
-  size?: number;
-  modified?: string;
-  error?: string;
-}
-
 type SidebarTab = 'chat' | 'tasks' | 'skills' | 'costs';
-
-const ROLE_ICON_MAP: Record<string, React.ReactNode> = {
-  user: <User size={14} />,
-  heart: <Heart size={14} />,
-  users: <Users size={14} />,
-  shield: <Shield size={14} />,
-  activity: <Activity size={14} />,
-};
 
 /* ─── Config ─── */
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -126,30 +103,9 @@ export default function AlexView() {
       .catch(err => console.error('Failed to fetch skills:', err));
   }, []);
 
-  /* ─── Role Inspector State ─── */
-  const [roleOpen, setRoleOpen] = useState(false);
-  const [roleFiles, setRoleFiles] = useState<RoleFile[]>([]);
-  const [roleTab, setRoleTab] = useState('identity');
-  const [roleLoading, setRoleLoading] = useState(false);
-
-  const fetchRoleFiles = useCallback(async () => {
-    setRoleLoading(true);
-    try {
-      const res = await fetchWithAuth('/api/v1/alex/role-files');
-      const data = await res.json();
-      setRoleFiles(data.files || []);
-    } catch (err) {
-      console.error('Failed to fetch role files:', err);
-    } finally {
-      setRoleLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (roleOpen && roleFiles.length === 0) {
-      fetchRoleFiles();
-    }
-  }, [roleOpen, roleFiles.length, fetchRoleFiles]);
+  /* ─── Rollformulär (ersätter gamla Rollfiler-modalen som läste filer
+     från disk — de finns bara på operatörens dator, aldrig på Render) ─── */
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   /* ─── Derived: filter + group ─── */
   const skillsBySource = (filter: SourceFilter) => {
@@ -200,8 +156,8 @@ export default function AlexView() {
         <div className="alex-profile-card">
           <button
             className="alex-profile-avatar alex-role-trigger"
-            onClick={() => setRoleOpen(true)}
-            title="Visa rollfiler"
+            onClick={() => setSheetOpen(true)}
+            title="Visa rollformulär"
           >
             <div className="alex-avatar-ring" />
             <img 
@@ -477,65 +433,14 @@ export default function AlexView() {
         )}
       </section>
 
-      {/* ─── Role Inspector Modal ─── */}
-      {roleOpen && (
-        <div className="role-inspector-overlay" onClick={() => setRoleOpen(false)}>
-          <div className="role-inspector" onClick={e => e.stopPropagation()}>
-            <div className="role-inspector-header">
-              <div className="role-inspector-title">
-                <Bot size={18} strokeWidth={1.8} />
-                <h2>Alex — Rollfiler</h2>
-              </div>
-              <button className="role-inspector-close" onClick={() => setRoleOpen(false)} aria-label="Stäng">
-                <X size={16} />
-              </button>
-            </div>
-
-            <nav className="role-inspector-tabs">
-              {roleFiles.map(f => (
-                <button
-                  key={f.key}
-                  className={`role-tab ${roleTab === f.key ? 'active' : ''}`}
-                  onClick={() => setRoleTab(f.key)}
-                >
-                  {ROLE_ICON_MAP[f.icon] || <FileText size={14} />}
-                  <span>{f.label}</span>
-                </button>
-              ))}
-            </nav>
-
-            <div className="role-inspector-body">
-              {roleLoading ? (
-                <div className="role-inspector-loading">
-                  <Activity size={20} className="role-spin" />
-                  <span>Laddar filer…</span>
-                </div>
-              ) : (
-                roleFiles
-                  .filter(f => f.key === roleTab)
-                  .map(f => (
-                    <div key={f.key} className="role-file-content">
-                      <div className="role-file-meta">
-                        <span className="role-file-name">{f.filename}</span>
-                        {f.size && <span className="role-file-size">{(f.size / 1024).toFixed(1)} KB</span>}
-                        {f.modified && (
-                          <span className="role-file-date">
-                            Ändrad {new Date(f.modified).toLocaleDateString('sv-SE')}
-                          </span>
-                        )}
-                      </div>
-                      {f.content ? (
-                        <pre className="role-file-pre">{f.content}</pre>
-                      ) : (
-                        <p className="role-file-missing">{f.error || 'Fil saknas'}</p>
-                      )}
-                    </div>
-                  ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ─── Rollformulär (D&D-stil) ─── */}
+      <CharacterSheet
+        agentId={sheetOpen ? 'main' : null}
+        live={{
+          status: gateway.status === 'connected' ? 'Jobbar' : useBackendAlex ? 'Server-läge' : 'Offline',
+        }}
+        onClose={() => setSheetOpen(false)}
+      />
     </div>
   );
 }

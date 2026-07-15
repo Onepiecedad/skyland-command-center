@@ -1,0 +1,222 @@
+/* CharacterSheet — rollformulär, pergament möter glas */
+
+.csheet-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.csheet {
+    position: relative;
+    width: min(520px, 100%);
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    border-radius: 20px;
+    border: 1px solid rgba(52, 211, 153, 0.22);
+    background: linear-gradient(180deg, rgba(16, 24, 20, 0.97), rgba(12, 14, 18, 0.97));
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 40px rgba(52, 211, 153, 0.06) inset;
+    padding: 22px;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    color: #e8eaf6;
+}
+
+.csheet-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    border: none;
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.csheet-close:hover {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+}
+
+/* ── Huvud ── */
+
+.csheet-header {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.csheet-avatar {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.csheet-avatar img {
+    width: 108px;
+    height: 108px;
+    border-radius: 16px;
+    object-fit: cover;
+    border: 1px solid rgba(52, 211, 153, 0.35);
+    box-shadow: 0 0 24px rgba(52, 211, 153, 0.25);
+}
+
+.csheet-status {
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 8px;
+    background: rgba(71, 85, 105, 0.9);
+    color: #e2e8f0;
+    white-space: nowrap;
+}
+
+.csheet-status--active {
+    background: rgba(34, 197, 94, 0.9);
+    color: #04170a;
+}
+
+.csheet-title h2 {
+    margin: 0;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+}
+
+.csheet-klass {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #34d399;
+    margin-top: 2px;
+}
+
+.csheet-epithet {
+    font-size: 12.5px;
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 4px;
+}
+
+.csheet-chips {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.csheet-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    padding: 3px 8px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.65);
+}
+
+/* ── Sektioner ── */
+
+.csheet-section {
+    padding: 10px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.csheet-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: rgba(52, 211, 153, 0.85);
+}
+
+.csheet-section p {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.csheet-section ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.78);
+}
+
+.csheet-section code {
+    font-family: 'SF Mono', ui-monospace, monospace;
+    font-size: 11.5px;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 1px 5px;
+    border-radius: 5px;
+}
+
+.csheet-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 18px;
+}
+
+.csheet-oaths ul {
+    color: rgba(255, 200, 130, 0.85);
+}
+
+/* ── Live ── */
+
+.csheet-live {
+    background: rgba(52, 211, 153, 0.05);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    border: 1px solid rgba(52, 211, 153, 0.12);
+}
+
+.csheet-live-row {
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.csheet-live-msg {
+    margin-top: 6px;
+    font-size: 12.5px;
+    font-style: italic;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+    .csheet-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .csheet-header {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .csheet-chips {
+        justify-content: center;
+    }
+}
