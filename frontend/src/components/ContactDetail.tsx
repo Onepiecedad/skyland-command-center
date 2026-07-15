@@ -161,19 +161,23 @@ export function ContactDetail({ opportunity }: ContactDetailProps) {
                 </div>
             )}
 
-            {(custom.dm_draft || custom.dm_hook) && (
-                <div style={{ marginTop: 18 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Outreach — IG DM</div>
-                    {custom.dm_hook && (
-                        <div style={{ fontSize: 12, opacity: 0.65, lineHeight: 1.5, marginTop: 4 }}>
-                            <strong>Hook:</strong> {custom.dm_hook}
-                            {custom.dm_hook_source && <span style={{ opacity: 0.7 }}> (källa: {custom.dm_hook_source})</span>}
-                        </div>
-                    )}
-                    {custom.dm_draft && <CopyBlock title="Öppningsrad" text={custom.dm_draft} />}
-                    {custom.dm_followup && <CopyBlock title="Uppföljning vid svar" text={custom.dm_followup} />}
-                </div>
-            )}
+            {(custom.dm_draft || custom.dm_hook) && (() => {
+                // dm_hook lagrar öppnare + uppföljning separerade med "---".
+                // De är TVÅ olika meddelanden: uppföljningen skickas ENDAST vid svar.
+                const [opener, followup] = String(custom.dm_hook ?? '').split(/\n?---\n?/);
+                return (
+                    <div style={{ marginTop: 18 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Outreach — IG DM</div>
+                        {opener && <CopyBlock title="Öppnare (skickas först — INGEN pitch)" text={opener.trim()} />}
+                        {followup && <CopyBlock title="Uppföljning (skickas ENDAST vid svar)" text={followup.trim()} />}
+                        {custom.dm_hook_source && (
+                            <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>källa: {custom.dm_hook_source}</div>
+                        )}
+                        {custom.dm_draft && <CopyBlock title="Äldre utkast (dm_draft)" text={custom.dm_draft} />}
+                        {custom.dm_followup && <CopyBlock title="Uppföljning vid svar" text={custom.dm_followup} />}
+                    </div>
+                );
+            })()}
 
             {score !== null && (
                 <div style={{ marginTop: 16, fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
