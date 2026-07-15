@@ -105,13 +105,28 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
         }
 
         switch (chunk.kind) {
-            case 'delta':
-                streamBuf.current += chunk.content || '';
+            case 'delta': {
+                // Gatewayn kan skicka deltas som KUMULATIVA snapshots (hela texten
+                // hittills) ELLER som äkta fragment. Blint '+=' på snapshots gav
+                // "JagJag har sökt igenomJag har sökt igenom hela..." — texten
+                // dubblerad för varje event. Hantera båda:
+                const incoming = chunk.content || '';
+                const buf = streamBuf.current;
+                if (incoming.startsWith(buf)) {
+                    // Kumulativ snapshot (superset av buffern) → ersätt
+                    streamBuf.current = incoming;
+                } else if (buf.startsWith(incoming)) {
+                    // Äldre/duplicerad snapshot (delmängd) → ignorera
+                } else {
+                    // Äkta inkrementellt fragment → lägg till
+                    streamBuf.current = buf + incoming;
+                }
                 setStreamingContent(streamBuf.current);
                 setIsStreaming(true);
                 setAlexState('thinking');
                 if (rid) currentRunId.current = rid;
                 break;
+            }
 
             case 'final': {
                 // Dedup: if no runId, use a timing gate (ignore finals within 500ms)
