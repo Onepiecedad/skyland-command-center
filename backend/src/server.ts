@@ -102,7 +102,10 @@ class Server {
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+          // blob: — ElevenLabs-SDK:n laddar sin AudioWorklet (rawAudioProcessor) som blob-modul
+          scriptSrc: ["'self'", "'unsafe-inline'", "blob:", "https://cdn.jsdelivr.net"],
+          workerSrc: ["'self'", "blob:"],
+          mediaSrc: ["'self'", "blob:", "data:"],
           // data: — Vite bäddar in fonter som data-URI:er i bundlen
           fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
           imgSrc: ["'self'", "data:", "https:"],
