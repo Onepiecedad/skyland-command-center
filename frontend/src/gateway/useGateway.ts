@@ -36,7 +36,7 @@ function isSystemMessage(msg: { role?: string; content?: string }): boolean {
 // Keep only real user-facing conversation threads in the sidebar.
 // Hides internal/system sessions: hook dispatches (voice, mail bridge, tests),
 // cron jobs, and SCC dispatch sessions. Key format: agent:<id>:<channel>:<...>
-const INTERNAL_CHANNELS = new Set(['hook', 'cron', 'scc', 'scc-dispatch']);
+const INTERNAL_CHANNELS = new Set(['hook', 'cron', 'scc', 'scc-dispatch', 'subagent']);
 function keepUserSession(s: { key?: string }): boolean {
     const key = s.key || '';
     if (key.endsWith(':heartbeat')) return false; // isolated heartbeat session
@@ -292,8 +292,8 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
             await Promise.all(
                 sessions.map(async (s) => {
                     try {
-                        const result = await socket.getChatHistory(s.key, 3);
-                        const msgs = result.messages || [];
+                        const result = await socket.getChatHistory(s.key, 5);
+                        const msgs = (result.messages || []).filter(m => (m.content || '').trim().length > 0);
                         const lastAssistant = [...msgs].reverse().find(m => m.role === 'assistant');
                         const lastAny = msgs[msgs.length - 1];
                         const preview = lastAssistant?.content || lastAny?.content || '';

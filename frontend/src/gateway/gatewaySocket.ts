@@ -23,7 +23,8 @@ function toStr(v: unknown): string {
                 return '';
             })
             .filter(Boolean);
-        if (parts.length > 0) return parts.join('\n');
+        // Tom array (t.ex. tool-only-meddelande) → tom sträng, INTE "[]"
+        return parts.join('\n');
     }
     // Generic object → try to extract common text fields
     if (typeof v === 'object' && v !== null) {
@@ -271,7 +272,9 @@ export class GatewaySocket {
     }
 
     async createSession(agentId = 'main'): Promise<string> {
-        const sessionKey = `agent:${agentId}:scc:${crypto.randomUUID().slice(0, 8)}`;
+        // Kanal 'web' — 'scc' är reserverad för dispatch-sessioner och DÖLJS i sidomenyn,
+        // vilket gjorde att nyskapade trådar försvann direkt ur listan.
+        const sessionKey = `agent:${agentId}:web:${crypto.randomUUID().slice(0, 8)}`;
         // Warm up the session by sending an empty history request
         // This ensures the gateway knows about this session key
         try {

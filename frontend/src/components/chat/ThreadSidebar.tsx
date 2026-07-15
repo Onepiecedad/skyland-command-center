@@ -43,7 +43,7 @@ function getThreadLabel(session: GatewaySession): string {
     if (parts.length >= 4) {
         const type = parts[2];
         const id = parts[3];
-        if (type === 'scc') return `Tråd ${id.slice(0, 6)}`;
+        if (type === 'web' || type === 'scc') return `Tråd ${id.slice(0, 6)}`;
         if (type === 'cron') return `Cron ${id.slice(-6)}`;
         if (type.includes('whats')) return 'WhatsApp';
         return `${type} ${id.slice(0, 6)}`;
@@ -78,18 +78,15 @@ export function ThreadSidebar({
     onSelectSession,
     onNewThread,
 }: ThreadSidebarProps) {
-    // Sort sessions: active first, then by lastMessageAt
+    // Sortera på senaste aktivitet (som en vanlig historiklista) — den aktiva
+    // markeras visuellt men hoppar inte till toppen, listan ska vara stabil.
     const sortedSessions = useMemo(() => {
         return [...sessions].sort((a, b) => {
-            // Active session always first
-            if (a.key === activeSessionKey) return -1;
-            if (b.key === activeSessionKey) return 1;
-            // Then by last message time (newest first)
             const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
             const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
             return bTime - aTime;
         });
-    }, [sessions, activeSessionKey]);
+    }, [sessions]);
 
     return (
         <div className="thread-sidebar">
