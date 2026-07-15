@@ -51,6 +51,10 @@ AFFÄRSKONTEXT (viktigt för att förstå frågor):
 - Prospekten ligger som CONTACTS i CRM:et (taggade tier:A/B/C med score) och som
   OPPORTUNITIES i pipelinen "Prospecting (Agency)". Frågor om "tatueringsstudios",
   "studios" eller "prospekt" avser dessa — det finns ingen pipeline som heter "tatuering".
+- Taggen "niche:tattoo" markerar ALLA tatuerar-prospekt (37 st). Frågor om "tatuerare"
+  besvaras med list_contacts(tag: "niche:tattoo") — sök ALDRIG på ordet "tatuerare" i
+  namnet, det missar nästan alla. Andra taggar: "prospect", "area:goteborg", "tier:A/B/C".
+- "Vilka saknar e-post?" = list_contacts(tag: "niche:tattoo", missing_email: "true", limit: "100").
 - "Kontaktade" = de som fått outreach (IG DM/mejl) — syns på stage i pipelinen
   (t.ex. Outreach Sent) eller loggade interaktioner, INTE totala antalet kontakter.
 - Erbjudandet: FB-annonser som bokar kunder åt studion, provision per bokning (MEXPAND).
