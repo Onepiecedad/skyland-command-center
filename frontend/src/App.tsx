@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Zap, Building2, Monitor, Puzzle, Mic, Briefcase, Archive, Target, Globe, LayoutGrid } from 'lucide-react';
+import { Zap, Building2, Monitor, Puzzle, Mic, Briefcase, Archive, Target, Globe, LayoutGrid, Workflow } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -14,12 +14,13 @@ import OfficeView from './pages/OfficeView';
 import ArchiveView from './pages/ArchiveView';
 import LeadsView from './pages/LeadsView';
 import CrmView from './pages/CrmView';
+import SequencesView from './pages/SequencesView';
 import WebsiteView from './pages/WebsiteView';
 import { LoginView } from './components/LoginView';
 import { checkAuth } from './api';
 import './styles/index.css';
 
-type View = 'alex' | 'customers' | 'leads' | 'crm' | 'website' | 'system' | 'skills' | 'voicechat' | 'office' | 'archive';
+type View = 'alex' | 'customers' | 'leads' | 'crm' | 'sequences' | 'website' | 'system' | 'skills' | 'voicechat' | 'office' | 'archive';
 
 interface Segment {
   key: string;
@@ -32,6 +33,7 @@ const SEGMENTS: Segment[] = [
   { key: 'customers', label: 'Kunder', icon: <Building2 size={14} strokeWidth={2} /> },
   { key: 'leads', label: 'Leads', icon: <Target size={14} strokeWidth={2} /> },
   { key: 'crm', label: 'CRM', icon: <LayoutGrid size={14} strokeWidth={2} /> },
+  { key: 'sequences', label: 'Sekvenser', icon: <Workflow size={14} strokeWidth={2} /> },
   { key: 'website', label: 'Hemsida', icon: <Globe size={14} strokeWidth={2} /> },
   { key: 'office', label: 'Kontor', icon: <Briefcase size={14} strokeWidth={2} /> },
   { key: 'archive', label: 'Arkiv', icon: <Archive size={14} strokeWidth={2} /> },
@@ -234,6 +236,18 @@ function App() {
                 exit="exit"
               >
                 <CrmView />
+              </motion.div>
+            )}
+            {currentView === 'sequences' && (
+              <motion.div
+                key="sequences"
+                className="view-container"
+                variants={VIEW_VARIANTS}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
+                <SequencesView />
               </motion.div>
             )}
             {currentView === 'website' && (

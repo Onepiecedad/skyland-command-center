@@ -1229,3 +1229,53 @@ export async function createOpportunity(input: {
     const data = await res.json();
     return data.opportunity;
 }
+
+// ============================================================================
+// Sequences (SCC-40+) — automationsmotorn (GHL-ersättning)
+// ============================================================================
+
+export type SequenceStatus = 'draft' | 'active' | 'paused';
+
+export interface SequenceSummary {
+    id: string;
+    name: string;
+    description?: string | null;
+    trigger_type: string;
+    status: SequenceStatus;
+    created_at: string;
+}
+
+export interface SequenceStep {
+    id: string;
+    position: number;
+    type: string;
+    config: Record<string, unknown>;
+}
+
+export interface SequenceDetail {
+    sequence: SequenceSummary & { exit_on: string[]; trigger_config: Record<string, unknown> };
+    steps: SequenceStep[];
+    enrollment_counts: Record<string, number>;
+}
+
+export async function fetchSequences(): Promise<SequenceSummary[]> {
+    const res = await fetchWithAuth(`${API_BASE}/sequences`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.sequences || [];
+}
+
+export async function fetchSequenceDetail(id: string): Promise<SequenceDetail> {
+    const res = await fetchWithAuth(`${API_BASE}/sequences/${id}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+export async function setSequenceStatus(id: string, status: SequenceStatus): Promise<void> {
+    const res = await fetchWithAuth(`${API_BASE}/sequences/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
