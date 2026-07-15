@@ -130,7 +130,7 @@ export const ALEX_TOOLS: ToolDefinition[] = [
     },
     {
         name: 'list_contacts',
-        description: 'Lista kontakter i CRM:et. Kan filtreras på status (new/working/qualified/won/lost), prospekt-tier (A/B/C) och fritextsökning på namn/e-post/företag. Returnerar även score, tier och bokningsflöde för prospekt.',
+        description: 'Lista kontakter i CRM:et. Kan filtreras på status (new/working/qualified/won/lost), prospekt-tier (A/B/C) och fritextsökning på namn/e-post/företag. Returnerar även score, tier och bokningsflöde för prospekt. OBS: listan är begränsad (default 20) — använd total_count i svaret för totalsiffror, eller get_crm_stats för aggregat.',
         parameters: {
             type: 'object',
             properties: {
@@ -154,6 +154,11 @@ export const ALEX_TOOLS: ToolDefinition[] = [
                 }
             }
         }
+    },
+    {
+        name: 'get_crm_stats',
+        description: 'Aggregerade CRM-siffror: totalt antal kontakter, fördelning per status och tier, samt antal opportunities per pipeline och stage. Använd ALLTID detta för frågor som "hur många kontakter/studios/prospekt har vi?", "hur många har vi kontaktat?", "hur ser tratten ut?" — gissa aldrig utifrån listor.',
+        parameters: { type: 'object', properties: {} }
     },
     {
         name: 'get_contact',
@@ -306,6 +311,8 @@ export async function executeToolCall(
                 return await handleGetCustomerErrors(args);
             case 'list_contacts':
                 return await handleListContacts(args);
+            case 'get_crm_stats':
+                return await handleGetCrmStats();
             case 'get_contact':
                 return await handleGetContact(args);
             case 'update_contact':
@@ -544,9 +551,11 @@ async function handleListContacts(args: Record<string, unknown>): Promise<ToolRe
     const search = args.search ? String(args.search).trim() : undefined;
     const limit = Math.min(parseInt(String(args.limit || '20'), 10) || 20, 100);
 
+    // count: 'exact' — totalen oavsett limit, så modellen aldrig tar en
+    // trunkerad lista för hela sanningen (gav tidigare fel svar som "totalt 25").
     let query = supabase
         .from('contacts')
-        .select('id, name, email, company, status, tags, custom, created_at')
+        .select('id, name, email, company, status, tags, custom, created_at', { count: 'exact' })
         .order('created_at', { ascending: false })
         .limit(limit);
 
@@ -554,7 +563,7 @@ async function handleListContacts(args: Record<string, unknown>): Promise<ToolRe
     if (tier) query = query.contains('tags', [`tier:${tier}`]);
     if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`);
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
     if (error) return { success: false, error: error.message };
 
     const contacts = data ?? [];
@@ -567,7 +576,43 @@ async function handleListContacts(args: Record<string, unknown>): Promise<ToolRe
             return scoreOf(b) - scoreOf(a);
         });
     }
-    return { success: true, data: { contacts, count: contacts.length } };
+    const total = count ?? contacts.length;
+    return { success: true, data: { contacts, count: contacts.length, total_count: total, truncated: total > contacts.length } };
+}
+
+/** Aggregerade CRM-siffror — grundade svar på "hur många …?" utan gissningar. */
+async function handleGetCrmStats(): Promise<ToolResult> {
+    const [contactsRes, oppsRes] = await Promise.all([
+        supabase.from('contacts').select('status, tags', { count: 'exact' }),
+        supabase.from('opportunities').select('status, stage:stages(name), pipeline:pipelines(name)'),
+    ]);
+    if (contactsRes.error) return { success: false, error: contactsRes.error.message };
+    if (oppsRes.error) return { success: false, error: oppsRes.error.message };
+
+    const byStatus: Record<string, number> = {};
+    const byTier: Record<string, number> = {};
+    for (const c of (contactsRes.data ?? []) as Array<{ status: string; tags: string[] | null }>) {
+        byStatus[c.status] = (byStatus[c.status] ?? 0) + 1;
+        const tier = c.tags?.find(t => t.startsWith('tier:'))?.slice(5);
+        if (tier) byTier[tier] = (byTier[tier] ?? 0) + 1;
+    }
+
+    const byStage: Record<string, number> = {};
+    for (const o of (oppsRes.data ?? []) as Array<{ stage: { name?: string } | null; pipeline: { name?: string } | null }>) {
+        const key = `${o.pipeline?.name ?? 'okänd pipeline'} → ${o.stage?.name ?? 'okänd stage'}`;
+        byStage[key] = (byStage[key] ?? 0) + 1;
+    }
+
+    return {
+        success: true,
+        data: {
+            total_contacts: contactsRes.count ?? 0,
+            contacts_by_status: byStatus,
+            contacts_by_tier: byTier,
+            opportunities_total: (oppsRes.data ?? []).length,
+            opportunities_by_stage: byStage,
+        }
+    };
 }
 
 async function handleGetContact(args: Record<string, unknown>): Promise<ToolResult> {
@@ -889,9 +934,15 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
                     custom?: { score?: number; booking_flow?: string } | null;
                 }>;
                 count: number;
+                total_count?: number;
+                truncated?: boolean;
             };
             if (r.count === 0) return 'Inga kontakter hittades.';
-            return `${r.count} kontakter:\n${r.contacts.map(c => {
+            const total = r.total_count ?? r.count;
+            const header = r.truncated
+                ? `TOTALT ${total} kontakter matchar — visar de ${r.count} senaste (använd total_count som totalsiffra, INTE listlängden):`
+                : `${total} kontakter:`;
+            return `${header}\n${r.contacts.map(c => {
                 const tier = c.tags?.find(t => t.startsWith('tier:'))?.slice(5);
                 const extras = [
                     typeof c.custom?.score === 'number' ? `score ${c.custom.score}` : null,
@@ -900,6 +951,24 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
                 ].filter(Boolean).join(', ');
                 return `- ${c.name || '(namnlös)'}${c.company ? ` @ ${c.company}` : ''}${c.email ? ` <${c.email}>` : ''} [${c.status}]${extras ? ` (${extras})` : ''}`;
             }).join('\n')}`;
+        }
+        case 'get_crm_stats': {
+            const s = data as {
+                total_contacts: number;
+                contacts_by_status: Record<string, number>;
+                contacts_by_tier: Record<string, number>;
+                opportunities_total: number;
+                opportunities_by_stage: Record<string, number>;
+            };
+            const fmt = (rec: Record<string, number>) =>
+                Object.entries(rec).map(([k, v]) => `  - ${k}: ${v}`).join('\n') || '  (inga)';
+            return [
+                `Totalt antal kontakter: ${s.total_contacts}`,
+                `Per status:\n${fmt(s.contacts_by_status)}`,
+                `Per tier:\n${fmt(s.contacts_by_tier)}`,
+                `Opportunities totalt: ${s.opportunities_total}`,
+                `Per pipeline/stage:\n${fmt(s.opportunities_by_stage)}`,
+            ].join('\n');
         }
         case 'get_contact': {
             const c = data as Record<string, unknown>;
