@@ -75,6 +75,9 @@ const patchSchema = z.object({
     website: z.string().nullish(),
     status: z.enum(STATUS).optional(),
     tags: z.array(z.string()).optional(),
+    // custom MERGAS med befintligt jsonb (skriver aldrig över score/tier/booking_flow
+    // med ett partiellt objekt) — används bl.a. för dm_hook från Alex-research.
+    custom: z.record(z.string(), z.unknown()).optional(),
 }).strict();
 
 router.patch('/:id', async (req: Request, res: Response) => {
@@ -83,9 +86,21 @@ router.patch('/:id', async (req: Request, res: Response) => {
         if (!parsed.success) {
             return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
         }
-        const patch = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+        const patch: Record<string, unknown> = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
         if (Object.keys(patch).length === 0) {
             return res.status(400).json({ error: 'No fields to update' });
+        }
+
+        // Merga custom med befintligt värde istället för att ersätta hela objektet
+        if (patch.custom) {
+            const { data: existing, error: exErr } = await supabase
+                .from('contacts')
+                .select('custom')
+                .eq('id', req.params.id)
+                .maybeSingle();
+            if (exErr) return res.status(500).json({ error: exErr.message });
+            if (!existing) return res.status(404).json({ error: 'Contact not found' });
+            patch.custom = { ...(existing.custom as Record<string, unknown> ?? {}), ...(patch.custom as Record<string, unknown>) };
         }
 
         const { data, error } = await supabase
