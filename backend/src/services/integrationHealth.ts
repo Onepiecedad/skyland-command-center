@@ -63,8 +63,13 @@ async function checkResend(): Promise<IntegrationHealth> {
 async function checkCalcom(): Promise<IntegrationHealth> {
     if (!config.CALCOM_API_KEY) return mk('calcom', false, 'not_configured');
     try {
-        // v1 /me validerar nyckeln tillförlitligt (bokningar går via v2)
-        const res = await timedFetch(`https://api.cal.com/v1/me?apiKey=${encodeURIComponent(config.CALCOM_API_KEY)}`, {});
+        // v2 /me — v1 är avvecklat (HTTP 410 sedan 2026). Samma auth-mönster som bokningsflödet (voice.ts).
+        const res = await timedFetch(`${config.CALCOM_API_BASE_URL}/me`, {
+            headers: {
+                Authorization: `Bearer ${config.CALCOM_API_KEY}`,
+                'cal-api-version': '2024-08-13',
+            },
+        });
         if (res.status === 401 || res.status === 403) return mk('calcom', true, 'auth_failed', res.status);
         return res.ok ? mk('calcom', true, 'up', res.status) : mk('calcom', true, 'down', res.status);
     } catch (err) {
