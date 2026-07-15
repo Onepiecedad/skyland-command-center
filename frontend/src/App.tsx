@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Zap, Building2, Monitor, Puzzle, Mic, Briefcase, Archive, Target, Globe, LayoutGrid, Workflow } from 'lucide-react';
+import { Zap, Building2, Monitor, Puzzle, Briefcase, Archive, Target, Globe, LayoutGrid, Workflow } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -9,7 +9,6 @@ import AlexView from './pages/AlexView';
 import { CustomerView } from './pages/CustomerView';
 import { SystemDashboard } from './pages/SystemDashboard';
 import { SkillsView } from './pages/SkillsView';
-import VoiceChatView from './pages/VoiceChatView';
 import OfficeView from './pages/OfficeView';
 import ArchiveView from './pages/ArchiveView';
 import LeadsView from './pages/LeadsView';
@@ -22,6 +21,7 @@ import { checkAuth } from './api';
 import './styles/index.css';
 
 type View = 'alex' | 'customers' | 'leads' | 'crm' | 'sequences' | 'website' | 'system' | 'skills' | 'voicechat' | 'office' | 'archive';
+type GroupKey = 'alex' | 'sales' | 'customers' | 'content' | 'system';
 
 interface Segment {
   key: string;
@@ -29,19 +29,51 @@ interface Segment {
   icon?: ReactNode;
 }
 
-const SEGMENTS: Segment[] = [
-  { key: 'alex', label: 'Alex', icon: <Zap size={14} strokeWidth={2.5} /> },
-  { key: 'customers', label: 'Kunder', icon: <Building2 size={14} strokeWidth={2} /> },
-  { key: 'leads', label: 'Leads', icon: <Target size={14} strokeWidth={2} /> },
-  { key: 'crm', label: 'CRM', icon: <LayoutGrid size={14} strokeWidth={2} /> },
-  { key: 'sequences', label: 'Sekvenser', icon: <Workflow size={14} strokeWidth={2} /> },
-  { key: 'website', label: 'Hemsida', icon: <Globe size={14} strokeWidth={2} /> },
-  { key: 'office', label: 'Kontor', icon: <Briefcase size={14} strokeWidth={2} /> },
-  { key: 'archive', label: 'Arkiv', icon: <Archive size={14} strokeWidth={2} /> },
-  { key: 'system', label: 'System', icon: <Monitor size={14} strokeWidth={2} /> },
-  { key: 'skills', label: 'Skills', icon: <Puzzle size={14} strokeWidth={2} /> },
-  { key: 'voicechat', label: 'Röstchat', icon: <Mic size={14} strokeWidth={2} /> },
+interface NavGroup {
+  key: GroupKey;
+  label: string;
+  icon?: ReactNode;
+  /** Vyer i gruppen — första är default. En enda vy = ingen undermeny. */
+  views: Segment[];
+}
+
+/** 5 grupper istället för 11 flikar. Röstchatten bor numera i Alex-docken. */
+const NAV_GROUPS: NavGroup[] = [
+  {
+    key: 'alex', label: 'Alex', icon: <Zap size={14} strokeWidth={2.5} />,
+    views: [{ key: 'alex', label: 'Alex' }],
+  },
+  {
+    key: 'sales', label: 'Försäljning', icon: <Target size={14} strokeWidth={2} />,
+    views: [
+      { key: 'crm', label: 'CRM', icon: <LayoutGrid size={13} strokeWidth={2} /> },
+      { key: 'leads', label: 'Leads', icon: <Target size={13} strokeWidth={2} /> },
+      { key: 'sequences', label: 'Sekvenser', icon: <Workflow size={13} strokeWidth={2} /> },
+    ],
+  },
+  {
+    key: 'customers', label: 'Kunder', icon: <Building2 size={14} strokeWidth={2} />,
+    views: [{ key: 'customers', label: 'Kunder' }],
+  },
+  {
+    key: 'content', label: 'Innehåll', icon: <Globe size={14} strokeWidth={2} />,
+    views: [
+      { key: 'website', label: 'Hemsida', icon: <Globe size={13} strokeWidth={2} /> },
+      { key: 'office', label: 'Kontor', icon: <Briefcase size={13} strokeWidth={2} /> },
+      { key: 'archive', label: 'Arkiv', icon: <Archive size={13} strokeWidth={2} /> },
+    ],
+  },
+  {
+    key: 'system', label: 'System', icon: <Monitor size={14} strokeWidth={2} />,
+    views: [
+      { key: 'system', label: 'Översikt', icon: <Monitor size={13} strokeWidth={2} /> },
+      { key: 'skills', label: 'Skills', icon: <Puzzle size={13} strokeWidth={2} /> },
+    ],
+  },
 ];
+
+const groupOfView = (view: View): NavGroup =>
+  NAV_GROUPS.find(g => g.views.some(v => v.key === view)) ?? NAV_GROUPS[0];
 
 /* Zoom + fade transition for alien control panel feel */
 const VIEW_VARIANTS = {
@@ -80,44 +112,39 @@ function App() {
     checkAuth().then((ok) => setAuthState(ok ? 'yes' : 'no'));
   }, []);
 
+  // Kom ihåg senast besökta vy per grupp så gruppbyte känns förutsägbart.
+  const [lastViewInGroup, setLastViewInGroup] = useState<Partial<Record<GroupKey, View>>>({});
+
   const handleViewChange = useCallback((key: string) => {
-    setCurrentView(key as View);
+    const view = key as View;
+    setCurrentView(view);
+    setLastViewInGroup(prev => ({ ...prev, [groupOfView(view).key]: view }));
   }, []);
+
+  const handleGroupChange = useCallback((key: string) => {
+    const group = NAV_GROUPS.find(g => g.key === key) ?? NAV_GROUPS[0];
+    handleViewChange(lastViewInGroup[group.key] ?? group.views[0].key);
+  }, [handleViewChange, lastViewInGroup]);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey(prev => prev + 1);
   }, []);
 
-  // Keyboard shortcuts: ⌘+1 = Alex, ⌘+2 = Kunder, ⌘+3 = Archive, ⌘+4 = System, etc.
+  // Keyboard shortcuts: ⌘1–⌘5 = grupperna i ordning
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!e.metaKey) return;
-      if (e.key === '1') {
+      const idx = parseInt(e.key, 10) - 1;
+      if (idx >= 0 && idx < NAV_GROUPS.length) {
         e.preventDefault();
-        handleViewChange('alex');
-      } else if (e.key === '2') {
-        e.preventDefault();
-        handleViewChange('customers');
-      } else if (e.key === '3') {
-        e.preventDefault();
-        handleViewChange('office');
-      } else if (e.key === '4') {
-        e.preventDefault();
-        handleViewChange('archive');
-      } else if (e.key === '5') {
-        e.preventDefault();
-        handleViewChange('system');
-      } else if (e.key === '6') {
-        e.preventDefault();
-        handleViewChange('skills');
-      } else if (e.key === '7') {
-        e.preventDefault();
-        handleViewChange('voicechat');
+        handleGroupChange(NAV_GROUPS[idx].key);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleViewChange]);
+  }, [handleGroupChange]);
+
+  const activeGroup = groupOfView(currentView);
 
   // SCC-36: auth-gate före allt annat
   if (authState === 'checking') {
@@ -137,12 +164,23 @@ function App() {
         <header className="dashboard-v2-header">
           <h1 className="dashboard-v2-title">Skyland</h1>
           <SegmentedControl
-            segments={SEGMENTS}
-            activeKey={currentView}
-            onSelect={handleViewChange}
+            segments={NAV_GROUPS.map(({ key, label, icon }) => ({ key, label, icon }))}
+            activeKey={activeGroup.key}
+            onSelect={handleGroupChange}
           />
           <AgentMonitor />
         </header>
+
+        {/* Undermeny — bara när gruppen har flera vyer */}
+        {activeGroup.views.length > 1 && (
+          <div className="dashboard-v2-subnav">
+            <SegmentedControl
+              segments={activeGroup.views}
+              activeKey={currentView}
+              onSelect={handleViewChange}
+            />
+          </div>
+        )}
 
         {/* View Content — Zoom transitions */}
         <main className="dashboard-v2-main">
@@ -261,18 +299,6 @@ function App() {
                 exit="exit"
               >
                 <WebsiteView />
-              </motion.div>
-            )}
-            {currentView === 'voicechat' && (
-              <motion.div
-                key="voicechat"
-                className="view-container"
-                variants={VIEW_VARIANTS}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-              >
-                <VoiceChatView />
               </motion.div>
             )}
           </AnimatePresence>
