@@ -73,13 +73,17 @@ export async function fireTrigger(
  */
 export async function fireExit(event: string, contactId: string): Promise<void> {
     try {
+        // exit_on är jsonb — filtrera i JS för att undvika PostgREST-operatorns
+        // array-vs-jsonb-tvetydighet (.contains genererade fel operator).
         const { data, error } = await supabase
             .from('sequences')
-            .select('id')
-            .eq('status', 'active')
-            .contains('exit_on', [event]);
+            .select('id, exit_on')
+            .eq('status', 'active');
         if (error) { logger.error('sequenceEvents', `fireExit-query: ${error.message}`); return; }
-        const ids = (data ?? []).map(s => (s as { id: string }).id);
+        const ids = (data ?? [])
+            .filter(s => Array.isArray((s as { exit_on?: unknown }).exit_on)
+                && ((s as { exit_on: string[] }).exit_on).includes(event))
+            .map(s => (s as { id: string }).id);
         if (!ids.length) return;
 
         const { error: uErr } = await supabase

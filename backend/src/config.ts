@@ -83,6 +83,9 @@ const envSchema = z.object({
         .transform((v) => v === 'true'),
     SEQUENCE_RUNNER_INTERVAL_MS: z.coerce.number().default(60000),
 
+    // --- Inkommande mejl (SCC-43) ---
+    EMAIL_INBOUND_TOKEN: z.string().optional(),
+
     // --- Rate limiting ---
     CLAW_MAX_CONCURRENT_PER_CUSTOMER: z.coerce.number().default(3),
     CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER: z.coerce.number().default(20),
