@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skyland AI — Fyller tomma stolar åt tatuerare i Göteborg</title>
+<meta name="description" content="Varje DM får svar direkt — även mitt i en sittning. Skyland bygger system som fångar bokningarna du annars missar, åt tatueringsstudios i Göteborg och Mölndal.">
+<link rel="canonical" href="https://studios.skylandai.se/">
+<meta property="og:title" content="Skyland AI — fyller tomma stolar åt tatuerare">
+<meta property="og:description" content="Varje DM får svar direkt, även mitt i en sittning. Åt studios i Göteborg / Mölndal.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://studios.skylandai.se/">
+<meta name="theme-color" content="#0e1013">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e1013; --cream:#f4f1e8; --gray:#8e8b7e; --orange:#e9a23b;
+    --card:#1a1d22; --line:rgba(244,241,232,0.14);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--cream);
+    font-family:'Archivo',-apple-system,BlinkMacSystemFont,sans-serif;
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:0 28px; width:100%}
+  a{color:inherit}
+  h1,h2,h3,p,.q,.lede{overflow-wrap:break-word; word-break:break-word}
+  .mono{font-family:'Space Mono',monospace; letter-spacing:4px; text-transform:uppercase}
+
+  /* NAV */
+  nav{display:flex; justify-content:space-between; align-items:center; padding:30px 0}
+  nav .brand{font-family:'Space Mono',monospace; font-weight:700; letter-spacing:6px; font-size:18px}
+  nav .loc{font-family:'Space Mono',monospace; letter-spacing:4px; font-size:12px; color:var(--gray)}
+
+  /* HERO */
+  header{padding:70px 0 90px; border-bottom:1px solid var(--line)}
+  .kicker{font-family:'Space Mono',monospace; letter-spacing:5px; text-transform:uppercase; font-size:13px; color:var(--orange); margin-bottom:26px; overflow-wrap:anywhere}
+  h1{font-size:clamp(32px,7vw,78px); font-weight:800; line-height:1.05; letter-spacing:-1.5px}
+  h1 .o{color:var(--orange)}
+  .lede{font-size:clamp(18px,2.4vw,24px); color:var(--gray); font-weight:500; max-width:640px; margin-top:28px; line-height:1.4}
+  .cta-row{display:flex; flex-wrap:wrap; gap:16px; margin-top:40px; align-items:center}
+  .btn{display:inline-flex; align-items:center; gap:10px; background:var(--orange); color:#12100b;
+    font-weight:800; font-size:19px; padding:18px 34px; border-radius:999px; text-decoration:none;
+    transition:transform .15s ease, box-shadow .15s ease}
+  .btn:hover{transform:translateY(-2px); box-shadow:0 10px 30px rgba(233,162,59,.25)}
+  .btn .kw{font-family:'Space Mono',monospace; font-weight:700}
+  .btn-ghost{background:transparent; color:var(--cream); border:1px solid var(--line); font-weight:600; font-size:17px}
+  .btn-ghost:hover{border-color:var(--orange); color:var(--orange); box-shadow:none}
+
+  /* SECTION */
+  section{padding:80px 0; border-bottom:1px solid var(--line)}
+  .sec-kicker{font-family:'Space Mono',monospace; letter-spacing:5px; text-transform:uppercase; font-size:13px; color:var(--gray); margin-bottom:18px}
+  h2{font-size:clamp(28px,4vw,44px); font-weight:800; line-height:1.12; letter-spacing:-.5px; max-width:720px}
+  h2 .o{color:var(--orange)}
+  .sec-sub{color:var(--gray); font-size:18px; max-width:620px; margin-top:18px}
+
+  /* PROBLEM CARDS */
+  .cards{display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:44px}
+  .card{background:var(--card); border-radius:20px; padding:34px 30px; border:1px solid transparent}
+  .card .num{font-family:'Space Mono',monospace; color:var(--orange); font-size:15px; letter-spacing:3px; margin-bottom:18px}
+  .card h3{font-size:23px; font-weight:800; line-height:1.2; margin-bottom:12px}
+  .card p{color:var(--gray); font-size:16px; line-height:1.5}
+
+  /* STEPS */
+  .steps{display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:44px}
+  .step{padding:28px 0}
+  .step .n{font-size:52px; font-weight:900; color:var(--orange); line-height:1; letter-spacing:-2px}
+  .step h3{font-size:20px; font-weight:800; margin:16px 0 8px}
+  .step p{color:var(--gray); font-size:16px}
+
+  /* PROOF */
+  .proof{background:var(--card); border-radius:24px; padding:48px 44px; margin-top:8px}
+  .proof .q{font-size:clamp(22px,3vw,32px); font-weight:800; line-height:1.3; letter-spacing:-.5px}
+  .proof .q .o{color:var(--orange)}
+  .proof .by{color:var(--gray); margin-top:20px; font-size:16px}
+
+  /* FORM */
+  form{margin-top:40px; max-width:560px}
+  .field{margin-bottom:20px}
+  label{display:block; font-family:'Space Mono',monospace; letter-spacing:3px; text-transform:uppercase; font-size:12px; color:var(--gray); margin-bottom:10px}
+  input,textarea{width:100%; background:var(--bg); border:1px solid var(--line); border-radius:12px;
+    color:var(--cream); font-family:inherit; font-size:17px; padding:15px 16px; transition:border-color .15s}
+  input:focus,textarea:focus{outline:none; border-color:var(--orange)}
+  textarea{resize:vertical; min-height:110px}
+  .form-note{color:var(--gray); font-size:14px; margin-top:16px}
+  form button{margin-top:8px; cursor:pointer; border:none}
+
+  /* FOOTER */
+  footer{padding:56px 0 70px; text-align:center}
+  footer .brand{font-family:'Space Mono',monospace; font-weight:700; letter-spacing:6px; font-size:16px}
+  footer .meta{font-family:'Space Mono',monospace; letter-spacing:4px; font-size:12px; color:var(--gray); margin-top:14px}
+  footer a{color:var(--orange); text-decoration:none}
+
+  @media(max-width:760px){
+    .wrap{padding:0 20px}
+    .cards,.steps{grid-template-columns:1fr}
+    header{padding:48px 0 60px}
+    section{padding:56px 0}
+    .cta-row{flex-direction:column; align-items:stretch}
+    .btn{justify-content:center}
+    nav .loc{display:none}
+    .kicker{letter-spacing:3px}
+    .proof{padding:34px 24px}
+    h1 br{display:none}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <span class="brand">SKYLAND</span>
+    <span class="loc">GÖTEBORG / MÖLNDAL</span>
+  </nav>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="kicker">AI-system för tatueringsstudios</div>
+    <h1>Fyller tomma stolar<br>åt tatuerare i <span class="o">Göteborg</span>.</h1>
+    <p class="lede">Varje förfrågan får svar direkt — även mitt i en sittning. Jag bygger system som fångar bokningarna du annars missar. Inga byråfasoner. Bara mindre strul och fler bokade stolar.</p>
+    <div class="cta-row">
+      <a class="btn" href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">Skriv <span class="kw">"stol"</span> i en DM →</a>
+      <a class="btn btn-ghost" href="#kontakt">Eller hör av dig här</a>
+    </div>
+  </header>
+</div>
+
+<div class="wrap">
+  <section>
+    <div class="sec-kicker">Det här känner du igen</div>
+    <h2>Du blev tatuerare för att tatuera. <span class="o">Inte för att svara DM.</span></h2>
+    <p class="sec-sub">Det är sällan en enda stor grej. Det är småläckorna som rinner iväg, vecka efter vecka.</p>
+    <div class="cards">
+      <div class="card">
+        <div class="num">01</div>
+        <h3>Missade DM</h3>
+        <p>Kunden skrev 21:47. Du svarade dagen efter. Då hade hon redan bokat någon annan. Snabbast svar vinner bokningen — nästan varje gång.</p>
+      </div>
+      <div class="card">
+        <div class="num">02</div>
+        <h3>No-shows &amp; luckor</h3>
+        <p>En stol som står tom kostar lika mycket som en full. En vänlig påminnelse dagen innan fångar de flesta som annars uteblir.</p>
+      </div>
+      <div class="card">
+        <div class="num">03</div>
+        <h3>Tomma vardagar</h3>
+        <p>Helgen bokar sig själv. Tisdag och onsdag ekar tomt. De vardagarna behöver en knuff — och den kan komma automatiskt.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="wrap">
+  <section>
+    <div class="sec-kicker">Så funkar det</div>
+    <h2>Systemet svarar. <span class="o">Du tatuerar.</span></h2>
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <h3>Fångar förfrågan</h3>
+        <p>DM, kommentar eller formulär — allt fångas i sekunden det landar, dygnet runt.</p>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <h3>Svarar direkt</h3>
+        <p>Kunden får svar på sekunder istället för dagen efter. Ingen svalnar medan du sitter med nålen.</p>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <h3>Du stänger</h3>
+        <p>Systemet öppnar dörren och håller leaden varm. Du kliver in när det är dags att boka.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="wrap">
+  <section>
+    <div class="sec-kicker">Bevisat, inte lovat</div>
+    <div class="proof">
+      <div class="q">Skriv <span class="o">"stol"</span> till mitt Instagram och se vad som händer. Du får svar på sekunder — <span class="o">det är precis motorn jag bygger åt dig.</span></div>
+      <div class="by">Ingen pitch. Bara samma system, körande live på mitt eget konto. Skriv <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener" style="color:var(--orange);text-decoration:none">@skylandaisystem</a>.</div>
+    </div>
+  </section>
+</div>
+
+<div class="wrap">
+  <section id="kontakt" style="border-bottom:none">
+    <div class="sec-kicker">Hör av dig</div>
+    <h2>Nyfiken? <span class="o">Skriv en rad.</span></h2>
+    <p class="sec-sub">Inga säljsamtal, ingen press. Berätta lite om studion så hör jag av mig personligen.</p>
+
+    <form name="kontakt" method="POST" data-netlify="true" netlify-honeypot="bot-field">
+      <input type="hidden" name="form-name" value="kontakt">
+      <p style="display:none"><label>Fyll inte i detta: <input name="bot-field"></label></p>
+      <div class="field">
+        <label for="namn">Namn</label>
+        <input id="namn" type="text" name="namn" required placeholder="Ditt namn">
+      </div>
+      <div class="field">
+        <label for="studio">Studio</label>
+        <input id="studio" type="text" name="studio" placeholder="Studions namn (om du har en)">
+      </div>
+      <div class="field">
+        <label for="kontakt-info">Mejl eller Instagram</label>
+        <input id="kontakt-info" type="text" name="kontakt" required placeholder="Så jag kan svara dig">
+      </div>
+      <div class="field">
+        <label for="meddelande">Vad ekar tommast hos er?</label>
+        <textarea id="meddelande" name="meddelande" placeholder="Missade DM, tomma vardagar, no-shows ... eller bara en fråga."></textarea>
+      </div>
+      <button class="btn" type="submit">Skicka →</button>
+      <p class="form-note">Föredrar du DM? Skriv "stol" till <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener" style="color:var(--orange);text-decoration:none">@skylandaisystem</a> så får du svar direkt.</p>
+    </form>
+  </section>
+</div>
+
+<div class="wrap">
+  <footer>
+    <div class="brand">SKYLAND</div>
+    <div class="meta">AI-SYSTEM · GÖTEBORG / MÖLNDAL · <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">@SKYLANDAISYSTEM</a></div>
+  </footer>
+</div>
+
+</body>
+</html>
