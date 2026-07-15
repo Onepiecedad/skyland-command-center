@@ -1221,9 +1221,28 @@
   background: rgba(10, 132, 255, 0.04);
 }
 
-/* Thread list inside section — hide its own "new thread" button since we have one */
+/* "Ny tråd"-knappen — kompakt variant i sidomenyn.
+   (Var tidigare display:none med hänvisning till en knapp som inte finns.) */
 .alex-section-items .thread-sidebar .thread-new-btn {
-  display: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.35rem 0.65rem;
+  margin: 0.15rem 0 0.3rem;
+  border-radius: var(--radius-sm);
+  border: 1px dashed rgba(52, 211, 153, 0.35);
+  background: rgba(52, 211, 153, 0.06);
+  color: rgba(52, 211, 153, 0.9);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.alex-section-items .thread-sidebar .thread-new-btn:hover {
+  background: rgba(52, 211, 153, 0.14);
+  border-color: rgba(52, 211, 153, 0.6);
 }
 
 .alex-section-items .thread-sidebar {
