@@ -261,6 +261,26 @@ async function execCreateTask(step: StepRow, enr: EnrollmentRow, contact: Contac
     return { status: 'success', control: 'advance', detail: { title } };
 }
 
+/** Vänta till en absolut tid = bastid (context, t.ex. booking_start) + offset.
+ *  offset kan vara negativ, t.ex. offset_hours:-24 = "24h innan mötet". */
+function execWaitUntil(step: StepRow, enr: EnrollmentRow): StepResult {
+    const cfg = step.config;
+    const n = (k: string) => (typeof cfg[k] === 'number' ? (cfg[k] as number) : 0);
+    const relTo = String(cfg.relative_to ?? 'booking_start');
+    const baseIso = relTo === 'now'
+        ? new Date().toISOString()
+        : (typeof enr.context?.[relTo] === 'string' ? (enr.context[relTo] as string) : null);
+    if (!baseIso) {
+        return { status: 'skipped', control: 'advance', detail: { reason: 'no_base_time', relative_to: relTo } };
+    }
+    const offMs = n('offset_minutes') * 60_000 + n('offset_hours') * 3_600_000 + n('offset_days') * 86_400_000;
+    const target = new Date(baseIso).getTime() + offMs;
+    const waitMs = target - Date.now();
+    if (Number.isNaN(target)) return { status: 'skipped', control: 'advance', detail: { reason: 'bad_base_time', baseIso } };
+    if (waitMs <= 0) return { status: 'success', control: 'advance', detail: { target: new Date(target).toISOString(), passed: true } };
+    return { status: 'success', control: 'wait', waitMs, detail: { target: new Date(target).toISOString() } };
+}
+
 async function execStep(
     step: StepRow, enr: EnrollmentRow, contact: ContactRow, enrolledAtISO: string
 ): Promise<StepResult> {
@@ -275,6 +295,7 @@ async function execStep(
         case 'create_task': return execCreateTask(step, enr, contact);
         case 'exit':        return { status: 'success', control: 'exit', detail: {} };
         case 'wait':        return { status: 'success', control: 'wait', waitMs: waitMsFromConfig(step.config) };
+        case 'wait_until':  return execWaitUntil(step, enr);
         default:            return { status: 'skipped', control: 'advance', detail: { reason: `okänd steg-typ ${step.type}` } };
     }
 }

@@ -17,14 +17,17 @@ type TriggerType =
     | 'contact_created' | 'opportunity_created' | 'stage_changed'
     | 'booking_created' | 'booking_cancelled' | 'booking_no_show' | 'tag_added';
 
-/** Skriv in en kontakt i en sekvens. Unik-aktiv-spärren hanterar dedup. */
+/** Skriv in en kontakt i en sekvens. Unik-aktiv-spärren hanterar dedup.
+ *  `context` bär variabler in i körningen (t.ex. booking_start för wait_until). */
 export async function enrollContact(
-    sequenceId: string, contactId: string, opportunityId?: string | null
+    sequenceId: string, contactId: string, opportunityId?: string | null,
+    context: Record<string, unknown> = {}
 ): Promise<{ enrolled: boolean; reason?: string }> {
     const { error } = await supabase.from('sequence_enrollments').insert({
         sequence_id: sequenceId,
         contact_id: contactId,
         opportunity_id: opportunityId ?? null,
+        context,
         next_run_at: new Date().toISOString(),
     });
     if (error) {
@@ -45,7 +48,8 @@ export async function fireTrigger(
     trigger: TriggerType,
     contactId: string,
     match: Record<string, string | null> = {},
-    opportunityId?: string | null
+    opportunityId?: string | null,
+    context: Record<string, unknown> = {}
 ): Promise<void> {
     try {
         const { data, error } = await supabase
@@ -60,7 +64,7 @@ export async function fireTrigger(
             const cfg = seq.trigger_config ?? {};
             const ok = Object.keys(cfg).every(k => String(cfg[k]) === String(match[k] ?? ''));
             if (!ok) continue;
-            await enrollContact(seq.id, contactId, opportunityId);
+            await enrollContact(seq.id, contactId, opportunityId, context);
         }
     } catch (err) {
         logger.error('sequenceEvents', `fireTrigger-fel: ${err instanceof Error ? err.message : err}`);
@@ -105,8 +109,11 @@ export async function fireExit(event: string, contactId: string): Promise<void> 
 export const onStageChanged = (contactId: string, pipelineId: string | null, stageId: string, oppId?: string | null) =>
     fireTrigger('stage_changed', contactId, { stage_id: stageId, pipeline_id: pipelineId ?? '' }, oppId);
 export const onReplyReceived = (contactId: string) => fireExit('reply_received', contactId);
-export const onBookingCreated = (contactId: string, oppId?: string | null) =>
-    Promise.all([fireTrigger('booking_created', contactId, {}, oppId), fireExit('booking_created', contactId)]).then(() => undefined);
+export const onBookingCreated = (contactId: string, oppId?: string | null, bookingStart?: string | null) =>
+    Promise.all([
+        fireTrigger('booking_created', contactId, {}, oppId, bookingStart ? { booking_start: bookingStart } : {}),
+        fireExit('booking_created', contactId),
+    ]).then(() => undefined);
 export const onBookingCancelled = (contactId: string, oppId?: string | null) =>
     fireTrigger('booking_cancelled', contactId, {}, oppId);
 export const onBookingNoShow = (contactId: string, oppId?: string | null) =>

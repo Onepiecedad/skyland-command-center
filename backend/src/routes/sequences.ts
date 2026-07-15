@@ -13,7 +13,7 @@ import { runDueEnrollments } from '../services/sequenceRunner';
 const router = Router();
 
 const STEP_TYPES = [
-    'send_email', 'send_sms', 'wait', 'branch',
+    'send_email', 'send_sms', 'wait', 'wait_until', 'branch',
     'move_stage', 'add_tag', 'remove_tag', 'create_task', 'webhook', 'exit',
 ] as const;
 const TRIGGERS = [

@@ -66,7 +66,7 @@ export async function mirrorBooking(
 
     // Trigga sekvenshändelse om vi hittade en kontakt
     if (contactId) {
-        if (trigger === 'created') await onBookingCreated(contactId);
+        if (trigger === 'created') await onBookingCreated(contactId, null, b.starts_at);
         else if (trigger === 'cancelled') await onBookingCancelled(contactId);
         else if (trigger === 'no_show') await onBookingNoShow(contactId);
     }
