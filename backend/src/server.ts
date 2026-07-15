@@ -46,6 +46,9 @@ import alexRoleFilesRouter from './routes/alexRoleFiles.js';
 import agentsOfficeRouter from './routes/agentsOffice.js';
 import deliverablesRouter from './routes/deliverables.js';
 import automationsRouter from './routes/automations.js';
+import sequencesRouter from './routes/sequences.js';
+import { config } from './config.js';
+import { startSequenceRunner } from './services/sequenceRunner.js';
 import adminRouter from './routes/admin.js';
 import openworkWebhookRouter from './routes/openworkWebhook.js';
 import leadsRouter from './routes/leads.js';
@@ -214,6 +217,7 @@ class Server {
     this.app.use('/api/v1/agents', agentsOfficeRouter);
     this.app.use('/api/v1/deliverables', deliverablesRouter);
     this.app.use('/api/v1/automations', automationsRouter);
+    this.app.use('/api/v1/sequences', sequencesRouter);   // Sekvensmotor (SCC-42)
     this.app.use('/api/v1/admin', adminLimiter, adminRouter);
     this.app.use('/api/v1/gateway', gatewayRouter);
     this.app.use('/api/v1/website', websiteRouter);   // Hemside-analytics (auth-skyddad)
@@ -257,6 +261,12 @@ class Server {
 
     // Initialize Supabase realtime (optional)
     supabaseRealtime.initialize();
+
+    // Sekvensmotor (SCC-42) — startas bara om SEQUENCE_RUNNER_ENABLED=true.
+    // send_email-steg gatas dessutom av OUTBOUND_ENABLED (dubbel spärr).
+    if (config.SEQUENCE_RUNNER_ENABLED) {
+      startSequenceRunner(config.SEQUENCE_RUNNER_INTERVAL_MS);
+    }
 
     // Start listening
     this.httpServer.listen(this.port, () => {

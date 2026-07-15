@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { supabase } from '../services/supabase';
 import { logger } from '../services/logger';
 import { emitSystemEvent } from './eventStream.js';
+import { onStageChanged } from '../services/sequenceEvents';
 
 /**
  * Pipelines API (SCC-24, F1: CRM-kärnan)
@@ -163,6 +164,11 @@ router.post('/opportunities/:id/move', async (req: Request, res: Response) => {
             details: { opportunity_id: data.id, title: data.title, stage_id: parsed.data.stage_id, stage_name: stageName },
         });
         emitSystemEvent('opportunity.moved', { opportunity_id: data.id, stage_id: parsed.data.stage_id }, 'pipelines');
+
+        // Sekvens-trigger (SCC-42): stage ändrad → skriv in i matchande sekvenser (fire-and-forget)
+        if (data.contact_id) {
+            void onStageChanged(data.contact_id, data.pipeline_id ?? null, parsed.data.stage_id, data.id);
+        }
 
         logger.info('pipelines', `Opportunity ${data.id} → ${stageName}`);
         return res.json({ status: 'moved', opportunity: data });
