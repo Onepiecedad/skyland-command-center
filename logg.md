@@ -1990,3 +1990,43 @@ Detta är prospekterings-spårets första riktiga steg mot första betalande kun
 svara på tier A-svar + boka möte, SCC-31 SMS, säkerhetsskuld (RLS) före extern kunddata.
 
 *Senast uppdaterad: 2026-07-14*
+
+---
+
+## 2026-07-15 — GHL-ersättningen byggd native i SCC (heldag)
+
+Dagen då sekvensmotorn — GHL:s hjärta — byggdes, testades och gick live i produktion.
+
+**Landningssida:** `studios.skylandai.se` live (Netlify Drop + one.com CNAME + TLS). Kurs-linjerad,
+leder med erbjudandet (FB-ads bokar kunder, provision per bokning), CTA → Cal.com. `landing/index.html`.
+
+**Strategiskt beslut:** ersätt GoHighLevel helt, native i SCC. Planer: `docs/GHL_TO_SCC_MIGRATION.md`,
+`docs/GHL_AAC_SNAPSHOT.md` (kartläggning av kursens GHL-snapshot), `docs/TICKETS_GHL_DERIVED_1.md`.
+
+**Byggt & verifierat (13 commits, allt tsc-rent, e2e-testat mot DB, mycket live i prod):**
+- **SCC-40** sekvensmotor-schema (sequences/steps/enrollments/step_runs).
+- **SCC-41** runner + alla step-executors (send_email/send_sms/wait/wait_until/branch/move_stage/
+  add_tag/remove_tag/create_task/webhook/exit).
+- **SCC-42** routes + enroll-API + event-triggers (stage_changed enrollar, reply/booking avslutar) +
+  runner startad i server.ts. **Verifierad live på Render.**
+- **SCC-43** inkommande mejl-webhook → unified inbox + reply_received-exit. (Fix: jsonb exit_on i JS.)
+- **SEQ-5/SCC-44** SMS via 46elks (E.164) + "aldrig tyst skip"-princip (synlig warn-activity).
+- **SEQ-6/SCC-45** Cal.com-webhook → bookings-spegel + triggers. **Live-testad med RIKTIG bokning.**
+- **SCC-37** integrations-hälsa (probar Supabase/Resend/Cal.com/46elks/OpenRouter) + vakt.
+- **SEQ-7/SCC-46** wait_until (påminnelse räknat från mötestid, t.ex. 24h innan).
+- **SCC-36** attribution — kontakt-tidslinje (tvärkanal) + trattexport CSV/JSON.
+- **Alex-verktyg** list_sequences + enroll_in_sequence.
+- **Frontend** "Sekvenser"-flik (status/steg/enrollments + aktivera/pausa).
+- **SCC-41 (GHL-härledd)** kontakt-merge utan dataförlust.
+- **3 MEXPAND-sekvenser** inlagda som DRAFT (cold email-drip, strategisamtal-påminnelser, no-show).
+
+**Cal.com skarpt:** env i Render, webhook konfigurerad, riktig testbokning speglades i SCC.
+
+**För go-live mot kund:** granska sekvenstexter, wire inkommande mejl (EMAIL_INBOUND_TOKEN + provider),
+46elks-konto, `OUTBOUND_ENABLED=true` + aktivera sekvens. Se `docs/HANDOVER_2026-07-15.md`.
+
+**Kvar/nästa:** RLS före extern kunddata, IG-token-refresh (~12 sep), IG-DM→intake, frontend för
+attribution/hälsa, "kampanj"-abstraktion (Alex: start_campaign per stad). Affärsmässigt: posta
+karusellerna, följ upp tier A, **landa första kunden** — allt byggt finns för den stunden.
+
+*Senast uppdaterad: 2026-07-15*
