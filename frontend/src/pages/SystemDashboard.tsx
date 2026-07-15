@@ -5,6 +5,8 @@ import { GitPanel } from '../components/system/GitPanel';
 import { EventFeedPanel } from '../components/system/EventFeedPanel';
 import { ErrorRecoveryPanel } from '../components/system/ErrorRecoveryPanel';
 import { ContextMonitor } from '../components/system/ContextMonitor';
+import { IntegrationsPanel } from '../components/system/IntegrationsPanel';
+import { AttributionFunnelPanel } from '../components/system/AttributionFunnelPanel';
 
 export function SystemDashboard() {
     return (
@@ -15,7 +17,7 @@ export function SystemDashboard() {
                     AI System Dashboard
                 </h2>
                 <p className="sys-dashboard-subtitle">
-                    Realtidsöverblick — Schemalagda jobb · Agent · Resurser · Context · Events · Fel · Git
+                    Realtidsöverblick — Schemalagda jobb · Agent · Integrationer · Attribution · Resurser · Context · Events · Fel · Git
                 </p>
             </div>
 
@@ -29,6 +31,11 @@ export function SystemDashboard() {
                 <ContextMonitor />
                 <EventFeedPanel />
                 <ErrorRecoveryPanel />
+            </div>
+
+            <div className="sys-grid">
+                <IntegrationsPanel />
+                <AttributionFunnelPanel />
             </div>
 
             <GitPanel />

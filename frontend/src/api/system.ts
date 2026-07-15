@@ -389,3 +389,84 @@ export async function runMemoryCleanup(): Promise<{
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
+
+// ─── Integrations-hälsa (SCC-37) ───
+
+export type IntegrationStatus = 'up' | 'down' | 'auth_failed' | 'not_configured';
+
+export interface IntegrationHealth {
+    name: string;
+    configured: boolean;
+    status: IntegrationStatus;
+    http_status?: number;
+    detail?: string;
+    checked_at: string;
+}
+
+export interface IntegrationsHealthResponse {
+    overall: 'healthy' | 'degraded';
+    integrations: IntegrationHealth[];
+    checked_at: string;
+}
+
+export async function fetchIntegrationsHealth(): Promise<IntegrationsHealthResponse> {
+    const res = await fetchWithAuth(`${API_BASE}/integrations/health`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+// ─── Attribution (SCC-36) ───
+
+export interface FunnelRow {
+    opportunity: string;
+    pipeline: string;
+    stage: string;
+    value_sek: number | string;
+    status: string;
+    contact: string;
+    email: string;
+    source: string;
+    created: string;
+    bookings: number;
+    last_booking_status: string;
+}
+
+export async function fetchAttributionFunnel(): Promise<{ rows: FunnelRow[]; count: number }> {
+    const res = await fetchWithAuth(`${API_BASE}/attribution/export`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
+
+/** Laddar ned tratten som CSV (auth-header krävs → blob, inte länk). */
+export async function downloadFunnelCsv(): Promise<void> {
+    const res = await fetchWithAuth(`${API_BASE}/attribution/export?format=csv`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'skyland-funnel.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+export interface AttributionTimelineEvent {
+    ts: string;
+    kind: 'message' | 'activity' | 'booking';
+    channel?: string;
+    direction?: string;
+    summary: string;
+}
+
+export interface AttributionTimeline {
+    contact: { id: string; name: string; email?: string; phone?: string; source?: string; status?: string };
+    opportunities: Array<Record<string, unknown>>;
+    summary: { emails_out: number; emails_in: number; sms_out: number; bookings: number; opportunities: number };
+    timeline: AttributionTimelineEvent[];
+}
+
+export async function fetchAttributionTimeline(contactId: string): Promise<AttributionTimeline> {
+    const res = await fetchWithAuth(`${API_BASE}/attribution/${encodeURIComponent(contactId)}/timeline`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+}
