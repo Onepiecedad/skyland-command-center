@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Conversation } from '@elevenlabs/client';
 import { Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX } from 'lucide-react';
+import { API_BASE, fetchWithAuth } from '../api';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Types
@@ -35,15 +36,17 @@ export default function VoiceChat() {
     const transcriptEndRef = useRef<HTMLDivElement | null>(null);
     const levelIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+    // Följer samma API-bas som resten av appen (VITE_API_BASE i dev, same-origin i prod).
+    // Tidigare hårdkodades localhost:3001 vilket gav falskt "ej konfigurerad" i dev mot prod.
+    const VOICE_API = `${API_BASE}/voice`;
 
     // ── Check if ElevenLabs is configured ──
     useEffect(() => {
-        fetch(`${BACKEND_URL}/api/v1/voice/status`)
+        fetchWithAuth(`${VOICE_API}/status`)
             .then(r => r.json())
             .then(data => setConfigured(data.configured))
             .catch(() => setConfigured(false));
-    }, [BACKEND_URL]);
+    }, [VOICE_API]);
 
     // ── Auto-scroll transcript ──
     useEffect(() => {
@@ -71,7 +74,7 @@ export default function VoiceChat() {
             await navigator.mediaDevices.getUserMedia({ audio: true });
 
             // Get signed URL from backend
-            const response = await fetch(`${BACKEND_URL}/api/v1/voice/signed-url`);
+            const response = await fetchWithAuth(`${VOICE_API}/signed-url`);
             if (!response.ok) {
                 const err = await response.json();
                 throw new Error(err.message || 'Kunde inte hämta signerad URL');
@@ -145,7 +148,7 @@ export default function VoiceChat() {
             setError(msg);
             setStatus('error');
         }
-    }, [BACKEND_URL, volume]);
+    }, [VOICE_API, volume]);
 
     // ── Stop conversation ──
     const stopConversation = useCallback(async () => {
