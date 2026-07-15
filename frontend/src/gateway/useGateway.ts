@@ -84,9 +84,12 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
 
     const socketRef = useRef<GatewaySocket | null>(null);
     const streamBuf = useRef('');
+    // Segment per tanke-avsnitt — sista segmentet är pågående avsnitts snapshot
+    const streamSegs = useRef<string[]>([]);
     // Ref-spegel av sessionKey så event-handlern (stabil ref) kan filtrera
     // bort deltas från ANDRA sessioner (subagenter broadcastar på samma socket).
     const sessionKeyRef = useRef(initialSessionKey);
+    useEffect(() => { sessionKeyRef.current = sessionKey; }, [sessionKey]);
     const currentRunId = useRef<string | null>(null);
     const activeTools = useRef<Map<string, { name: string; status: string }>>(new Map());
     // Stable ref for handleChatEvent — avoids socket recreation when callback changes
@@ -117,21 +120,24 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                 // deltas från andra körningar tills denna är klar.
                 if (rid && currentRunId.current && rid !== currentRunId.current) break;
 
-                // Gatewayn kan skicka deltas som KUMULATIVA snapshots (hela texten
-                // hittills) ELLER som äkta fragment. Blint '+=' på snapshots gav
-                // "JagJag har sökt igenomJag har sökt igenom hela..." — texten
-                // dubblerad för varje event. Hantera båda:
+                // Gatewayn streamar KUMULATIVA snapshots per TANKE-AVSNITT — en
+                // agentisk körning har flera avsnitt (tänk → verktyg → tänk igen),
+                // vart och ett med egen växande snapshot-serie. Segmentmodell:
+                // sista segmentet är pågående avsnitt; nytt avsnitt = nytt segment.
                 const incoming = chunk.content || '';
-                const buf = streamBuf.current;
-                if (incoming.startsWith(buf)) {
-                    // Kumulativ snapshot (superset av buffern) → ersätt
-                    streamBuf.current = incoming;
-                } else if (buf.startsWith(incoming)) {
-                    // Äldre/duplicerad snapshot (delmängd) → ignorera
+                if (!incoming) break;
+                const segs = streamSegs.current;
+                const last = segs.length > 0 ? segs[segs.length - 1] : '';
+                if (incoming.startsWith(last) && segs.length > 0) {
+                    segs[segs.length - 1] = incoming;      // snapshot växer → ersätt
+                } else if (last.startsWith(incoming)) {
+                    // äldre/duplicerad snapshot → ignorera
+                } else if (incoming.length < 48 && segs.length > 0) {
+                    segs[segs.length - 1] = last + incoming; // kort äkta fragment
                 } else {
-                    // Äkta inkrementellt fragment → lägg till
-                    streamBuf.current = buf + incoming;
+                    segs.push(incoming);                    // nytt tanke-avsnitt
                 }
+                streamBuf.current = segs.join('\n\n');
                 setStreamingContent(streamBuf.current);
                 setIsStreaming(true);
                 setAlexState('thinking');
@@ -157,7 +163,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                 // Use streamed buffer if available; only fall back to chunk.content
                 // when no deltas were received (e.g. short messages with no streaming).
                 const finalText = streamBuf.current || chunk.content || '';
-                streamBuf.current = '';
+                streamBuf.current = ''; streamSegs.current = [];
                 setStreamingContent('');
                 setIsStreaming(false);
                 setAlexState('idle');
@@ -208,7 +214,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                 break;
 
             case 'error':
-                streamBuf.current = '';
+                streamBuf.current = ''; streamSegs.current = [];
                 setStreamingContent('');
                 setIsStreaming(false);
                 setAlexState('idle');
@@ -220,7 +226,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                 break;
 
             case 'aborted':
-                streamBuf.current = '';
+                streamBuf.current = ''; streamSegs.current = [];
                 setStreamingContent('');
                 setIsStreaming(false);
                 setAlexState('idle');
@@ -338,7 +344,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
             attachments,
             timestamp: new Date().toISOString(),
         }]);
-        streamBuf.current = '';
+        streamBuf.current = ''; streamSegs.current = [];
         setStreamingContent('');
         setIsStreaming(true);
         setAlexState('thinking');
