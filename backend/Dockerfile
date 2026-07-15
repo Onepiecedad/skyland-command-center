@@ -11,6 +11,12 @@ RUN npm ci --legacy-peer-deps
 
 COPY frontend/ ./
 
+# Gateway-token bakas in i bundlen (Render exponerar env som build-args när ARG deklareras).
+# OBS: värdet blir publikt i JS-bundlen — acceptabelt eftersom gatewayen är loopback-only
+# på operatörens egen maskin; token är värdelös utan lokal åtkomst till den maskinen.
+ARG VITE_GATEWAY_TOKEN=
+ENV VITE_GATEWAY_TOKEN=$VITE_GATEWAY_TOKEN
+
 # Build the Vite React app → dist/
 RUN npm run build
 
