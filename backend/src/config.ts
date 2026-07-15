@@ -92,6 +92,13 @@ const envSchema = z.object({
     ELKS_API_PASSWORD: z.string().optional(),
     SMS_FROM: z.string().optional(),  // virtuellt nummer (E.164) eller alfanumeriskt ID
 
+    // --- Integrations-hälsa (GHL-härledd SCC-37) ---
+    INTEGRATION_HEALTH_ENABLED: z
+        .string()
+        .default('false')
+        .transform((v) => v === 'true'),
+    INTEGRATION_HEALTH_INTERVAL_MS: z.coerce.number().default(600000),  // 10 min
+
     // --- Rate limiting ---
     CLAW_MAX_CONCURRENT_PER_CUSTOMER: z.coerce.number().default(3),
     CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER: z.coerce.number().default(20),

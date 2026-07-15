@@ -51,6 +51,8 @@ import emailInboundRouter from './routes/emailInbound.js';
 import calcomWebhookRouter from './routes/calcomWebhook.js';
 import { config } from './config.js';
 import { startSequenceRunner } from './services/sequenceRunner.js';
+import integrationsRouter from './routes/integrations.js';
+import { startHealthMonitor } from './services/integrationHealth.js';
 import adminRouter from './routes/admin.js';
 import openworkWebhookRouter from './routes/openworkWebhook.js';
 import leadsRouter from './routes/leads.js';
@@ -222,6 +224,7 @@ class Server {
     this.app.use('/api/v1/deliverables', deliverablesRouter);
     this.app.use('/api/v1/automations', automationsRouter);
     this.app.use('/api/v1/sequences', sequencesRouter);   // Sekvensmotor (SCC-42)
+    this.app.use('/api/v1/integrations', integrationsRouter); // Integrations-hälsa (SCC-37)
     this.app.use('/api/v1/admin', adminLimiter, adminRouter);
     this.app.use('/api/v1/gateway', gatewayRouter);
     this.app.use('/api/v1/website', websiteRouter);   // Hemside-analytics (auth-skyddad)
@@ -270,6 +273,11 @@ class Server {
     // send_email-steg gatas dessutom av OUTBOUND_ENABLED (dubbel spärr).
     if (config.SEQUENCE_RUNNER_ENABLED) {
       startSequenceRunner(config.SEQUENCE_RUNNER_INTERVAL_MS);
+    }
+
+    // Integrations-hälsa (SCC-37) — periodisk vakt, opt-in via env.
+    if (config.INTEGRATION_HEALTH_ENABLED) {
+      startHealthMonitor(config.INTEGRATION_HEALTH_INTERVAL_MS);
     }
 
     // Start listening
