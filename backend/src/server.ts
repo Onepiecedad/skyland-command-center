@@ -103,9 +103,12 @@ class Server {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://fonts.googleapis.com"],
           scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
-          fontSrc: ["'self'", "https://fonts.gstatic.com"],
+          // data: — Vite bäddar in fonter som data-URI:er i bundlen
+          fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
           imgSrc: ["'self'", "data:", "https:"],
-          connectSrc: ["'self'", "https:", "wss:"],
+          // ws/http mot 127.0.0.1:18789 — OpenClaw-gatewayen på operatörens egen
+          // maskin. Utan detta kan gateway-Alex ALDRIG nås från live-sidan.
+          connectSrc: ["'self'", "https:", "wss:", "ws://127.0.0.1:18789", "http://127.0.0.1:18789", "ws://localhost:18789", "http://localhost:18789"],
         }
       }
     }));
