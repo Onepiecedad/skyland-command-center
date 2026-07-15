@@ -244,7 +244,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                     setNodes(n);
                 } catch { /* ignore */ }
                 try {
-                    const s = await socket.getSessions();
+                    const s = await socket.getSessions('main');
                     setSessions(s.filter(keepUserSession));
                 } catch { /* ignore */ }
             },
@@ -273,7 +273,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
             socketRef.current?.getNodes()
                 .then(setNodes)
                 .catch(() => { });
-            socketRef.current?.getSessions()
+            socketRef.current?.getSessions('main')
                 .then(s => setSessions(s.filter(keepUserSession)))
                 .catch(() => { });
         }, 30000);
@@ -357,7 +357,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
 
     const refreshSessions = useCallback(() => {
         if (!socketRef.current?.connected) return;
-        socketRef.current.getSessions()
+        socketRef.current.getSessions('main')
             .then(s => setSessions(s.filter(keepUserSession)))
             .catch(() => { });
     }, []);

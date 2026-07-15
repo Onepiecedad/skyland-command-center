@@ -58,6 +58,7 @@ interface ActivityItem {
     label: string;
     when?: string;
     tokens?: number;
+    costUsd?: number;
     preview: string;
 }
 
@@ -72,13 +73,10 @@ function timeAgo(iso?: string): string {
     return `${Math.floor(h / 24)}d`;
 }
 
-/** Matcha en gateway-session mot ett skrivbord (agent-id i label eller nyckel). */
+/** Matcha en gateway-session mot ett skrivbord — exakt via agentId (nyckelformat: agent:<id>:...). */
 function deskIdForSession(s: GatewaySession): string | null {
-    const hay = `${s.label ?? ''} ${s.key}`.toLowerCase();
-    for (const d of DESKS) {
-        if (hay.includes(d.id)) return d.id;
-    }
-    return null;
+    const aid = s.agentId || s.key.split(':')[1] || '';
+    return DESKS.some(d => d.id === aid) ? aid : null;
 }
 
 export default function OfficeView() {
@@ -115,12 +113,24 @@ export default function OfficeView() {
             const socket = getGatewaySocket();
             if (!socket.connected) return false;
 
-            const sessions = await socket.getSessions('main');
-            const sub = sessions.filter(s => (s.key.split(':')[2] || '') === 'subagent');
-            const mainSess = sessions.find(s => s.key === 'agent:main:main');
+            // Hämta ALLA agenters sessioner (utan agentId-filter). Faller gatewayn
+            // tillbaka till bara main: fråga per skrivbord.
+            let sessions = await socket.getSessions();
+            const seenAgents = new Set(sessions.map(s => s.agentId ?? s.key.split(':')[1]));
+            if (seenAgents.size <= 1) {
+                const per = await Promise.all(DESKS.map(d => socket.getSessions(d.id).catch(() => [])));
+                sessions = [...sessions, ...per.flat()];
+            }
 
-            // Aktivitetsfeed: senaste subagent-sessionerna med preview
-            const recent = [...sub]
+            const relevant = sessions.filter(s => !s.key.endsWith(':heartbeat'));
+            // Roll-agenternas sessioner + mains anonyma sub-agent-spawns
+            const roleSess = relevant.filter(s => deskIdForSession(s) !== null);
+            const anonSubs = relevant.filter(s => (s.key.split(':')[2] || '') === 'subagent');
+            const feedSource = [...roleSess, ...anonSubs];
+            const mainSess = relevant.find(s => s.key === 'agent:main:main');
+
+            // Aktivitetsfeed: senaste körningarna med preview
+            const recent = [...feedSource]
                 .sort((a, b) => (b.lastMessageAt ?? '').localeCompare(a.lastMessageAt ?? ''))
                 .slice(0, 8);
             const items: ActivityItem[] = await Promise.all(recent.map(async (s) => {
@@ -130,22 +140,25 @@ export default function OfficeView() {
                     const withText = (h.messages || []).filter(m => (m.content || '').trim());
                     preview = withText[withText.length - 1]?.content?.slice(0, 110) ?? '';
                 } catch { /* best effort */ }
+                const deskId = deskIdForSession(s);
+                const deskName = deskId ? DESKS.find(d => d.id === deskId)?.name : undefined;
                 return {
                     key: s.key,
-                    label: s.label || deskIdForSession(s) || `subagent ${s.key.split(':')[3]?.slice(0, 6) ?? ''}`,
+                    label: deskName || s.label || `Alex · sub-agent ${s.key.split(':')[3]?.slice(0, 6) ?? ''}`,
                     when: s.lastMessageAt,
                     tokens: s.tokenCount,
+                    costUsd: s.costUsd,
                     preview,
                 };
             }));
             setActivity(items);
 
-            // Tänd skrivbord vars agent har färsk subagent-session (< 3 min)
+            // Tänd skrivbord vars agent har färsk session (< 3 min)
             const nowMs = Date.now();
             const next: Record<string, DeskState> = {};
             const live: Record<string, AgentLiveInfo> = {};
             for (const d of DESKS) {
-                const sess = sub.filter(s => deskIdForSession(s) === d.id)
+                const sess = roleSess.filter(s => deskIdForSession(s) === d.id)
                     .sort((a, b) => (b.lastMessageAt ?? '').localeCompare(a.lastMessageAt ?? ''))[0];
                 const fresh = !!(sess?.lastMessageAt && nowMs - new Date(sess.lastMessageAt).getTime() < 3 * 60_000);
                 const status: AgentStatus = fresh ? 'active' : 'idle';
@@ -369,6 +382,7 @@ export default function OfficeView() {
                             {typeof a.tokens === 'number' && a.tokens > 0 && (
                                 <div style={{ marginTop: 3, fontSize: 10.5, color: 'rgba(52,211,153,0.6)' }}>
                                     {a.tokens.toLocaleString('sv-SE')} tokens
+                                    {typeof a.costUsd === 'number' && a.costUsd > 0 && ` · $${a.costUsd.toFixed(4)}`}
                                 </div>
                             )}
                         </div>

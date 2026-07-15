@@ -93,6 +93,12 @@ export interface GatewaySession {
     lastMessageAt?: string;
     channel?: string;
     model?: string;
+    /** Vilken agent sessionen tillhör (t.ex. 'researcher', 'dm-writer', 'main') */
+    agentId?: string;
+    /** Uppskattad kostnad i USD (från gatewayn) */
+    costUsd?: number;
+    status?: string;
+    spawnedBy?: string;
     tokenCount?: number;
 }
 
@@ -249,19 +255,27 @@ export class GatewaySocket {
         return data.nodes || [];
     }
 
-    async getSessions(agentId = 'main'): Promise<GatewaySession[]> {
+    async getSessions(agentId?: string): Promise<GatewaySession[]> {
         try {
-            const result = await this.request('sessions.list', { agentId });
+            const result = await this.request('sessions.list', agentId ? { agentId } : {});
             const data = result as { sessions?: unknown[] };
             return (data.sessions || []).map((s) => {
                 const raw = s as Record<string, unknown>;
+                // updatedAt är epoch-ms i gatewayn — normalisera till ISO
+                const updated = typeof raw.updatedAt === 'number'
+                    ? new Date(raw.updatedAt).toISOString()
+                    : (raw.updatedAt as string | undefined);
                 return {
                     key: String(raw.key || raw.sessionKey || ''),
-                    label: raw.label as string | undefined,
-                    lastMessageAt: raw.lastMessageAt as string | undefined,
+                    label: (raw.label ?? raw.displayName) as string | undefined,
+                    lastMessageAt: (raw.lastMessageAt as string | undefined) ?? updated,
                     channel: raw.channel as string | undefined,
                     model: raw.model as string | undefined,
-                    tokenCount: raw.tokenCount as number | undefined,
+                    tokenCount: (raw.tokenCount ?? raw.totalTokens) as number | undefined,
+                    agentId: raw.agentId as string | undefined,
+                    costUsd: raw.estimatedCostUsd as number | undefined,
+                    status: raw.status as string | undefined,
+                    spawnedBy: raw.spawnedBy as string | undefined,
                 } as GatewaySession;
             });
         } catch {
