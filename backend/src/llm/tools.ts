@@ -5,6 +5,7 @@
 
 import type { ToolDefinition } from './adapter';
 import { supabase } from '../services/supabase';
+import { enrollContact } from '../services/sequenceEvents';
 
 // ============================================================================
 // Tool Definitions (for LLM function calling)
@@ -254,6 +255,23 @@ export const ALEX_TOOLS: ToolDefinition[] = [
             },
             required: ['contact_id', 'content']
         }
+    },
+    {
+        name: 'list_sequences',
+        description: 'Lista automations-sekvenser (cold email-drip, strategisamtal-påminnelser, no-show-uppföljning) med status (draft/active/paused), trigger och antal aktiva enrollments. Använd för att se vilka sekvenser som finns och om de körs.',
+        parameters: { type: 'object', properties: {} }
+    },
+    {
+        name: 'enroll_in_sequence',
+        description: 'Skriv in en kontakt i en sekvens, t.ex. starta cold email-drippen för ett prospekt. Ange contact_id och sequence_id. Sekvensen kör bara om den är aktiv, och utskick kräver dessutom att OUTBOUND_ENABLED är på — så detta är säkert att köra.',
+        parameters: {
+            type: 'object',
+            properties: {
+                contact_id: { type: 'string', description: 'Kontaktens UUID' },
+                sequence_id: { type: 'string', description: 'Sekvensens UUID (se list_sequences)' }
+            },
+            required: ['contact_id', 'sequence_id']
+        }
     }
 ];
 
@@ -298,6 +316,10 @@ export async function executeToolCall(
                 return await handleMoveOpportunity(args);
             case 'log_interaction':
                 return await handleLogInteraction(args);
+            case 'list_sequences':
+                return await handleListSequences();
+            case 'enroll_in_sequence':
+                return await handleEnrollInSequence(args);
             default:
                 return { success: false, error: `Unknown tool: ${name}` };
         }
@@ -763,6 +785,29 @@ async function handleLogInteraction(args: Record<string, unknown>): Promise<Tool
     return { success: true, data: { message_id: data.id, contact_id: contact.id } };
 }
 
+async function handleListSequences(): Promise<ToolResult> {
+    const { data, error } = await supabase
+        .from('sequences').select('id, name, status, trigger_type').order('created_at', { ascending: false });
+    if (error) return { success: false, error: error.message };
+    const { data: enr } = await supabase.from('sequence_enrollments').select('sequence_id, status').eq('status', 'active');
+    const counts: Record<string, number> = {};
+    for (const e of (enr ?? []) as Array<{ sequence_id: string }>) counts[e.sequence_id] = (counts[e.sequence_id] ?? 0) + 1;
+    return {
+        success: true,
+        data: { sequences: (data ?? []).map((s: Record<string, unknown>) => ({ ...s, active_enrollments: counts[s.id as string] ?? 0 })) },
+    };
+}
+
+async function handleEnrollInSequence(args: Record<string, unknown>): Promise<ToolResult> {
+    const contactId = String(args.contact_id ?? '');
+    const sequenceId = String(args.sequence_id ?? '');
+    if (!contactId || !sequenceId) return { success: false, error: 'contact_id och sequence_id krävs' };
+    const { data: seq } = await supabase.from('sequences').select('name, status').eq('id', sequenceId).maybeSingle();
+    if (!seq) return { success: false, error: `Sekvens ${sequenceId} hittades inte` };
+    const r = await enrollContact(sequenceId, contactId);
+    return { success: true, data: { enrolled: r.enrolled, reason: r.reason, sequence: (seq as { name: string }).name, status: (seq as { status: string }).status } };
+}
+
 export function formatToolResultForLLM(name: string, result: ToolResult): string {
     if (!result.success) {
         return `Verktyg "${name}" misslyckades: ${result.error}`;
@@ -922,6 +967,18 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
         case 'log_interaction': {
             const m = data as { message_id: string };
             return `✅ Interaktion loggad (message ${m.message_id}). Syns nu i kontaktens tråd.`;
+        }
+        case 'list_sequences': {
+            const r = data as { sequences: Array<{ name: string; status: string; trigger_type: string; active_enrollments: number }> };
+            if (!r.sequences.length) return 'Inga sekvenser finns än.';
+            return `${r.sequences.length} sekvenser:\n${r.sequences.map(s =>
+                `- ${s.name} [${s.status}] · trigger: ${s.trigger_type} · ${s.active_enrollments} aktiva`).join('\n')}`;
+        }
+        case 'enroll_in_sequence': {
+            const r = data as { enrolled: boolean; reason?: string; sequence: string; status: string };
+            if (!r.enrolled) return `Kontakten var redan i "${r.sequence}" (${r.reason ?? 'skippad'}).`;
+            const note = r.status !== 'active' ? ` OBS: sekvensen är "${r.status}" — inget körs förrän du aktiverar den.` : '';
+            return `✅ Enrollad i "${r.sequence}".${note}`;
         }
         default:
             return JSON.stringify(data, null, 2);
