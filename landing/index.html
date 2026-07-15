@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Skyland AI — Fyller tomma stolar åt tatuerare i Göteborg</title>
-<meta name="description" content="Varje DM får svar direkt — även mitt i en sittning. Skyland bygger system som fångar bokningarna du annars missar, åt tatueringsstudios i Göteborg och Mölndal.">
+<title>Skyland AI — Vi bokar in betalande kunder i din kalender</title>
+<meta name="description" content="Facebook-annonser som fyller din kalender med betalande kunder — åt tatueringsstudios i Göteborg och Mölndal. Ingen fast avgift. Du betalar bara provision per bokning.">
 <link rel="canonical" href="https://studios.skylandai.se/">
-<meta property="og:title" content="Skyland AI — fyller tomma stolar åt tatuerare">
-<meta property="og:description" content="Varje DM får svar direkt, även mitt i en sittning. Åt studios i Göteborg / Mölndal.">
+<meta property="og:title" content="Skyland AI — betalande kunder i din kalender, provision per bokning">
+<meta property="og:description" content="FB-annonser som bokar kunder åt tatueringsstudios i Göteborg. Ingen fast avgift — du betalar bara per bokning.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://studios.skylandai.se/">
 <meta name="theme-color" content="#0e1013">
@@ -24,8 +24,7 @@
   body{
     background:var(--bg); color:var(--cream);
     font-family:'Archivo',-apple-system,BlinkMacSystemFont,sans-serif;
-    line-height:1.5; -webkit-font-smoothing:antialiased;
-    overflow-x:hidden;
+    line-height:1.5; -webkit-font-smoothing:antialiased; overflow-x:hidden;
   }
   .wrap{max-width:1080px; margin:0 auto; padding:0 28px; width:100%}
   a{color:inherit}
@@ -38,74 +37,82 @@
   nav .loc{font-family:'Space Mono',monospace; letter-spacing:4px; font-size:12px; color:var(--gray)}
 
   /* HERO */
-  header{padding:70px 0 90px; border-bottom:1px solid var(--line)}
+  header{padding:66px 0 84px; border-bottom:1px solid var(--line)}
   .kicker{font-family:'Space Mono',monospace; letter-spacing:5px; text-transform:uppercase; font-size:13px; color:var(--orange); margin-bottom:26px; overflow-wrap:anywhere}
-  h1{font-size:clamp(32px,7vw,78px); font-weight:800; line-height:1.05; letter-spacing:-1.5px}
+  h1{font-size:clamp(32px,6.4vw,72px); font-weight:800; line-height:1.06; letter-spacing:-1.5px}
   h1 .o{color:var(--orange)}
-  .lede{font-size:clamp(18px,2.4vw,24px); color:var(--gray); font-weight:500; max-width:640px; margin-top:28px; line-height:1.4}
-  .cta-row{display:flex; flex-wrap:wrap; gap:16px; margin-top:40px; align-items:center}
-  .btn{display:inline-flex; align-items:center; gap:10px; background:var(--orange); color:#12100b;
+  .lede{font-size:clamp(18px,2.4vw,23px); color:var(--gray); font-weight:500; max-width:660px; margin-top:26px; line-height:1.42}
+  .cta-row{display:flex; flex-wrap:wrap; gap:16px; margin-top:38px; align-items:center}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:10px; background:var(--orange); color:#12100b;
     font-weight:800; font-size:19px; padding:18px 34px; border-radius:999px; text-decoration:none;
     transition:transform .15s ease, box-shadow .15s ease}
   .btn:hover{transform:translateY(-2px); box-shadow:0 10px 30px rgba(233,162,59,.25)}
   .btn .kw{font-family:'Space Mono',monospace; font-weight:700}
   .btn-ghost{background:transparent; color:var(--cream); border:1px solid var(--line); font-weight:600; font-size:17px}
   .btn-ghost:hover{border-color:var(--orange); color:var(--orange); box-shadow:none}
+  .microline{margin-top:18px; color:var(--gray); font-size:15px}
+  .microline b{color:var(--cream); font-weight:700}
 
   /* SECTION */
-  section{padding:80px 0; border-bottom:1px solid var(--line)}
+  section{padding:76px 0; border-bottom:1px solid var(--line)}
   .sec-kicker{font-family:'Space Mono',monospace; letter-spacing:5px; text-transform:uppercase; font-size:13px; color:var(--gray); margin-bottom:18px}
-  h2{font-size:clamp(28px,4vw,44px); font-weight:800; line-height:1.12; letter-spacing:-.5px; max-width:720px}
+  h2{font-size:clamp(27px,4vw,42px); font-weight:800; line-height:1.14; letter-spacing:-.5px; max-width:740px}
   h2 .o{color:var(--orange)}
-  .sec-sub{color:var(--gray); font-size:18px; max-width:620px; margin-top:18px}
+  .sec-sub{color:var(--gray); font-size:18px; max-width:640px; margin-top:18px}
 
-  /* PROBLEM CARDS */
-  .cards{display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:44px}
-  .card{background:var(--card); border-radius:20px; padding:34px 30px; border:1px solid transparent}
-  .card .num{font-family:'Space Mono',monospace; color:var(--orange); font-size:15px; letter-spacing:3px; margin-bottom:18px}
-  .card h3{font-size:23px; font-weight:800; line-height:1.2; margin-bottom:12px}
-  .card p{color:var(--gray); font-size:16px; line-height:1.5}
+  /* RISK BAND */
+  .band{background:var(--card); border:1px solid rgba(233,162,59,.28); border-radius:24px; padding:44px 42px; margin-top:4px}
+  .band .big{font-size:clamp(24px,3.4vw,36px); font-weight:800; line-height:1.22; letter-spacing:-.5px}
+  .band .big .o{color:var(--orange)}
+  .band ul{list-style:none; margin-top:26px; display:grid; grid-template-columns:repeat(3,1fr); gap:20px}
+  .band li{padding-left:0}
+  .band li .t{font-family:'Space Mono',monospace; color:var(--orange); font-size:13px; letter-spacing:3px; text-transform:uppercase; margin-bottom:8px}
+  .band li p{color:var(--gray); font-size:16px; line-height:1.45}
 
   /* STEPS */
-  .steps{display:grid; grid-template-columns:repeat(3,1fr); gap:22px; margin-top:44px}
-  .step{padding:28px 0}
+  .steps{display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-top:44px}
   .step .n{font-size:52px; font-weight:900; color:var(--orange); line-height:1; letter-spacing:-2px}
-  .step h3{font-size:20px; font-weight:800; margin:16px 0 8px}
+  .step h3{font-size:21px; font-weight:800; margin:16px 0 8px}
   .step p{color:var(--gray); font-size:16px}
 
   /* PROOF */
-  .proof{background:var(--card); border-radius:24px; padding:48px 44px; margin-top:8px}
-  .proof .q{font-size:clamp(22px,3vw,32px); font-weight:800; line-height:1.3; letter-spacing:-.5px}
+  .proof{background:var(--card); border-radius:24px; padding:46px 42px; margin-top:8px}
+  .proof .q{font-size:clamp(21px,2.9vw,30px); font-weight:800; line-height:1.32; letter-spacing:-.5px}
   .proof .q .o{color:var(--orange)}
-  .proof .by{color:var(--gray); margin-top:20px; font-size:16px}
+  .proof .by{color:var(--gray); margin-top:18px; font-size:16px}
+  .proof .by a{color:var(--orange); text-decoration:none}
 
-  /* FORM */
-  form{margin-top:40px; max-width:560px}
+  /* CLOSE / CTA */
+  .close{text-align:left}
+  .close h2{margin-bottom:14px}
+  .form-wrap{margin-top:40px; padding-top:36px; border-top:1px solid var(--line)}
+  form{max-width:560px}
   .field{margin-bottom:20px}
   label{display:block; font-family:'Space Mono',monospace; letter-spacing:3px; text-transform:uppercase; font-size:12px; color:var(--gray); margin-bottom:10px}
   input,textarea{width:100%; background:var(--bg); border:1px solid var(--line); border-radius:12px;
     color:var(--cream); font-family:inherit; font-size:17px; padding:15px 16px; transition:border-color .15s}
   input:focus,textarea:focus{outline:none; border-color:var(--orange)}
-  textarea{resize:vertical; min-height:110px}
+  textarea{resize:vertical; min-height:100px}
   .form-note{color:var(--gray); font-size:14px; margin-top:16px}
-  form button{margin-top:8px; cursor:pointer; border:none}
+  .form-note a{color:var(--orange); text-decoration:none}
+  form button{margin-top:4px; cursor:pointer; border:none}
 
   /* FOOTER */
-  footer{padding:56px 0 70px; text-align:center}
+  footer{padding:54px 0 68px; text-align:center}
   footer .brand{font-family:'Space Mono',monospace; font-weight:700; letter-spacing:6px; font-size:16px}
   footer .meta{font-family:'Space Mono',monospace; letter-spacing:4px; font-size:12px; color:var(--gray); margin-top:14px}
   footer a{color:var(--orange); text-decoration:none}
 
   @media(max-width:760px){
     .wrap{padding:0 20px}
-    .cards,.steps{grid-template-columns:1fr}
-    header{padding:48px 0 60px}
-    section{padding:56px 0}
+    .steps,.band ul{grid-template-columns:1fr}
+    header{padding:46px 0 56px}
+    section{padding:52px 0}
     .cta-row{flex-direction:column; align-items:stretch}
-    .btn{justify-content:center}
     nav .loc{display:none}
     .kicker{letter-spacing:3px}
-    .proof{padding:34px 24px}
+    .band{padding:32px 24px}
+    .proof{padding:32px 24px}
   }
 </style>
 </head>
@@ -120,37 +127,36 @@
 
 <div class="wrap">
   <header>
-    <div class="kicker">AI-system för tatueringsstudios</div>
-    <h1>Fyller tomma stolar åt tatuerare i <span class="o">Göteborg</span>.</h1>
-    <p class="lede">Varje förfrågan får svar direkt — även mitt i en sittning. Jag bygger system som fångar bokningarna du annars missar. Inga byråfasoner. Bara mindre strul och fler bokade stolar.</p>
+    <div class="kicker">För tatueringsstudios i Göteborg</div>
+    <h1>Vi bokar in betalande kunder i din kalender. <span class="o">Du betalar bara när vi levererar.</span></h1>
+    <p class="lede">Facebook-annonser som fyller dina tomma tider med riktiga bokningar. Ingen fast avgift, ingen bindningstid — bara provision per bokning. Du tatuerar, jag fixar flödet.</p>
     <div class="cta-row">
-      <a class="btn" href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">Skriv <span class="kw">"stol"</span> i en DM →</a>
-      <a class="btn btn-ghost" href="#kontakt">Eller hör av dig här</a>
+      <a class="btn" href="https://cal.com/skylandai" target="_blank" rel="noopener">Boka ett kort möte →</a>
+      <a class="btn btn-ghost" href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">Eller skriv <span class="kw" style="margin-left:4px">"stol"</span> i en DM</a>
     </div>
+    <p class="microline">15 minuter, videosamtal. <b>Ingen pitch-press</b> — vi kollar helt enkelt om det passar din studio.</p>
   </header>
 </div>
 
 <div class="wrap">
   <section>
-    <div class="sec-kicker">Det här känner du igen</div>
-    <h2>Du blev tatuerare för att tatuera. <span class="o">Inte för att svara DM.</span></h2>
-    <p class="sec-sub">Det är sällan en enda stor grej. Det är småläckorna som rinner iväg, vecka efter vecka.</p>
-    <div class="cards">
-      <div class="card">
-        <div class="num">01</div>
-        <h3>Missade DM</h3>
-        <p>Kunden skrev 21:47. Du svarade dagen efter. Då hade hon redan bokat någon annan. Snabbast svar vinner bokningen — nästan varje gång.</p>
-      </div>
-      <div class="card">
-        <div class="num">02</div>
-        <h3>No-shows &amp; luckor</h3>
-        <p>En stol som står tom kostar lika mycket som en full. En vänlig påminnelse dagen innan fångar de flesta som annars uteblir.</p>
-      </div>
-      <div class="card">
-        <div class="num">03</div>
-        <h3>Tomma vardagar</h3>
-        <p>Helgen bokar sig själv. Tisdag och onsdag ekar tomt. De vardagarna behöver en knuff — och den kan komma automatiskt.</p>
-      </div>
+    <div class="sec-kicker">Risken ligger hos mig</div>
+    <div class="band">
+      <div class="big">Du lägger inte en krona i förskott. <span class="o">Jag får betalt först när en riktig kund är bokad hos dig.</span></div>
+      <ul>
+        <li>
+          <div class="t">Ingen fast avgift</div>
+          <p>Inga månadskostnader, inga uppstartsavgifter. Du binder dig inte till något.</p>
+        </li>
+        <li>
+          <div class="t">Bara per bokning</div>
+          <p>Du betalar en provision för varje kund vi faktiskt bokar in — inget annat.</p>
+        </li>
+        <li>
+          <div class="t">Samma mål som du</div>
+          <p>Jag tjänar bara när du tjänar. Därför jagar jag bokningar, inte fakturor.</p>
+        </li>
+      </ul>
     </div>
   </section>
 </div>
@@ -158,22 +164,22 @@
 <div class="wrap">
   <section>
     <div class="sec-kicker">Så funkar det</div>
-    <h2>Systemet svarar. <span class="o">Du tatuerar.</span></h2>
+    <h2>Du tatuerar. <span class="o">Jag fyller kalendern.</span></h2>
     <div class="steps">
       <div class="step">
         <div class="n">1</div>
-        <h3>Fångar förfrågan</h3>
-        <p>DM, kommentar eller formulär — allt fångas i sekunden det landar, dygnet runt.</p>
+        <h3>Jag bygger annonsen</h3>
+        <p>Riktade Facebook- och Instagram-annonser mot folk i Göteborg som vill tatuera sig — i din stil, ditt namn.</p>
       </div>
       <div class="step">
         <div class="n">2</div>
-        <h3>Svarar direkt</h3>
-        <p>Kunden får svar på sekunder istället för dagen efter. Ingen svalnar medan du sitter med nålen.</p>
+        <h3>Kunden bokar sig</h3>
+        <p>Intresserade fångas upp, får svar direkt och bokas in i din kalender. Dygnet runt, även mitt i en sittning.</p>
       </div>
       <div class="step">
         <div class="n">3</div>
-        <h3>Du stänger</h3>
-        <p>Systemet öppnar dörren och håller leaden varm. Du kliver in när det är dags att boka.</p>
+        <h3>Du får betalt</h3>
+        <p>Kunden dyker upp och sätter sig i stolen. Du betalar bara provisionen för bokningen — resten är din.</p>
       </div>
     </div>
   </section>
@@ -183,40 +189,42 @@
   <section>
     <div class="sec-kicker">Bevisat, inte lovat</div>
     <div class="proof">
-      <div class="q">Skriv <span class="o">"stol"</span> till mitt Instagram och se vad som händer. Du får svar på sekunder — <span class="o">det är precis motorn jag bygger åt dig.</span></div>
-      <div class="by">Ingen pitch. Bara samma system, körande live på mitt eget konto. Skriv <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener" style="color:var(--orange);text-decoration:none">@skylandaisystem</a>.</div>
+      <div class="q">Skriv <span class="o">"stol"</span> till mitt Instagram och se vad som händer. Du får svar på sekunder — <span class="o">samma sorts flöde jag bygger åt dig.</span></div>
+      <div class="by">Ingen pitch. Bara systemet, körande live på mitt eget konto. Testa på <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">@skylandaisystem</a> — sen tar vi resten på mötet.</div>
     </div>
   </section>
 </div>
 
 <div class="wrap">
-  <section id="kontakt" style="border-bottom:none">
-    <div class="sec-kicker">Hör av dig</div>
-    <h2>Nyfiken? <span class="o">Skriv en rad.</span></h2>
-    <p class="sec-sub">Inga säljsamtal, ingen press. Berätta lite om studion så hör jag av mig personligen.</p>
+  <section class="close" id="boka" style="border-bottom:none">
+    <div class="sec-kicker">Nästa steg</div>
+    <h2>Boka ett kort möte. <span class="o">Vi kollar om det passar.</span></h2>
+    <p class="sec-sub">15 minuter på video. Jag visar exakt hur upplägget skulle se ut för just din studio — och du bestämmer sen. Noll press.</p>
+    <div class="cta-row">
+      <a class="btn" href="https://cal.com/skylandai" target="_blank" rel="noopener">Boka en tid →</a>
+    </div>
 
-    <form name="kontakt" method="POST" data-netlify="true" netlify-honeypot="bot-field">
-      <input type="hidden" name="form-name" value="kontakt">
-      <p style="display:none"><label>Fyll inte i detta: <input name="bot-field"></label></p>
-      <div class="field">
-        <label for="namn">Namn</label>
-        <input id="namn" type="text" name="namn" required placeholder="Ditt namn">
-      </div>
-      <div class="field">
-        <label for="studio">Studio</label>
-        <input id="studio" type="text" name="studio" placeholder="Studions namn (om du har en)">
-      </div>
-      <div class="field">
-        <label for="kontakt-info">Mejl eller Instagram</label>
-        <input id="kontakt-info" type="text" name="kontakt" required placeholder="Så jag kan svara dig">
-      </div>
-      <div class="field">
-        <label for="meddelande">Vad ekar tommast hos er?</label>
-        <textarea id="meddelande" name="meddelande" placeholder="Missade DM, tomma vardagar, no-shows ... eller bara en fråga."></textarea>
-      </div>
-      <button class="btn" type="submit">Skicka →</button>
-      <p class="form-note">Föredrar du DM? Skriv "stol" till <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener" style="color:var(--orange);text-decoration:none">@skylandaisystem</a> så får du svar direkt.</p>
-    </form>
+    <div class="form-wrap">
+      <form name="kontakt" method="POST" data-netlify="true" netlify-honeypot="bot-field">
+        <input type="hidden" name="form-name" value="kontakt">
+        <p style="display:none"><label>Fyll inte i detta: <input name="bot-field"></label></p>
+        <p class="sec-kicker" style="margin-bottom:22px">Föredrar du att jag hör av mig? Skriv en rad.</p>
+        <div class="field">
+          <label for="namn">Namn</label>
+          <input id="namn" type="text" name="namn" required placeholder="Ditt namn">
+        </div>
+        <div class="field">
+          <label for="studio">Studio</label>
+          <input id="studio" type="text" name="studio" placeholder="Studions namn">
+        </div>
+        <div class="field">
+          <label for="kontakt-info">Mejl eller Instagram</label>
+          <input id="kontakt-info" type="text" name="kontakt" required placeholder="Så jag kan svara dig">
+        </div>
+        <button class="btn" type="submit">Skicka →</button>
+        <p class="form-note">Hellre DM? Skriv "stol" till <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">@skylandaisystem</a> så får du svar direkt.</p>
+      </form>
+    </div>
   </section>
 </div>
 
