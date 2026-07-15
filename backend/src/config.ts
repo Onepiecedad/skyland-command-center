@@ -86,6 +86,11 @@ const envSchema = z.object({
     // --- Inkommande mejl (SCC-43) ---
     EMAIL_INBOUND_TOKEN: z.string().optional(),
 
+    // --- SMS via 46elks (F2 SCC-31 / SEQ-5) ---
+    ELKS_API_USERNAME: z.string().optional(),
+    ELKS_API_PASSWORD: z.string().optional(),
+    SMS_FROM: z.string().optional(),  // virtuellt nummer (E.164) eller alfanumeriskt ID
+
     // --- Rate limiting ---
     CLAW_MAX_CONCURRENT_PER_CUSTOMER: z.coerce.number().default(3),
     CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER: z.coerce.number().default(20),

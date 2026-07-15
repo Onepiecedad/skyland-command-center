@@ -13,6 +13,7 @@
 import { supabase } from './supabase';
 import { config } from '../config';
 import { getEmailProvider } from './email';
+import { getSmsProvider } from './sms';
 import { logger } from './logger';
 
 const MAX_STEPS_PER_TICK = 50;      // skydd mot oändliga loopar
@@ -44,6 +45,7 @@ interface ContactRow {
     id: string;
     name: string | null;
     email: string | null;
+    phone: string | null;
     custom: Record<string, unknown> | null;
     tags: string[] | null;
     customer_id: string | null;
@@ -111,6 +113,16 @@ async function logStepRun(
 // Step-executors
 // ---------------------------------------------------------------------------
 
+/** Aldrig tyst skip (GHL-härledd SCC-38): logga en synlig activity när ett
+ *  utskick hoppas över för att kontakten saknar kanal. */
+async function logSkip(contact: ContactRow, seqId: string, channel: string, reason: string): Promise<void> {
+    await supabase.from('activities').insert({
+        customer_id: contact.customer_id ?? null, agent: 'system:sequence', event_type: 'message',
+        action: 'sequence.step.skipped', severity: 'warn',
+        details: { contact_id: contact.id, contact_name: contact.name, channel, reason, sequence_id: seqId },
+    });
+}
+
 async function execSendEmail(step: StepRow, enr: EnrollmentRow, contact: ContactRow): Promise<StepResult> {
     if (!config.OUTBOUND_ENABLED) {
         return { status: 'failed', control: 'retry', detail: { reason: 'OUTBOUND_ENABLED=false' } };
@@ -120,11 +132,12 @@ async function execSendEmail(step: StepRow, enr: EnrollmentRow, contact: Contact
         return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
     }
     const to = contact.email || (typeof contact.custom?.email === 'string' ? (contact.custom!.email as string) : null);
-    if (!to) return { status: 'skipped', control: 'advance', detail: { reason: 'no_email' } };
+    if (!to) { await logSkip(contact, enr.sequence_id, 'email', 'no_email'); return { status: 'skipped', control: 'advance', detail: { reason: 'no_email' } }; }
 
     const subject = render(String(step.config.subject ?? ''), contact);
     const body = render(String(step.config.body ?? ''), contact);
     if (!subject.trim() || !body.trim()) {
+        await logSkip(contact, enr.sequence_id, 'email', 'empty_email');
         return { status: 'skipped', control: 'advance', detail: { reason: 'empty_email' } };
     }
 
@@ -144,6 +157,39 @@ async function execSendEmail(step: StepRow, enr: EnrollmentRow, contact: Contact
     } catch (err) {
         const message = err instanceof Error ? err.message : 'okänt utskicksfel';
         return { status: 'failed', control: 'retry', detail: { error: message } };
+    }
+}
+
+async function execSendSms(step: StepRow, enr: EnrollmentRow, contact: ContactRow): Promise<StepResult> {
+    if (!config.OUTBOUND_ENABLED) {
+        return { status: 'failed', control: 'retry', detail: { reason: 'OUTBOUND_ENABLED=false' } };
+    }
+    const sentToday = await countOutboundToday();
+    if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
+        return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
+    }
+    const phone = contact.phone || (typeof contact.custom?.phone === 'string' ? (contact.custom!.phone as string) : null);
+    if (!phone) {
+        await logSkip(contact, enr.sequence_id, 'sms', 'no_phone');
+        return { status: 'skipped', control: 'advance', detail: { reason: 'no_phone' } };
+    }
+    const text = render(String(step.config.text ?? step.config.body ?? ''), contact);
+    if (!text.trim()) {
+        await logSkip(contact, enr.sequence_id, 'sms', 'empty_sms');
+        return { status: 'skipped', control: 'advance', detail: { reason: 'empty_sms' } };
+    }
+    try {
+        const result = await getSmsProvider().send({ to: phone, text });
+        await supabase.from('messages').insert({
+            customer_id: contact.customer_id ?? null,
+            role: 'assistant', channel: 'sms', direction: 'outbound',
+            content: text,
+            metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to: phone },
+            provider_message_id: result.providerMessageId,
+        });
+        return { status: 'success', control: 'advance', detail: { to: phone, provider_message_id: result.providerMessageId } };
+    } catch (err) {
+        return { status: 'failed', control: 'retry', detail: { error: err instanceof Error ? err.message : 'okänt SMS-fel' } };
     }
 }
 
@@ -220,7 +266,7 @@ async function execStep(
 ): Promise<StepResult> {
     switch (step.type) {
         case 'send_email':  return execSendEmail(step, enr, contact);
-        case 'send_sms':    return { status: 'skipped', control: 'advance', detail: { reason: 'sms_not_configured (SCC-44)' } };
+        case 'send_sms':    return execSendSms(step, enr, contact);
         case 'move_stage':  return execMoveStage(step, enr);
         case 'add_tag':     return execTag(step, contact, true);
         case 'remove_tag':  return execTag(step, contact, false);
@@ -251,7 +297,7 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
     }
 
     const { data: c } = await supabase
-        .from('contacts').select('id, name, email, custom, tags, customer_id').eq('id', enr.contact_id).maybeSingle();
+        .from('contacts').select('id, name, email, phone, custom, tags, customer_id').eq('id', enr.contact_id).maybeSingle();
     const contact = c as ContactRow | null;
     if (!contact) {
         await supabase.from('sequence_enrollments')
