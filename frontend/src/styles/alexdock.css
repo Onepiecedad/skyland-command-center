@@ -132,7 +132,7 @@
 
 .alexdock-msg--user {
     align-self: flex-end;
-    background: #0a84ff;
+    background: #10b981;
     color: #fff;
     border-bottom-right-radius: 5px;
 }
@@ -225,7 +225,7 @@
 }
 
 .alexdock-inputrow input:focus {
-    border-color: rgba(10, 132, 255, 0.55);
+    border-color: rgba(16, 185, 129, 0.55);
 }
 
 .alexdock-inputrow button {
@@ -233,7 +233,7 @@
     height: 38px;
     border-radius: 50%;
     border: none;
-    background: #0a84ff;
+    background: #10b981;
     color: #fff;
     display: flex;
     align-items: center;

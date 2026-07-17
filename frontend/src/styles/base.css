@@ -5,10 +5,14 @@
 
 /* ─── Design Tokens ─── */
 :root {
-  /* Background layers — grafit istället för rymdsvart (Apple-makeover 2026-07-15) */
-  --bg-void: #0b0b0e;
-  --bg-deep: #101014;
-  --bg-surface: #16161c;
+  /* Background layers — Skylands gröna identitet (matchar skyland-ai-os.netlify.app) */
+  --bg-void: #030907;
+  --bg-deep: #06110c;
+  --bg-surface: #0a1a12;
+  /* Varumärkesgrönt */
+  --brand: #10b981;
+  --brand-bright: #34d399;
+  --brand-soft: rgba(52, 211, 153, 0.14);
 
   /* Glass panel */
   --glass-bg: rgba(255, 255, 255, 0.03);
@@ -146,25 +150,25 @@ body {
 }
 
 /* ─── Parallax Background ─── */
-/* Lugn grafitbakgrund med svag toning — inga stjärnor, inga partiklar */
+/* Skylands gröna rum — mörk botten med grön glöd (som landningssidan) */
 .parallax-base {
   position: fixed;
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(ellipse 130% 90% at 30% 0%, rgba(10, 132, 255, 0.05), transparent 55%),
-    radial-gradient(ellipse 100% 70% at 85% 100%, rgba(94, 92, 230, 0.04), transparent 55%),
+    radial-gradient(ellipse 130% 90% at 30% 0%, rgba(16, 185, 129, 0.09), transparent 55%),
+    radial-gradient(ellipse 100% 70% at 85% 100%, rgba(5, 150, 105, 0.07), transparent 55%),
     var(--bg-deep);
 }
 
-/* Två mycket subtila, statiska aurora-fält */
+/* Två subtila, statiska aurora-fält i grönt */
 .parallax-nebula {
   position: fixed;
   z-index: 1;
   pointer-events: none;
   border-radius: 50%;
   filter: blur(110px);
-  opacity: 0.07;
+  opacity: 0.1;
 }
 
 .parallax-nebula-1 {
@@ -172,7 +176,7 @@ body {
   height: 450px;
   top: -140px;
   left: -120px;
-  background: radial-gradient(ellipse, rgba(10, 132, 255, 0.5), transparent 70%);
+  background: radial-gradient(ellipse, rgba(16, 185, 129, 0.55), transparent 70%);
 }
 
 .parallax-nebula-2 {
@@ -180,6 +184,6 @@ body {
   height: 400px;
   bottom: -120px;
   right: -100px;
-  background: radial-gradient(ellipse, rgba(100, 210, 255, 0.35), transparent 70%);
+  background: radial-gradient(ellipse, rgba(110, 231, 183, 0.35), transparent 70%);
 }
 
