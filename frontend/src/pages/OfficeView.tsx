@@ -172,8 +172,18 @@ export default function OfficeView() {
                     lastMessage: items.find(i => i.key === sess?.key)?.preview,
                 };
             }
-            const mainFresh = !!(mainSess?.lastMessageAt && nowMs - new Date(mainSess.lastMessageAt).getTime() < 2 * 60_000);
-            setMainState({ status: mainFresh ? 'active' : 'idle', task: mainFresh ? 'I konversation' : '' });
+            // Kloner (subagent-kanalen) räknas som MAINS aktivitet — utan detta ser
+            // kontoret dött ut när Alex kör jobb i egna kloner istället för specialister.
+            const freshClones = anonSubs.filter(s =>
+                s.lastMessageAt && nowMs - new Date(s.lastMessageAt).getTime() < 3 * 60_000);
+            const mainFresh = !!(mainSess?.lastMessageAt && nowMs - new Date(mainSess.lastMessageAt).getTime() < 2 * 60_000)
+                || freshClones.length > 0;
+            setMainState({
+                status: mainFresh ? 'active' : 'idle',
+                task: freshClones.length > 0
+                    ? `${freshClones.length} klon${freshClones.length > 1 ? 'er' : ''} igång`
+                    : mainFresh ? 'I konversation' : '',
+            });
             live['main'] = {
                 status: mainFresh ? 'Jobbar' : 'Redo',
                 lastActivity: mainSess?.lastMessageAt,
@@ -233,7 +243,8 @@ export default function OfficeView() {
         return () => window.removeEventListener('keydown', onKey);
     }, []);
 
-    const activeCount = Object.values(desks).filter((d) => d.status === 'active').length;
+    const activeCount = Object.values(desks).filter((d) => d.status === 'active').length
+        + (mainState.status === 'active' ? 1 : 0);
 
     const trunc = (s: string, n = 38) => (s && s.length > n ? s.slice(0, n - 1) + '…' : s);
 
