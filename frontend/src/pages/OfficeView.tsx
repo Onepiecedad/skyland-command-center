@@ -17,16 +17,17 @@ interface Desk {
     y: number;
 }
 
-// Ring of 8 desks around main, grouped by role-adjacency.
+// Ring of 7 desks around main, grouped by role-adjacency.
+// (dm-writer togs bort 2026-07-17: DM-utkast genereras av den hårdkodade
+// dm_pipeline i scc-crm-skillen — det finns ingen dm-writer-agent längre.)
 const DESKS: Desk[] = [
     { id: 'orchestrator', name: 'Orchestrator', cluster: 'Koordinering', x: 500, y: 110 },
-    { id: 'researcher', name: 'Researcher', cluster: 'Research', x: 770, y: 200 },
-    { id: 'research-librarian', name: 'Research-librarian', cluster: 'Research', x: 840, y: 360 },
-    { id: 'analyst', name: 'Analyst', cluster: 'Analys', x: 770, y: 520 },
-    { id: 'strategy-analyst', name: 'Strategy-analyst', cluster: 'Analys', x: 500, y: 610 },
-    { id: 'writer', name: 'Writer', cluster: 'Copy', x: 230, y: 520 },
-    { id: 'dm-writer', name: 'DM-writer', cluster: 'Copy', x: 160, y: 360 },
-    { id: 'lyra', name: 'Lyra', cluster: 'Prompt', x: 230, y: 200 },
+    { id: 'researcher', name: 'Researcher', cluster: 'Research', x: 790, y: 230 },
+    { id: 'research-librarian', name: 'Research-librarian', cluster: 'Research', x: 840, y: 420 },
+    { id: 'analyst', name: 'Analyst', cluster: 'Analys', x: 680, y: 580 },
+    { id: 'strategy-analyst', name: 'Strategy-analyst', cluster: 'Analys', x: 400, y: 620 },
+    { id: 'writer', name: 'Writer', cluster: 'Copy', x: 190, y: 480 },
+    { id: 'lyra', name: 'Lyra', cluster: 'Prompt', x: 220, y: 230 },
 ];
 
 const STATUS_COLOR: Record<AgentStatus, string> = {
