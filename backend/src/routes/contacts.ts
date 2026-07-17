@@ -121,6 +121,34 @@ router.patch('/:id', async (req: Request, res: Response) => {
 });
 
 // ============================================================================
+// DELETE /:id — remove a contact and its opportunities (manual CRM cleanup)
+// ============================================================================
+router.delete('/:id', async (req: Request, res: Response) => {
+    try {
+        const { error: oppErr } = await supabase
+            .from('opportunities')
+            .delete()
+            .eq('contact_id', req.params.id);
+        if (oppErr) return res.status(500).json({ error: oppErr.message });
+
+        const { data, error } = await supabase
+            .from('contacts')
+            .delete()
+            .eq('id', req.params.id)
+            .select('id')
+            .maybeSingle();
+        if (error) return res.status(500).json({ error: error.message });
+        if (!data) return res.status(404).json({ error: 'Contact not found' });
+
+        logger.info('contacts', `Contact deleted: ${req.params.id}`);
+        return res.json({ status: 'deleted' });
+    } catch (err) {
+        console.error('[Contacts] delete error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
 // GET /:id/conversation — SCC-26 unified inbox: all messages for a contact,
 // across every channel, as one time-ordered thread.
 //

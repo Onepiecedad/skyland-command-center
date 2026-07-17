@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchPipelines, type Pipeline, type Opportunity } from '../api';
+import { fetchPipelines, type Pipeline, type Opportunity, type Contact, type ContactCustom } from '../api';
 import PipelineBoard from '../components/PipelineBoard';
 import ConversationInbox from '../components/ConversationInbox';
 import ContactDetail from '../components/ContactDetail';
@@ -10,16 +10,18 @@ function tabBtn(active: boolean): React.CSSProperties {
         padding: '4px 12px',
         borderRadius: 8,
         cursor: 'pointer',
-        border: '1px solid rgba(255,255,255,0.14)',
-        background: active ? 'rgba(120,180,255,0.22)' : 'rgba(255,255,255,0.05)',
-        color: 'inherit',
+        border: active ? '1px solid rgba(52,211,153,0.5)' : '1px solid rgba(255,255,255,0.14)',
+        background: active ? 'rgba(52,211,153,0.18)' : 'rgba(255,255,255,0.05)',
+        color: active ? '#d1fae5' : 'inherit',
+        fontWeight: active ? 600 : 400,
     };
 }
 
 /**
  * CrmView (F1) — säljtratt + unified inbox.
- * Kanban över default-pipelinen (SCC-25). Klick på ett kort öppnar kontaktens
- * tråd över alla kanaler (SCC-26). Data ägs helt av SCC — ingen GHL.
+ * Kanban över vald pipeline (tabbar, inte rullgardin). Sökfältet filtrerar
+ * korten live. Klick på ett kort öppnar detaljvyn där kontakten kan
+ * redigeras/raderas manuellt. Data ägs helt av SCC — ingen GHL.
  */
 export default function CrmView() {
     const [pipelines, setPipelines] = useState<Pipeline[]>([]);
@@ -28,6 +30,8 @@ export default function CrmView() {
     const [error, setError] = useState<string | null>(null);
     const [selected, setSelected] = useState<Opportunity | null>(null);
     const [detailTab, setDetailTab] = useState<'detail' | 'inbox'>('detail');
+    const [search, setSearch] = useState('');
+    const [boardVersion, setBoardVersion] = useState(0);
 
     useEffect(() => {
         (async () => {
@@ -44,19 +48,48 @@ export default function CrmView() {
         })();
     }, []);
 
+    /** Efter redigering: spegla ändringen i öppna detaljvyn + ladda om boarden. */
+    const handleSaved = (c: Contact) => {
+        setSelected((prev) => prev
+            ? {
+                ...prev,
+                title: c.name ?? prev.title,
+                contact: prev.contact
+                    ? { ...prev.contact, name: c.name, email: c.email, phone: c.phone, tags: c.tags, custom: c.custom as ContactCustom }
+                    : prev.contact,
+            }
+            : prev);
+        setBoardVersion((v) => v + 1);
+    };
+
+    const handleDeleted = () => {
+        setSelected(null);
+        setBoardVersion((v) => v + 1);
+    };
+
     return (
         <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>🗂️ CRM</h1>
-                {pipelines.length > 1 && activeId && (
-                    <select
-                        value={activeId}
-                        onChange={(e) => setActiveId(e.target.value)}
-                        style={{ background: 'rgba(255,255,255,0.06)', color: 'inherit', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: '6px 10px' }}
-                    >
-                        {pipelines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                    </select>
+                {pipelines.length > 1 && (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        {pipelines.map((p) => (
+                            <button key={p.id} onClick={() => { setActiveId(p.id); setSelected(null); }} style={tabBtn(p.id === activeId)}>
+                                {p.name}
+                            </button>
+                        ))}
+                    </div>
                 )}
+                <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Sök prospekt (namn, IG, mail, tel)…"
+                    style={{
+                        marginLeft: 'auto', width: 260, padding: '7px 12px', borderRadius: 10, fontSize: 13,
+                        border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.25)', color: 'inherit', outline: 'none',
+                    }}
+                />
             </div>
 
             {loading && <p style={{ opacity: 0.6 }}>Laddar CRM…</p>}
@@ -72,7 +105,9 @@ export default function CrmView() {
                 <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <PipelineBoard
+                            key={`${activeId}:${boardVersion}`}
                             pipelineId={activeId}
+                            search={search}
                             onSelectContact={(opp) => { setSelected(opp); setDetailTab('detail'); }}
                         />
                     </div>
@@ -90,7 +125,7 @@ export default function CrmView() {
                                 </button>
                             </div>
                             {detailTab === 'detail'
-                                ? <ContactDetail opportunity={selected} />
+                                ? <ContactDetail opportunity={selected} onSaved={handleSaved} onDeleted={handleDeleted} />
                                 : <ConversationInbox contactId={selected.contact.id} title={selected.title} />}
                         </div>
                     )}

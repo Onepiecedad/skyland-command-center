@@ -10,7 +10,15 @@ import { fetchBoard, moveOpportunity, type BoardColumn, type Opportunity } from 
 
 interface PipelineBoardProps {
     pipelineId: string;
+    /** Fritextfilter — matchar titel, kontaktnamn, IG, mail, telefon, adress. */
+    search?: string;
     onSelectContact?: (opportunity: Opportunity) => void;
+}
+
+function matchesSearch(opp: Opportunity, q: string): boolean {
+    const cu = opp.contact?.custom;
+    return [opp.title, opp.contact?.name, opp.contact?.email, opp.contact?.phone, cu?.instagram, cu?.website, cu?.address]
+        .some((v) => typeof v === 'string' && v.toLowerCase().includes(q));
 }
 
 const glassCol: React.CSSProperties = {
@@ -65,7 +73,7 @@ const cardLink: React.CSSProperties = {
     textOverflow: 'ellipsis',
 };
 
-export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProps) {
+export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineBoardProps) {
     const [columns, setColumns] = useState<BoardColumn[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -118,13 +126,15 @@ export function PipelineBoard({ pipelineId, onSelectContact }: PipelineBoardProp
     if (loading) return <p style={{ opacity: 0.6 }}>Laddar pipeline…</p>;
     if (error) return <p style={{ color: '#ff6b6b' }}>Fel: {error}</p>;
 
+    const q = search?.trim().toLowerCase() ?? '';
     const viewColumns = columns.map((col) => {
-        const filtered = tierFilter === 'all'
+        let filtered = tierFilter === 'all'
             ? col.opportunities
             : col.opportunities.filter((o) => {
                 const s = o.contact?.custom?.score;
                 return typeof s === 'number' && tierOf(s) === tierFilter;
             });
+        if (q) filtered = filtered.filter((o) => matchesSearch(o, q));
         const ordered = sortByScore
             ? [...filtered].sort((a, b) => (b.contact?.custom?.score ?? -1) - (a.contact?.custom?.score ?? -1))
             : filtered;

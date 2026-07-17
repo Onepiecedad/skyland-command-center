@@ -1,13 +1,27 @@
 import { useState } from 'react';
-import type { Opportunity } from '../api';
+import { updateContact, deleteContact, type Opportunity, type Contact } from '../api';
 
 /**
  * ContactDetail — full detaljvy för en prospect-kontakt.
  * Visar all insamlad data (score, betyg, kontaktvägar, bokningsflöde, taggar)
- * plus en score-motivering. Data kommer från board-payloadens `opp.contact`.
+ * plus en score-motivering. Kortet kan redigeras och raderas manuellt.
+ * Data kommer från board-payloadens `opp.contact`.
  */
 interface ContactDetailProps {
     opportunity: Opportunity;
+    /** Anropas med den uppdaterade kontakten efter sparad redigering. */
+    onSaved?: (contact: Contact) => void;
+    /** Anropas när kontakten raderats. */
+    onDeleted?: () => void;
+}
+
+interface EditForm {
+    name: string;
+    instagram: string;
+    phone: string;
+    email: string;
+    website: string;
+    booking_flow: string;
 }
 
 type Tier = 'A' | 'B' | 'C';
@@ -105,8 +119,26 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     );
 }
 
-export function ContactDetail({ opportunity }: ContactDetailProps) {
+const editInput: React.CSSProperties = {
+    width: '100%', padding: '7px 10px', borderRadius: 8, fontSize: 13, boxSizing: 'border-box',
+    border: '1px solid rgba(255,255,255,0.16)', background: 'rgba(0,0,0,0.3)', color: 'inherit', outline: 'none',
+};
+
+function EditField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+    return (
+        <label style={{ display: 'block', marginBottom: 10 }}>
+            <span style={{ display: 'block', fontSize: 11, opacity: 0.55, marginBottom: 3 }}>{label}</span>
+            <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={editInput} />
+        </label>
+    );
+}
+
+export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetailProps) {
     const c = opportunity.contact;
+    const [editing, setEditing] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [form, setForm] = useState<EditForm>({ name: '', instagram: '', phone: '', email: '', website: '', booking_flow: '' });
     if (!c) return <p style={{ opacity: 0.6, padding: 16 }}>Ingen kontaktdata.</p>;
 
     const custom = c.custom ?? {};
@@ -116,16 +148,110 @@ export function ContactDetail({ opportunity }: ContactDetailProps) {
     const channel = c.email ? 'email + IG DM' : 'IG DM';
     const igTags = (c.tags ?? []).filter((t) => !t.startsWith('tier:'));
 
+    const startEdit = () => {
+        setForm({
+            name: c.name ?? opportunity.title,
+            instagram: custom.instagram ?? '',
+            phone: c.phone ?? '',
+            email: c.email ?? '',
+            website: custom.website ?? '',
+            booking_flow: custom.booking_flow ?? '',
+        });
+        setActionError(null);
+        setEditing(true);
+    };
+
+    const save = async () => {
+        setBusy(true);
+        setActionError(null);
+        try {
+            const updated = await updateContact(c.id, {
+                name: form.name.trim() || null,
+                phone: form.phone.trim() || null,
+                email: form.email.trim() || null,
+                website: form.website.trim() || null,
+                custom: {
+                    instagram: form.instagram.trim().replace(/^@/, '') || null,
+                    website: form.website.trim() || null,
+                    email: form.email.trim() || null,
+                    booking_flow: form.booking_flow || null,
+                },
+            });
+            setEditing(false);
+            onSaved?.(updated);
+        } catch (err) {
+            setActionError(err instanceof Error ? err.message : 'Kunde inte spara');
+        }
+        setBusy(false);
+    };
+
+    const remove = async () => {
+        if (!window.confirm(`Radera "${opportunity.title}"? Kortet och dess pipeline-position tas bort permanent.`)) return;
+        setBusy(true);
+        setActionError(null);
+        try {
+            await deleteContact(c.id);
+            onDeleted?.();
+        } catch (err) {
+            setActionError(err instanceof Error ? err.message : 'Kunde inte radera');
+            setBusy(false);
+        }
+    };
+
+    const actionBtn = (danger = false): React.CSSProperties => ({
+        fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 999, cursor: busy ? 'default' : 'pointer',
+        opacity: busy ? 0.5 : 1,
+        border: danger ? '1px solid rgba(255,107,107,0.45)' : '1px solid rgba(255,255,255,0.18)',
+        background: danger ? 'rgba(255,107,107,0.12)' : 'rgba(255,255,255,0.07)',
+        color: danger ? '#ff9b9b' : 'inherit',
+    });
+
     return (
         <div style={{ height: '70vh', overflowY: 'auto', padding: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{opportunity.title}</h2>
+                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1, minWidth: 0 }}>{opportunity.title}</h2>
                 {score !== null && (
                     <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: scoreBg(score), color: '#0b0b0f' }}>
                         {score} · {tierOf(score)}
                     </span>
                 )}
+                {!editing && (
+                    <>
+                        <button onClick={startEdit} disabled={busy} style={actionBtn()}>Redigera</button>
+                        <button onClick={() => void remove()} disabled={busy} style={actionBtn(true)}>Radera</button>
+                    </>
+                )}
             </div>
+            {actionError && <div style={{ fontSize: 12, color: '#ff6b6b', marginBottom: 8 }}>{actionError}</div>}
+
+            {editing && (
+                <div style={{ margin: '10px 0 16px', padding: 12, borderRadius: 10, background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)' }}>
+                    <EditField label="Namn" value={form.name} onChange={(v) => setForm((f) => ({ ...f, name: v }))} />
+                    <EditField label="Instagram (utan @)" value={form.instagram} onChange={(v) => setForm((f) => ({ ...f, instagram: v }))} placeholder="studionshandle" />
+                    <EditField label="Telefon" value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} />
+                    <EditField label="Mail" value={form.email} onChange={(v) => setForm((f) => ({ ...f, email: v }))} />
+                    <EditField label="Webb" value={form.website} onChange={(v) => setForm((f) => ({ ...f, website: v }))} placeholder="https://…" />
+                    <label style={{ display: 'block', marginBottom: 12 }}>
+                        <span style={{ display: 'block', fontSize: 11, opacity: 0.55, marginBottom: 3 }}>Bokningsflöde</span>
+                        <select
+                            value={form.booking_flow}
+                            onChange={(e) => setForm((f) => ({ ...f, booking_flow: e.target.value }))}
+                            style={{ ...editInput, appearance: 'auto' }}
+                        >
+                            <option value="">Okänt</option>
+                            <option value="manual">Manuell / DM</option>
+                            <option value="form">Formulär</option>
+                            <option value="online">Online-bokning</option>
+                        </select>
+                    </label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => void save()} disabled={busy} style={{ ...actionBtn(), background: 'rgba(52,211,153,0.2)', border: '1px solid rgba(52,211,153,0.5)', color: '#d1fae5' }}>
+                            {busy ? 'Sparar…' : 'Spara'}
+                        </button>
+                        <button onClick={() => setEditing(false)} disabled={busy} style={actionBtn()}>Avbryt</button>
+                    </div>
+                </div>
+            )}
             {(custom.niche || custom.area) && (
                 <div style={{ fontSize: 12, opacity: 0.5, marginBottom: 14 }}>
                     {[custom.niche, custom.area].filter(Boolean).join(' · ')}

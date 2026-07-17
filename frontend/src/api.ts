@@ -1184,6 +1184,33 @@ export async function fetchContacts(params?: { status?: string; search?: string;
     return data.contacts || [];
 }
 
+export interface ContactPatch {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    website?: string | null;
+    status?: Contact['status'];
+    tags?: string[];
+    /** Mergas server-side med befintligt custom — skriver aldrig över andra nycklar. */
+    custom?: Record<string, unknown>;
+}
+
+export async function updateContact(id: string, patch: ContactPatch): Promise<Contact> {
+    const res = await fetchWithAuth(`${API_BASE}/contacts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.contact;
+}
+
+export async function deleteContact(id: string): Promise<void> {
+    const res = await fetchWithAuth(`${API_BASE}/contacts/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
 export async function fetchContactConversation(id: string): Promise<{ contact: Partial<Contact>; messages: ConversationMessage[] }> {
     const res = await fetchWithAuth(`${API_BASE}/contacts/${id}/conversation`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
