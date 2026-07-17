@@ -110,6 +110,11 @@
     cursor: default;
 }
 
+/* Kantpilarna behövs bara på touch — desktop/laptop har piltangenterna */
+@media (hover: hover) and (pointer: fine) {
+    .fnav-edge { display: none; }
+}
+
 @media (max-width: 700px) {
     .fnav-edge--left, .fnav-edge--right { display: none; }
     .fnav-minimap { left: 8px; bottom: 8px; }
