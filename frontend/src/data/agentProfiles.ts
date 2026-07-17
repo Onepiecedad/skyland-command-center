@@ -93,19 +93,8 @@ export const AGENT_PROFILES: Record<string, AgentProfile> = {
         oaths: ['Ändrar aldrig scoringmodellen på egen hand', 'Poängsätter aldrig utan verifierad data'],
         reportsTo: 'Orchestrator / Alex',
     },
-    'strategy-analyst': {
-        id: 'strategy-analyst',
-        name: 'Strategy-analyst',
-        klass: 'Strateg',
-        epithet: 'Ser helheten, ifrågasätter riktningen',
-        avatar: '/agents/strategy-analyst.png',
-        model: 'kimi-k2.5',
-        purpose: 'Stöttar affärsriktningen — utvärderar vad som fungerar i tratten och föreslår strategiska justeringar.',
-        abilities: ['Affärsanalys', 'Trattutvärdering', 'Riktningsrekommendationer'],
-        tools: ['file_read/write'],
-        oaths: ['Fattar aldrig affärsbeslut — föreslår bara', 'Döljer aldrig osäkerhet i underlag'],
-        reportsTo: 'Alex (main)',
-    },
+    // strategy-analyst borttagen 2026-07-17: körde samma modell som Alex utan
+    // egen spec — strategiarbetet sker direkt i Alex.
     writer: {
         id: 'writer',
         name: 'Writer',
