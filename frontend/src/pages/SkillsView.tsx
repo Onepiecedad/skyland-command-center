@@ -1,7 +1,36 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Search, RefreshCw, Package, Code, Puzzle } from 'lucide-react';
 import { fetchSkills, fetchSkillDetail, type Skill } from '../api';
+import { getGatewaySocket } from '../gateway/gatewaySocket';
 import { SkillCard } from '../components/system/SkillCard';
+
+/** Rått skills.status-svar från gatewayn (fältnamn enligt OpenClaw-protokollet). */
+interface GatewaySkillEntry {
+    name: string;
+    skillKey?: string;
+    description?: string;
+    emoji?: string;
+    homepage?: string;
+    baseDir?: string;
+    source?: string;
+    disabled?: boolean;
+    hasScripts?: boolean;
+}
+
+function mapGatewaySkill(e: GatewaySkillEntry): Skill {
+    return {
+        skill_name: e.name || e.skillKey || 'okänd',
+        description: e.description || '',
+        path: e.baseDir || '',
+        status: 'active',
+        homepage: e.homepage,
+        emoji: e.emoji,
+        has_scripts: e.hasScripts ?? false,
+        file_count: 0,
+        enabled: !e.disabled,
+        tags: e.source ? [e.source] : [],
+    };
+}
 
 export function SkillsView() {
     const [skills, setSkills] = useState<Skill[]>([]);
@@ -10,13 +39,28 @@ export function SkillsView() {
     const [filter, setFilter] = useState<'all' | 'scripts' | 'docs'>('all');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [source, setSource] = useState<'gateway' | 'backend' | null>(null);
 
     const loadSkills = async () => {
         setLoading(true);
         setError(null);
+        // Gatewayn är sanningskällan (skills bor på operatörens maskin, inte på
+        // Render-backenden). Backend-registret är fallback för lokal utveckling.
+        try {
+            const res = await getGatewaySocket().rpc('skills.status', {}) as { skills?: GatewaySkillEntry[] };
+            if (res?.skills?.length) {
+                setSkills(res.skills.map(mapGatewaySkill));
+                setSource('gateway');
+                setLoading(false);
+                return;
+            }
+        } catch {
+            // gateway ej ansluten — prova backend
+        }
         try {
             const data = await fetchSkills();
             setSkills(data.skills);
+            setSource('backend');
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Kunde inte ladda skills');
         } finally {
@@ -49,6 +93,11 @@ export function SkillsView() {
     }, [skills, search, filter]);
 
     const handleViewDetail = async (name: string) => {
+        if (source === 'gateway') {
+            // Detaljer hämtas inte via backend i gateway-läge — visa det vi har.
+            setSelectedSkill(skills.find((s) => s.skill_name === name) ?? null);
+            return;
+        }
         try {
             const data = await fetchSkillDetail(name);
             setSelectedSkill(data.skill);

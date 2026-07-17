@@ -233,11 +233,10 @@ function dryRunSkill(skillPath: string, skillName: string): DryRunResult {
 // ============================================================================
 // Default skills directory — configurable via env
 // ============================================================================
+// Lokal utveckling: OpenClaws live-skills. I produktion (Render) finns ingen
+// lokal skills-katalog — frontend läser då via gatewayn (skills.status).
 export const SKILLS_DIR = process.env.SKILLS_DIR ||
-    path.join(
-        process.env.HOME || '',
-        '.gemini/antigravity/playground/inner-asteroid/clawdbot/skills'
-    );
+    path.join(process.env.HOME || '', '.openclaw/skills');
 
 // Export helpers for use by skillChecker
 export { scanSkills, parseFrontmatter, readSkillStatus };
