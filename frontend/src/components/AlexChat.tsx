@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { CollapsibleMarkdown } from './chat/CollapsibleMarkdown';
 import remarkGfm from 'remark-gfm';
 import { useGateway, type UseGatewayResult } from '../gateway/useGateway';
 import type { ChatAttachment } from '../gateway/gatewaySocket';
@@ -171,7 +172,7 @@ const MemoMessage = memo(function ChatMessage({ msg }: { msg: { role: string; co
                     ))}
                 </div>
             )}
-            <div className="message-content markdown-body"><ReactMarkdown remarkPlugins={remarkPlugins}>{msg.content}</ReactMarkdown></div>
+            <div className="message-content markdown-body">{msg.role === 'assistant' ? <CollapsibleMarkdown content={msg.content} /> : <ReactMarkdown remarkPlugins={remarkPlugins}>{msg.content}</ReactMarkdown>}</div>
             {msg.timestamp && <span className="msg-timestamp">{formatTime(msg.timestamp)}</span>}
         </div>
     );

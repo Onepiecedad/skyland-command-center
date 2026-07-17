@@ -6,8 +6,7 @@
  */
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { CollapsibleMarkdown } from './chat/CollapsibleMarkdown';
 import { API_BASE, fetchWithAuth } from '../api';
 
 interface ChatMsg {
@@ -111,7 +110,7 @@ export function BackendAlexChat() {
                             }}
                         >
                             {m.role === 'assistant' ? (
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                                <CollapsibleMarkdown content={m.content} />
                             ) : (
                                 m.content
                             )}

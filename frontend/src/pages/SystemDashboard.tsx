@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { WorkflowHealth } from '../components/system/WorkflowHealth';
 import { AgentStatusPanel } from '../components/system/AgentStatusPanel';
 import { SystemResources } from '../components/system/SystemResources';
@@ -8,37 +9,45 @@ import { ContextMonitor } from '../components/system/ContextMonitor';
 import { IntegrationsPanel } from '../components/system/IntegrationsPanel';
 import { AttributionFunnelPanel } from '../components/system/AttributionFunnelPanel';
 
+type SysTab = 'core' | 'ops';
+
+/**
+ * Höjdbudget-layout: vyn fyller exakt panelens höjd, panelerna fyller sina
+ * grid-celler och scrollar internt vid behov. Inget staplas — det som inte
+ * hör till överblicken bor under "Drift".
+ */
 export function SystemDashboard() {
+    const [tab, setTab] = useState<SysTab>('core');
+
     return (
-        <div className="sys-dashboard">
-            <div className="sys-dashboard-header">
+        <div className="sys-dashboard sys-dashboard--fill">
+            <div className="sys-dashboard-header sys-dashboard-header--compact">
                 <h2 className="sys-dashboard-title">
                     <span className="sys-title-glow">⚡</span>
-                    AI System Dashboard
+                    System
                 </h2>
-                <p className="sys-dashboard-subtitle">
-                    Realtidsöverblick — Schemalagda jobb · Agent · Integrationer · Attribution · Resurser · Context · Events · Fel · Git
-                </p>
+                <div className="sys-tab-picker">
+                    <button className={tab === 'core' ? 'active' : ''} onClick={() => setTab('core')}>Överblick</button>
+                    <button className={tab === 'ops' ? 'active' : ''} onClick={() => setTab('ops')}>Drift</button>
+                </div>
             </div>
 
-            <div className="sys-grid">
-                <WorkflowHealth />
-                <AgentStatusPanel />
-                <SystemResources />
-            </div>
-
-            <div className="sys-grid">
-                <ContextMonitor />
-                <EventFeedPanel />
-                <ErrorRecoveryPanel />
-            </div>
-
-            <div className="sys-grid">
-                <IntegrationsPanel />
-                <AttributionFunnelPanel />
-            </div>
-
-            <GitPanel />
+            {tab === 'core' ? (
+                <div className="sys-grid-fill">
+                    <WorkflowHealth />
+                    <AgentStatusPanel />
+                    <IntegrationsPanel />
+                    <ContextMonitor />
+                    <EventFeedPanel />
+                    <ErrorRecoveryPanel />
+                </div>
+            ) : (
+                <div className="sys-grid-fill sys-grid-fill--ops">
+                    <SystemResources />
+                    <GitPanel />
+                    <AttributionFunnelPanel />
+                </div>
+            )}
         </div>
     );
 }

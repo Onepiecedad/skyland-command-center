@@ -7,8 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { CollapsibleMarkdown } from './chat/CollapsibleMarkdown';
 import { Mic, MessageCircle, X, ArrowUp, Sparkles } from 'lucide-react';
 import { API_BASE, fetchWithAuth } from '../api';
 import VoiceChat from './VoiceChat';
@@ -184,7 +183,7 @@ export function AlexDock({ hidden = false }: AlexDockProps) {
                                             className={`alexdock-msg ${m.role === 'user' ? 'alexdock-msg--user' : 'alexdock-msg--assistant'}`}
                                         >
                                             {m.role === 'assistant' ? (
-                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                                                <CollapsibleMarkdown content={m.content} />
                                             ) : (
                                                 m.content
                                             )}
