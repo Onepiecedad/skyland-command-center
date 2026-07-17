@@ -122,6 +122,7 @@ export default function OfficeView() {
                 sessions = [...sessions, ...per.flat()];
             }
 
+            const HEARTBEAT_NOISE = /HEARTBEAT|NO_REPLY|heartbeat check|Checking in —/i;
             const relevant = sessions.filter(s => !s.key.endsWith(':heartbeat'));
             // Roll-agenternas sessioner + mains anonyma sub-agent-spawns
             const roleSess = relevant.filter(s => deskIdForSession(s) !== null);
@@ -137,7 +138,8 @@ export default function OfficeView() {
                 let preview = '';
                 try {
                     const h = await socket.getChatHistory(s.key, 5);
-                    const withText = (h.messages || []).filter(m => (m.content || '').trim());
+                    const withText = (h.messages || []).filter(m =>
+                        (m.content || '').trim() && !HEARTBEAT_NOISE.test(m.content || ''));
                     preview = withText[withText.length - 1]?.content?.slice(0, 110) ?? '';
                 } catch { /* best effort */ }
                 const deskId = deskIdForSession(s);
