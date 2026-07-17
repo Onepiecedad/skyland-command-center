@@ -4,7 +4,10 @@
     position: relative;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    /* clip — INTE hidden: chatt-komponenternas scrollIntoView() scrollar annars
+       den dolda viewporten programmatiskt och skjuter hela korset ur läge.
+       clip förbjuder all scroll, även programmatisk. */
+    overflow: clip;
 }
 
 .fnav-pane {

@@ -234,7 +234,7 @@
      (min-height lät sidan växa → parkerade grannpaneler blev synliga.) */
   height: 100vh;
   height: 100dvh;
-  overflow: hidden;
+  overflow: clip; /* clip (ej hidden) — immun mot programmatisk scroll från scrollIntoView */
   position: relative;
   z-index: 2;
   background: transparent;
