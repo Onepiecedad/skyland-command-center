@@ -10,7 +10,9 @@
 .fnav-pane {
     position: absolute;
     inset: 0;
-    overflow: hidden;
+    /* Innehållet scrollar INUTI panelen — aldrig sidan */
+    overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     /* icke-centrum ligger parkerade utanför — will-change för mjuk swap */

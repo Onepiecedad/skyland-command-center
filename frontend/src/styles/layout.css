@@ -230,7 +230,11 @@
 .dashboard-v2 {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* EXAKT skärmhöjd — korset kräver att sidan aldrig page-scrollar.
+     (min-height lät sidan växa → parkerade grannpaneler blev synliga.) */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   position: relative;
   z-index: 2;
   background: transparent;
