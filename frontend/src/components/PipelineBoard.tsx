@@ -178,6 +178,18 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                         {t === 'all' ? 'Alla' : t}
                     </button>
                 ))}
+                {(() => {
+                    const costs = columns.flatMap((c) => c.opportunities)
+                        .map((o) => o.contact?.custom?.research_cost_usd)
+                        .filter((v): v is number => typeof v === 'number');
+                    if (costs.length === 0) return null;
+                    const total = costs.reduce((a, b) => a + b, 0);
+                    return (
+                        <span style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.5, whiteSpace: 'nowrap' }}>
+                            Prospektkostnad: ~{(total * 10.5).toFixed(0)} kr totalt · {((total / costs.length) * 10.5).toFixed(2)} kr/kort ({costs.length} mätta)
+                        </span>
+                    );
+                })()}
             </div>
             <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
             {viewColumns.map((col) => (
