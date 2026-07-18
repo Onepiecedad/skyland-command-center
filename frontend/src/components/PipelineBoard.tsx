@@ -71,6 +71,10 @@ const cardLink: React.CSSProperties = {
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
+    // display:block krävs — på inline-element ignoreras overflow, och en enda
+    // lång URL sprängde hela kolumnbredden (Ink Brothers 271-teckens fbclid-URL).
+    display: 'block',
+    maxWidth: '100%',
 };
 
 export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineBoardProps) {
