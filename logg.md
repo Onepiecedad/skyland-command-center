@@ -2030,3 +2030,37 @@ attribution/hälsa, "kampanj"-abstraktion (Alex: start_campaign per stad). Affä
 karusellerna, följ upp tier A, **landa första kunden** — allt byggt finns för den stunden.
 
 *Senast uppdaterad: 2026-07-15*
+
+---
+
+## 2026-07-17→18 — Prospekteringsmaskinen komplett (7 orter, 47 DM, GHL-paritet)
+
+**Pipelines (openclaw-config/skills/scc-crm):**
+- **discover_pipeline** NY — Maps-sök → dedup → sajtskrapa → deterministisk scoring → kort+opportunity.
+  Lägen: --dry-run / --enrich-existing / --fill-missing (adressbackfill 8→51 kort).
+- **prospect_batch** NY — 3 parallella pipelines, exit-kodbaserad slutrapport, PID-säkra sessioner.
+- **prospect_pipeline** härdad: 600s timeout, Ä/markdown-tolerant validering, 6000-teckens research,
+  IG-extraktion, identitetsverifiering (IDENTITET_FEL), kostnadsstämpel (estimatedCostUsd → custom).
+- **dm_pipeline** härdad: retry×3 + backoff, 180s timeout, grindar mot nakna domäner (IG-länkbanner),
+  inflödesvinkel, källösa --facts, krystad "eller finns det luckor".
+- **content_pipeline** NY (skills/content-pipeline) — annonspaket enligt kursens modul 6, siffergrind.
+
+**DM-doktrin:** öppnare = verifierad unik detalj + beläggningsfråga; uppföljning = kärnerbjudandet
+(provision på bokade sittningar) + permission-CTA. Ingen mekanik, inga domäner, ingen signatur.
+
+**Agenter:** dm-writer + strategy-analyst BORTTAGNA (kod resp. redundans), research-librarian fick
+riktig spec, slimmade per-agent-workspaces (~20k tokens sparade/session), workspace-buggar fixade
+(Alex tappade identiteten 2× av scaffoldade mallar). 24 hobby-skills avaktiverade; apify-skillsen
+saknade frontmatter (aldrig körbara!) — fixade + i git.
+
+**SCC:** POST/DELETE contacts, auto-logg av öppnare vid drag→Contacted, pipeline-tabbar, sök,
+sortering Score/A–Ö/Ort, redigerbara DM-block, adress+research strukturerat i detaljpanel,
+kostnadschip, självuppdaterande board, Skill Registry via gatewayn.
+
+**Facit:** 52 kort / 7 orter / 47 validerade DM / 14 kontaktade (auto-loggade) / ~0,3–0,5 kr per
+prospekt i marginalkostnad. Alex körde slutbatchen med exakt sann rapportering och noll bevakning.
+
+**Kvar:** skicka ~33 öppnare (8–10/dag), svarshantering, variation av öppnarfrågan, key-rotation,
+go-live-listan för kundleverans. Se `docs/HANDOVER_2026-07-18.md`.
+
+*Senast uppdaterad: 2026-07-18*

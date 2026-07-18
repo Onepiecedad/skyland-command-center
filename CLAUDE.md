@@ -5,8 +5,11 @@
 
 > ## 🧭 BÖRJA HÄR (nuläge, läs först)
 > Ny session? Läs dessa i ordning innan du gör något:
-> 1. `docs/HANDOVER_2026-07-13.md` — SENASTE läget: prospekterings-pipeline + 37 scorade
->    tatuerar-leads, CRM-kort med score/IG/filter, GHL-MCP-verifiering.
+> 1. `docs/HANDOVER_2026-07-18.md` — SENASTE läget: hela prospekteringsmaskinen komplett
+>    (discover/prospect/dm/batch-pipelines, 52 kort över 7 orter, 47 validerade DM,
+>    14 kontaktade, kostnadsstämplar, alla driftläxor). Operatörens jobb: skicka öppnare.
+> 2. `docs/HANDOVER_2026-07-13.md` — äldre bakgrund: prospekterings-pipelinens födelse + 37
+>    första leads, CRM-kort med score/IG/filter, GHL-MCP-verifiering.
 > 2. `docs/HANDOVER-CRM-F1-och-leadlista.md` — bakgrund: F1 CRM-kärnan, affärsmodellen
 >    (kursen/MEXPAND), GHL-strategin, öppna beslut.
 > 3. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
