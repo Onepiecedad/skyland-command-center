@@ -78,8 +78,8 @@ const rowStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = { opacity: 0.55, whiteSpace: 'nowrap' };
 const linkStyle: React.CSSProperties = { color: '#9ecbff', textDecoration: 'none', textAlign: 'right', wordBreak: 'break-all' };
 
-/** Textblock med kopiera-knapp — för DM-utkast som ska in i Instagram. */
-function CopyBlock({ title, text }: { title: string; text: string }) {
+/** Redigerbart textblock med kopiera-knapp — DM:et kan handjusteras före skick. */
+function CopyBlock({ title, text, onChange }: { title: string; text: string; onChange?: (v: string) => void }) {
     const [copied, setCopied] = useState(false);
     const copy = async () => {
         try {
@@ -90,6 +90,7 @@ function CopyBlock({ title, text }: { title: string; text: string }) {
             // clipboard kan vara blockerad — ingen krasch
         }
     };
+    const rows = Math.max(3, Math.ceil(text.length / 46) + (text.split('\n').length - 1));
     return (
         <div style={{ marginTop: 10, padding: 12, borderRadius: 10, background: 'rgba(124,140,255,0.08)', border: '1px solid rgba(124,140,255,0.22)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -105,7 +106,78 @@ function CopyBlock({ title, text }: { title: string; text: string }) {
                     {copied ? 'Kopierad ✓' : 'Kopiera'}
                 </button>
             </div>
-            <div style={{ fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{text}</div>
+            {onChange ? (
+                <textarea
+                    value={text}
+                    rows={rows}
+                    onChange={(e) => onChange(e.target.value)}
+                    spellCheck={false}
+                    style={{
+                        width: '100%', boxSizing: 'border-box', resize: 'vertical',
+                        fontSize: 13, lineHeight: 1.55, fontFamily: 'inherit', color: 'inherit',
+                        background: 'transparent', border: 'none', outline: 'none', padding: 0,
+                    }}
+                />
+            ) : (
+                <div style={{ fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{text}</div>
+            )}
+        </div>
+    );
+}
+
+/** DM-sektionen: redigerbara öppnare/uppföljning + spara tillbaka till kortet. */
+function DmSection({ contactId, dmHook, source, onSaved }: {
+    contactId: string; dmHook: string; source?: string | null; onSaved?: (c: Contact) => void;
+}) {
+    const [initOpener, initFollowup] = dmHook.split(/\n?---\n?/);
+    const [opener, setOpener] = useState(initOpener?.trim() ?? '');
+    const [followup, setFollowup] = useState(initFollowup?.trim() ?? '');
+    const [saving, setSaving] = useState(false);
+    const [err, setErr] = useState<string | null>(null);
+    const dirty = opener !== (initOpener?.trim() ?? '') || followup !== (initFollowup?.trim() ?? '');
+
+    const save = async () => {
+        setSaving(true);
+        setErr(null);
+        try {
+            const joined = followup ? `${opener}\n---\n${followup}` : opener;
+            const updated = await updateContact(contactId, {
+                custom: {
+                    dm_hook: joined,
+                    dm_hook_source: `${(source ?? '').replace(/ · manuellt justerad.*$/, '')} · manuellt justerad ${new Date().toISOString().slice(0, 10)}`,
+                },
+            });
+            onSaved?.(updated);
+        } catch (e) {
+            setErr(e instanceof Error ? e.message : 'Kunde inte spara');
+        }
+        setSaving(false);
+    };
+
+    return (
+        <div style={{ marginTop: 18 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Outreach — IG DM</div>
+            <CopyBlock title="Öppnare (skickas först — INGEN pitch)" text={opener} onChange={setOpener} />
+            {followup !== '' || initFollowup ? (
+                <CopyBlock title="Uppföljning (skickas ENDAST vid svar)" text={followup} onChange={setFollowup} />
+            ) : null}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
+                {source && <span style={{ fontSize: 11, opacity: 0.5, flex: 1 }}>källa: {source}</span>}
+                {dirty && (
+                    <button
+                        onClick={() => void save()}
+                        disabled={saving}
+                        style={{
+                            fontSize: 11, fontWeight: 700, padding: '4px 14px', borderRadius: 999, cursor: 'pointer',
+                            border: '1px solid rgba(52,211,153,0.5)', background: 'rgba(52,211,153,0.18)', color: '#d1fae5',
+                            opacity: saving ? 0.5 : 1,
+                        }}
+                    >
+                        {saving ? 'Sparar…' : 'Spara ändringar'}
+                    </button>
+                )}
+            </div>
+            {err && <div style={{ fontSize: 12, color: '#ff6b6b', marginTop: 4 }}>{err}</div>}
         </div>
     );
 }
@@ -388,23 +460,16 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
                 </div>
             )}
 
-            {(custom.dm_draft || custom.dm_hook) && (() => {
-                // dm_hook lagrar öppnare + uppföljning separerade med "---".
-                // De är TVÅ olika meddelanden: uppföljningen skickas ENDAST vid svar.
-                const [opener, followup] = String(custom.dm_hook ?? '').split(/\n?---\n?/);
-                return (
-                    <div style={{ marginTop: 18 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Outreach — IG DM</div>
-                        {opener && <CopyBlock title="Öppnare (skickas först — INGEN pitch)" text={opener.trim()} />}
-                        {followup && <CopyBlock title="Uppföljning (skickas ENDAST vid svar)" text={followup.trim()} />}
-                        {custom.dm_hook_source && (
-                            <div style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>källa: {custom.dm_hook_source}</div>
-                        )}
-                        {custom.dm_draft && <CopyBlock title="Äldre utkast (dm_draft)" text={custom.dm_draft} />}
-                        {custom.dm_followup && <CopyBlock title="Uppföljning vid svar" text={custom.dm_followup} />}
-                    </div>
-                );
-            })()}
+            {custom.dm_hook && (
+                <DmSection
+                    key={`${c.id}:${custom.dm_hook_source ?? ''}`}
+                    contactId={c.id}
+                    dmHook={custom.dm_hook}
+                    source={custom.dm_hook_source}
+                    onSaved={onSaved}
+                />
+            )}
+            {custom.dm_draft && <CopyBlock title="Äldre utkast (dm_draft)" text={custom.dm_draft} />}
 
             {custom.research_notes && (
                 <details style={{ marginTop: 16 }}>
