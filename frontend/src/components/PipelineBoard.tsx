@@ -94,6 +94,19 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
 
     useEffect(() => {
         void load();
+        // Boarden ska aldrig visa gammal data: hämta om var 60:e sekund och
+        // varje gång fliken får fokus igen (Alex/pipelines skriver i bakgrunden).
+        const interval = setInterval(() => void load(), 60_000);
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') void load();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+        window.addEventListener('focus', onVisible);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
+            window.removeEventListener('focus', onVisible);
+        };
     }, [load]);
 
     const handleDrop = useCallback(async (stageId: string) => {
