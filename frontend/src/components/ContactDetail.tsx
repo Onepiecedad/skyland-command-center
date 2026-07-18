@@ -305,6 +305,21 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
                 );
             })()}
 
+            {custom.research_notes && (
+                <details style={{ marginTop: 16 }}>
+                    <summary style={{ fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: 0.85 }}>
+                        Research-underlag{custom.research_source ? ` · ${custom.research_source}` : ''}
+                    </summary>
+                    <div style={{
+                        marginTop: 8, padding: 12, borderRadius: 10, fontSize: 12.5, lineHeight: 1.6,
+                        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                        whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 320, overflowY: 'auto',
+                    }}>
+                        {custom.research_notes}
+                    </div>
+                </details>
+            )}
+
             {score !== null && (
                 <div style={{ marginTop: 16, fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
                     <div style={{ fontWeight: 600, opacity: 0.9, marginBottom: 4 }}>Score-motivering</div>

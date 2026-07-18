@@ -1130,6 +1130,8 @@ export interface ContactCustom {
     address?: string | null;
     dm_hook?: string | null;
     dm_hook_source?: string | null;
+    research_notes?: string | null;
+    research_source?: string | null;
     dm_draft?: string | null;
     dm_followup?: string | null;
     rating?: string | null;
