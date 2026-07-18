@@ -102,6 +102,16 @@ export function FocusNavigator({ panes, labels, defaultLayout, storageKey = 'scc
         });
     }, []);
 
+    // ── Alex (navigate_ui): fokusera en panel via CustomEvent ──
+    useEffect(() => {
+        const onFocusPane = (e: Event) => {
+            const pane = (e as CustomEvent<{ pane: string }>).detail?.pane;
+            if (pane && paneKeys.includes(pane)) focusPane(pane);
+        };
+        window.addEventListener('scc:focus-pane', onFocusPane);
+        return () => window.removeEventListener('scc:focus-pane', onFocusPane);
+    }, [focusPane, paneKeys]);
+
     // ── Piltangenter (när inget textfält är fokuserat) + ⌘1–⌘5 direkt till vy ──
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {

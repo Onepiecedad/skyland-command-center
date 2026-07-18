@@ -18,6 +18,7 @@ import { LoginView } from './components/LoginView';
 import { IntroSequence } from './components/IntroSequence';
 import { AlexDock } from './components/AlexDock';
 import { FocusNavigator, type CrossLayout } from './navigation/FocusNavigator';
+import { subscribeUiActions } from './navigation/uiActions';
 import { checkAuth, logout } from './api';
 import './styles/index.css';
 
@@ -58,6 +59,16 @@ function SubViewPane({ views, storageKey }: { views: SubView[]; storageKey: stri
     });
     useEffect(() => { localStorage.setItem(storageKey, active); }, [active, storageKey]);
 
+    // Alex kan byta undervy via navigate_ui (t.ex. "visa sekvenserna")
+    useEffect(() => {
+        const onSubview = (e: Event) => {
+            const sub = (e as CustomEvent<{ subview: string }>).detail?.subview;
+            if (sub && views.some(v => v.key === sub)) setActive(sub);
+        };
+        window.addEventListener('scc:subview', onSubview);
+        return () => window.removeEventListener('scc:subview', onSubview);
+    }, [views]);
+
     return (
         <div className="pane-with-subnav">
             <div className="pane-subnav">
@@ -89,6 +100,12 @@ function App() {
     useEffect(() => {
         checkAuth().then((ok) => setAuthState(ok ? 'yes' : 'no'));
     }, []);
+
+    // Alex styr UI:t (navigate_ui → SSE → CustomEvents) — chatt OCH röst
+    useEffect(() => {
+        if (authState !== 'yes') return;
+        return subscribeUiActions();
+    }, [authState]);
 
     const handleRefresh = useCallback(() => { /* behålls för CustomerView-kontraktet */ }, []);
 

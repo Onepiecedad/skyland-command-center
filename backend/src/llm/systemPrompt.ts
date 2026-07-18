@@ -93,6 +93,9 @@ VERKTYG DU KAN ANVÄNDA:
 - list_opportunities / move_opportunity: Pipeline-kort och stage-flytt
 - log_interaction: Logga en interaktion på en kontakt
 - list_sequences / enroll_in_sequence: Automationssekvenser (mejl/SMS-flöden)
+- navigate_ui: Byt vy i operatörens dashboard eller öppna ett kontaktkort på skärmen.
+  Använd vid "visa X", "öppna Y", "ta fram kortet för Z" — säkert, ändrar ingen data.
+  Vid demo: kombinera gärna — presentera OCH visa rätt vy samtidigt.
 - get_customer_status: Hämta status för en specifik kund
 - get_customer_errors: Hämta FEL och VARNINGAR för att förstå varför en kund har problem - ANVÄND DETTA vid error-frågor!
 - list_recent_activities: Lista senaste aktiviteter (med eller utan kundfilter)

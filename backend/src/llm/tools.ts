@@ -271,6 +271,21 @@ export const ALEX_TOOLS: ToolDefinition[] = [
         }
     },
     {
+        name: 'navigate_ui',
+        description: 'Styr operatörens dashboard-UI: byt vy och/eller öppna ett specifikt kontaktkort. Använd när operatören säger t.ex. "visa CRM:et", "öppna kontoret", "visa kortet för All Gold Tattoo", "ta fram prospektkortet för X". Om contact_query anges öppnas CRM-vyn med det kortets detaljpanel. Vyer: alex (chatten), crm (kanban-pipelinen), leads, sequences (sekvenser), customers (kundinstanser), website (hemsidan), office (kontoret), archive (arkivet), system (systemöversikt), skills. Verktyget påverkar bara skärmen — det ändrar ingen data och är alltid säkert att köra direkt.',
+        parameters: {
+            type: 'object',
+            properties: {
+                view: {
+                    type: 'string',
+                    enum: ['alex', 'crm', 'leads', 'sequences', 'customers', 'website', 'office', 'archive', 'system', 'skills'],
+                    description: 'Vyn som ska visas. Vid contact_query: utelämna eller sätt "crm".'
+                },
+                contact_query: { type: 'string', description: 'Namn på kontakt/studio vars kort ska öppnas, t.ex. "All Gold Tattoo". Fuzzy-matchas mot CRM:et.' }
+            }
+        }
+    },
+    {
         name: 'list_sequences',
         description: 'Lista automations-sekvenser (cold email-drip, strategisamtal-påminnelser, no-show-uppföljning) med status (draft/active/paused), trigger och antal aktiva enrollments. Använd för att se vilka sekvenser som finns och om de körs.',
         parameters: { type: 'object', properties: {} }
@@ -336,6 +351,8 @@ export async function executeToolCall(
                 return await handleListSequences();
             case 'enroll_in_sequence':
                 return await handleEnrollInSequence(args);
+            case 'navigate_ui':
+                return await handleNavigateUi(args);
             default:
                 return { success: false, error: `Unknown tool: ${name}` };
         }
@@ -869,6 +886,57 @@ async function handleEnrollInSequence(args: Record<string, unknown>): Promise<To
     return { success: true, data: { enrolled: r.enrolled, reason: r.reason, sequence: (seq as { name: string }).name, status: (seq as { status: string }).status } };
 }
 
+/**
+ * navigate_ui — styr dashboardens UI via SSE-eventhubben. Fungerar för både
+ * textchatten och rösten (röstens verktygssvar går till ElevenLabs, inte
+ * webbläsaren — SSE är den enda kanal som alltid når skärmen).
+ */
+const NAVIGATE_VIEWS = new Set(['alex', 'crm', 'leads', 'sequences', 'customers', 'website', 'office', 'archive', 'system', 'skills']);
+
+async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResult> {
+    const { emitSystemEvent } = await import('../routes/eventStream');
+    const contactQuery = typeof args.contact_query === 'string' ? args.contact_query.trim() : '';
+    let view = typeof args.view === 'string' && NAVIGATE_VIEWS.has(args.view) ? args.view : '';
+
+    let contact: { id: string; name: string } | null = null;
+    if (contactQuery) {
+        view = 'crm'; // kontaktkort bor i CRM-vyn
+        const { data: exact } = await supabase
+            .from('contacts')
+            .select('id, name')
+            .ilike('name', `%${contactQuery}%`)
+            .limit(2);
+        if (exact && exact.length > 0) {
+            contact = exact[0];
+        } else {
+            // Fuzzy-fallback: första ordet (samma mönster som find_contact i pipelinen)
+            const firstWord = contactQuery.split(/\s+/)[0];
+            const { data: fuzzy } = await supabase
+                .from('contacts')
+                .select('id, name')
+                .ilike('name', `%${firstWord}%`)
+                .limit(2);
+            if (fuzzy && fuzzy.length > 0) contact = fuzzy[0];
+        }
+        if (!contact) {
+            return { success: false, error: `Hittade ingen kontakt som matchar "${contactQuery}" i CRM:et.` };
+        }
+    }
+
+    if (!view) {
+        return { success: false, error: 'Ange antingen view eller contact_query.' };
+    }
+
+    emitSystemEvent('ui_action', {
+        action: 'navigate',
+        view,
+        contact_id: contact?.id ?? null,
+        contact_name: contact?.name ?? null,
+    }, 'alex');
+
+    return { success: true, data: { view, contact_name: contact?.name ?? null } };
+}
+
 export function formatToolResultForLLM(name: string, result: ToolResult): string {
     if (!result.success) {
         return `Verktyg "${name}" misslyckades: ${result.error}`;
@@ -1066,6 +1134,12 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
             if (!r.enrolled) return `Kontakten var redan i "${r.sequence}" (${r.reason ?? 'skippad'}).`;
             const note = r.status !== 'active' ? ` OBS: sekvensen är "${r.status}" — inget körs förrän du aktiverar den.` : '';
             return `✅ Enrollad i "${r.sequence}".${note}`;
+        }
+        case 'navigate_ui': {
+            const r = data as { view: string; contact_name: string | null };
+            return r.contact_name
+                ? `✅ Öppnade kortet för "${r.contact_name}" i CRM-vyn på skärmen.`
+                : `✅ Bytte till vyn "${r.view}" på skärmen.`;
         }
         default:
             return JSON.stringify(data, null, 2);

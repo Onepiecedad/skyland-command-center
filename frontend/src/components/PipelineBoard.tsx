@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchBoard, moveOpportunity, type BoardColumn, type Opportunity } from '../api';
 
 /**
@@ -112,6 +112,45 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
             window.removeEventListener('focus', onVisible);
         };
     }, [load]);
+
+    // ── Alex (navigate_ui): öppna ett specifikt kontaktkort. Om boarden inte
+    //    hunnit ladda än sparas önskan och försöks igen när kolumnerna kommer. ──
+    const pendingContactRef = useRef<string | null>(null);
+    const onSelectContactRef = useRef(onSelectContact);
+    onSelectContactRef.current = onSelectContact;
+
+    useEffect(() => {
+        const tryOpen = (contactId: string, cols: BoardColumn[]): boolean => {
+            for (const col of cols) {
+                const opp = col.opportunities.find(o => o.contact?.id === contactId);
+                if (opp) { onSelectContactRef.current?.(opp); return true; }
+            }
+            return false;
+        };
+        const onOpenContact = (e: Event) => {
+            const contactId = (e as CustomEvent<{ contactId: string }>).detail?.contactId;
+            if (!contactId) return;
+            setColumns(cols => {
+                if (!tryOpen(contactId, cols)) pendingContactRef.current = contactId;
+                return cols;
+            });
+        };
+        window.addEventListener('scc:open-contact', onOpenContact);
+        return () => window.removeEventListener('scc:open-contact', onOpenContact);
+    }, []);
+
+    useEffect(() => {
+        const pending = pendingContactRef.current;
+        if (!pending) return;
+        for (const col of columns) {
+            const opp = col.opportunities.find(o => o.contact?.id === pending);
+            if (opp) {
+                pendingContactRef.current = null;
+                onSelectContactRef.current?.(opp);
+                return;
+            }
+        }
+    }, [columns]);
 
     const handleDrop = useCallback(async (stageId: string) => {
         const oppId = dragId;
