@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
-import { LayoutGrid, Target, Workflow, Globe, Briefcase, Archive, Monitor, Puzzle } from 'lucide-react';
+import { LayoutGrid, Target, Workflow, Globe, Briefcase, Archive, Monitor, Puzzle, LogOut } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -15,9 +15,10 @@ import CrmView from './pages/CrmView';
 import SequencesView from './pages/SequencesView';
 import WebsiteView from './pages/WebsiteView';
 import { LoginView } from './components/LoginView';
+import { IntroSequence } from './components/IntroSequence';
 import { AlexDock } from './components/AlexDock';
 import { FocusNavigator, type CrossLayout } from './navigation/FocusNavigator';
-import { checkAuth } from './api';
+import { checkAuth, logout } from './api';
 import './styles/index.css';
 
 /**
@@ -83,21 +84,31 @@ function App() {
 
     // SCC-36: auth-gate — 'checking' tills /auth/me svarat, sen 'yes'/'no'.
     const [authState, setAuthState] = useState<'checking' | 'yes' | 'no'>('checking');
+    // Cinematisk intro visas ENDAST direkt efter aktiv inloggning, inte vid session-återbesök.
+    const [showIntro, setShowIntro] = useState(false);
     useEffect(() => {
         checkAuth().then((ok) => setAuthState(ok ? 'yes' : 'no'));
     }, []);
 
     const handleRefresh = useCallback(() => { /* behålls för CustomerView-kontraktet */ }, []);
 
+    const handleLogout = useCallback(async () => {
+        await logout();
+        setAuthState('no');
+    }, []);
+
     if (authState === 'checking') {
         return null;
     }
     if (authState === 'no') {
-        return <LoginView onSuccess={() => setAuthState('yes')} />;
+        return <LoginView onSuccess={() => { setAuthState('yes'); setShowIntro(true); }} />;
     }
 
     return (
         <>
+            {/* Marvel-intro ovanpå — appen ligger färdig bakom när ridån lyfts */}
+            {showIntro && <IntroSequence onDone={() => setShowIntro(false)} />}
+
             {/* Levande bakgrund bakom allt */}
             <ParallaxBackground />
 
@@ -110,6 +121,20 @@ function App() {
                     </h1>
                     <span className="dashboard-v2-focus-label">{LABELS[centerView]}</span>
                     <AgentMonitor />
+                    <button
+                        onClick={() => void handleLogout()}
+                        title="Logga ut"
+                        style={{
+                            marginLeft: 10, width: 30, height: 30, borderRadius: 9,
+                            border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)',
+                            color: 'rgba(255,255,255,0.55)', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.color = '#ff8a80'; e.currentTarget.style.borderColor = 'rgba(255,138,128,0.4)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.55)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}
+                    >
+                        <LogOut size={15} />
+                    </button>
                 </header>
 
                 {/* ── Korset ── */}
