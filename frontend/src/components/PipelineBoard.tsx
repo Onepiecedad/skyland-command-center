@@ -165,8 +165,8 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
     });
 
     return (
-        <div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+        <div className="pl-board">
+            <div className="pl-toolbar" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
                 {([['score', '↓ Score'], ['name', 'A–Ö'], ['ort', 'Ort']] as const).map(([mode, label]) => (
                     <button key={mode} onClick={() => setSortMode(mode)} style={toolBtn(sortMode === mode)}>
                         {label}
@@ -191,10 +191,11 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                     );
                 })()}
             </div>
-            <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
+            <div className="pl-columns" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
             {viewColumns.map((col) => (
                 <div
                     key={col.stage.id}
+                    className="pl-col"
                     style={{
                         ...glassCol,
                         outline: dropStage === col.stage.id ? '2px solid rgba(120,180,255,0.6)' : 'none',

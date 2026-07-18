@@ -1,0 +1,119 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE — fixerat skal, inget som "flyter"
+   Laddas SIST i cascaden; !important krävs där inline-styles annars vinner.
+   Brytpunkt 700px = telefoner + smala surfplattor i porträtt.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Globalt skal: appen är ett fixerat kort, sidan kan aldrig gunga ── */
+html, body, #root {
+  height: 100%;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (max-width: 700px) {
+  /* Lås dokumentet — dödar iOS rubber-band och adressfälts-hopp */
+  html, body {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .dashboard-v2 {
+    height: 100dvh;
+    width: 100vw;
+  }
+
+  /* ── Header: kompakt + safe area (notch) ── */
+  .dashboard-v2-header {
+    padding: 0.45rem 0.8rem;
+    padding-top: calc(0.45rem + env(safe-area-inset-top));
+    gap: 0.6rem;
+  }
+  .dashboard-v2-title { font-size: 1rem !important; }
+  .dashboard-v2-focus-label { font-size: 0.7rem; }
+
+  /* ── iOS zoomar på inputs < 16px — förhindra ── */
+  input, textarea, select { font-size: 16px !important; }
+
+  /* ── Media flyter aldrig utanför ── */
+  img, video, canvas { max-width: 100%; }
+
+  /* ═══ CRM ═══ */
+  .crm-view { padding: 10px !important; }
+  .crm-head { gap: 8px !important; margin-bottom: 12px !important; }
+  .crm-head input[type="search"] {
+    margin-left: 0 !important;
+    width: 100% !important;
+    order: 10;
+  }
+  .crm-layout { display: block !important; }
+
+  /* Kanban: en kolumn i taget, snap-svep i sidled */
+  .pl-columns {
+    gap: 10px !important;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 14px !important;
+  }
+  .pl-col {
+    flex: 0 0 86vw !important;
+    max-width: 86vw;
+    scroll-snap-align: start;
+  }
+  .pl-toolbar { row-gap: 6px !important; }
+  .pl-toolbar > span:last-child { display: none; } /* kostnadschipen får plats på desktop */
+
+  /* Detaljpanelen: fullskärms-overlay istället för sidokolumn */
+  .crm-detail {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 600;
+    flex: none !important;
+    width: 100vw !important;
+    padding: 12px;
+    padding-top: calc(12px + env(safe-area-inset-top));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    background: rgba(4, 14, 10, 0.96);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .contact-card {
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  /* ═══ Kontoret: skala ner skrivbordskartan ═══ */
+  .office-map, .office-canvas { transform: scale(0.6); transform-origin: top left; }
+
+  /* ═══ System-grid: en kolumn ═══ */
+  .sys-grid-fill { grid-template-columns: 1fr !important; grid-auto-rows: minmax(200px, auto) !important; }
+
+  /* ═══ Statusbar: safe area i botten ═══ */
+  .status-bar, .dashboard-v2 > footer { padding-bottom: env(safe-area-inset-bottom); }
+
+  /* ═══ Focus-navigatorns minimap: kompakt (kompletterar focus-nav.css) ═══ */
+  .fnav-minimap { transform: scale(0.9); transform-origin: bottom left; }
+}
+
+/* ═══ AlexDock: lyft ovanför hemindikatorn ═══ */
+@media (max-width: 700px) {
+  .alexdock-fab { bottom: calc(16px + env(safe-area-inset-bottom)) !important; }
+  .alexdock-panel {
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: min(78dvh, 640px) !important;
+    border-radius: 20px 20px 0 0 !important;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Små telefoner: dölj fokus-etiketten helt, ge plats åt statusen */
+@media (max-width: 430px) {
+  .dashboard-v2-focus-label { display: none; }
+}

@@ -375,7 +375,7 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
     });
 
     return (
-        <div style={{ height: '70vh', overflowY: 'auto', padding: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14 }}>
+        <div className="contact-card" style={{ height: '70vh', overflowY: 'auto', padding: 16, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                 <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, flex: 1, minWidth: 0 }}>{opportunity.title}</h2>
                 {score !== null && (

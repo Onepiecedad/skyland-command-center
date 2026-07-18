@@ -68,8 +68,8 @@ export default function CrmView() {
     };
 
     return (
-        <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div className="crm-view" style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
+            <div className="crm-head" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>🗂️ CRM</h1>
                 {pipelines.length > 1 && (
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -102,8 +102,8 @@ export default function CrmView() {
             )}
 
             {activeId && (
-                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="crm-layout" style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+                    <div className="crm-board" style={{ flex: 1, minWidth: 0 }}>
                         <PipelineBoard
                             key={`${activeId}:${boardVersion}`}
                             pipelineId={activeId}
@@ -112,7 +112,7 @@ export default function CrmView() {
                         />
                     </div>
                     {selected && selected.contact && (
-                        <div style={{ flex: '0 0 400px', position: 'sticky', top: 16 }}>
+                        <div className="crm-detail" style={{ flex: '0 0 400px', position: 'sticky', top: 16 }}>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
                                 <button onClick={() => setDetailTab('detail')} style={tabBtn(detailTab === 'detail')}>Detaljer</button>
                                 <button onClick={() => setDetailTab('inbox')} style={tabBtn(detailTab === 'inbox')}>Konversation</button>
