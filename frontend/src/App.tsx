@@ -116,7 +116,7 @@ function App() {
                 {/* Header — minimal: logga + fokusvyns namn + agentstatus */}
                 <header className="dashboard-v2-header">
                     <h1 className="dashboard-v2-title" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <img src="/logo.png" alt="" style={{ height: 30, width: 30, objectFit: 'contain', filter: 'drop-shadow(0 0 6px rgba(16,185,129,0.45))' }} />
+                        <img src="/logo.png" alt="" style={{ height: 32, width: 32, objectFit: 'cover', objectPosition: '50% 30%', mixBlendMode: 'screen', filter: 'drop-shadow(0 0 8px rgba(16,185,129,0.5)) brightness(1.2)' }} />
                         Skyland
                     </h1>
                     <span className="dashboard-v2-focus-label">{LABELS[centerView]}</span>

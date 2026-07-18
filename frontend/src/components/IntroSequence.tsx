@@ -73,7 +73,7 @@ export function IntroSequence({ onDone }: { onDone: () => void }) {
                             ],
                         }}
                         transition={{ delay: 0.55, duration: 1.25, ease: [0.16, 1, 0.3, 1], times: [0, 0.6, 1] }}
-                        style={{ width: 210, height: 210, objectFit: 'contain' }}
+                        style={{ width: 300, height: 300, objectFit: 'cover', objectPosition: '50% 26%', mixBlendMode: 'screen' }}
                     />
 
                     {/* SKYLAND — bokstäverna breddas ut ur mitten */}

@@ -68,14 +68,19 @@ export function LoginView({ onSuccess }: LoginViewProps) {
                     textAlign: 'center',
                 }}
             >
-                <img
-                    src="/logo.png"
-                    alt="Skyland"
-                    style={{
-                        width: 72, height: 72, objectFit: 'contain', marginBottom: 14,
-                        filter: 'drop-shadow(0 0 16px rgba(16,185,129,0.5))',
-                    }}
-                />
+                {/* Triangeln ur loggan — screen-blend släcker den inbakade mörka
+                    bakgrunden så bara det gröna ljuset svävar fritt */}
+                <div style={{ width: 170, height: 118, overflow: 'hidden', margin: '0 auto 16px', position: 'relative' }}>
+                    <img
+                        src="/logo-full.png"
+                        alt="Skyland"
+                        style={{
+                            width: 170, position: 'absolute', top: -22, left: 0,
+                            mixBlendMode: 'screen',
+                            filter: 'drop-shadow(0 0 18px rgba(16,185,129,0.55)) brightness(1.15)',
+                        }}
+                    />
+                </div>
                 <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: '0.18em', paddingLeft: '0.18em' }}>
                     SKYLAND
                 </div>
