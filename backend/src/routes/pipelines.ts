@@ -165,6 +165,40 @@ router.post('/opportunities/:id/move', async (req: Request, res: Response) => {
         });
         emitSystemEvent('opportunity.moved', { opportunity_id: data.id, stage_id: parsed.data.stage_id }, 'pipelines');
 
+        // Auto-logg: dras kortet till Contacted = öppnaren är skickad. Logga den
+        // som IG DM i kontaktens konversation (en gång — aldrig vid fram-och-tillbaka).
+        if (stageName === 'Contacted' && data.contact_id) {
+            try {
+                const { data: contact } = await supabase
+                    .from('contacts').select('custom').eq('id', data.contact_id).maybeSingle();
+                const dmHook = (contact?.custom as Record<string, unknown> | null)?.dm_hook;
+                if (typeof dmHook === 'string' && dmHook.trim()) {
+                    const opener = dmHook.split(/\n?---\n?/)[0].trim();
+                    const { data: prior } = await supabase
+                        .from('messages').select('id')
+                        .eq('channel', 'instagram')
+                        .filter('metadata->>contact_id', 'eq', data.contact_id)
+                        .limit(1);
+                    if (!prior || prior.length === 0) {
+                        await supabase.from('messages').insert({
+                            role: 'user',
+                            channel: 'instagram',
+                            direction: 'outbound',
+                            content: opener,
+                            metadata: {
+                                contact_id: data.contact_id,
+                                logged_by: 'stage-move:contacted',
+                                interaction: 'ig_dm_outreach',
+                            },
+                        });
+                        logger.info('pipelines', `IG-öppnare auto-loggad för contact ${data.contact_id} (→ Contacted)`);
+                    }
+                }
+            } catch (err) {
+                console.error('[Pipelines] auto-log contacted error:', err);
+            }
+        }
+
         // Sekvens-trigger (SCC-42): stage ändrad → skriv in i matchande sekvenser (fire-and-forget)
         if (data.contact_id) {
             void onStageChanged(data.contact_id, data.pipeline_id ?? null, parsed.data.stage_id, data.id);
