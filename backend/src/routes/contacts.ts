@@ -65,6 +65,42 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // ============================================================================
+// POST / — create a contact (used by discover_pipeline for prospecting intake)
+// ============================================================================
+const createSchema = z.object({
+    name: z.string().min(1),
+    email: z.string().nullish(),
+    phone: z.string().nullish(),
+    company: z.string().nullish(),
+    website: z.string().nullish(),
+    status: z.enum(STATUS).optional(),
+    source: z.string().nullish(),
+    tags: z.array(z.string()).optional(),
+    custom: z.record(z.string(), z.unknown()).optional(),
+}).strict();
+
+router.post('/', async (req: Request, res: Response) => {
+    try {
+        const parsed = createSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
+        }
+        const { data, error } = await supabase
+            .from('contacts')
+            .insert({ ...parsed.data, status: parsed.data.status ?? 'new' })
+            .select()
+            .single();
+        if (error) return res.status(500).json({ error: error.message });
+
+        logger.info('contacts', `Contact created: ${data.id} (${data.name})`, { source: data.source });
+        return res.status(201).json({ status: 'created', contact: data });
+    } catch (err) {
+        console.error('[Contacts] create error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
 // PATCH /:id — edit contact fields
 // ============================================================================
 const patchSchema = z.object({
