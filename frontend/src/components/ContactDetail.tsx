@@ -110,6 +110,102 @@ function CopyBlock({ title, text }: { title: string; text: string }) {
     );
 }
 
+interface ParsedResearch {
+    fakta: string[];
+    unik: string | null;
+    friktion: string | null;
+    kallor: string[];
+    rest: string | null;
+}
+
+/** Parsar researcherns rapportformat till läsbara sektioner. */
+function parseResearch(raw: string): ParsedResearch | null {
+    let t = raw
+        .replace(/\*\*/g, '')
+        .replace(/^[\s\S]*?(?=FAKTA:)/i, '')   // släng preamble ("Här är rapporten…")
+        .replace(/^-{3,}\s*$/gm, '')
+        .trim();
+    if (!/FAKTA:/i.test(t)) return null;       // okänt format → fallback
+
+    const grab = (name: string): string | null => {
+        const m = t.match(new RegExp(
+            name + ':?\\s*([\\s\\S]*?)(?=\\n\\s*(?:FAKTA|UNIK_DETALJ|BOKNINGSFRIKTION|K[ÄA]LLOR|MALGRUPP_PROBLEM)\\b|$)', 'i'));
+        return m ? m[1].trim() : null;
+    };
+    const fakta = (grab('FAKTA') ?? '')
+        .split('\n')
+        .map((l) => l.replace(/^[-•]\s*/, '').trim())
+        .filter((l) => l.length > 2);
+    const kallorText = grab('K[ÄA]LLOR') ?? '';
+    const kallor = [...new Set(kallorText.match(/https?:\/\/[^\s,)]+/g) ?? [])];
+    return {
+        fakta,
+        unik: grab('UNIK_DETALJ'),
+        friktion: grab('BOKNINGSFRIKTION'),
+        kallor,
+        rest: null,
+    };
+}
+
+const sectionLabel: React.CSSProperties = {
+    fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase',
+    opacity: 0.55, margin: '12px 0 5px',
+};
+
+function ResearchNotes({ raw }: { raw: string }) {
+    const parsed = parseResearch(raw);
+    if (!parsed) {
+        // Äldre/oformaterad research: visa som text, men utan markdown-brus
+        const cleaned = raw.replace(/\*\*/g, '').replace(/^\|/gm, '').replace(/\|/g, ' · ');
+        return (
+            <div style={{ fontSize: 12.5, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {cleaned}
+            </div>
+        );
+    }
+    return (
+        <div style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+            {parsed.fakta.length > 0 && (
+                <>
+                    <div style={sectionLabel}>Fakta</div>
+                    <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {parsed.fakta.map((f, i) => <li key={i}>{f}</li>)}
+                    </ul>
+                </>
+            )}
+            {parsed.unik && (
+                <>
+                    <div style={sectionLabel}>Unik detalj</div>
+                    <div style={{ padding: '8px 11px', borderRadius: 8, background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)' }}>
+                        {parsed.unik}
+                    </div>
+                </>
+            )}
+            {parsed.friktion && (
+                <>
+                    <div style={sectionLabel}>Bokningsfriktion</div>
+                    <div style={{ padding: '8px 11px', borderRadius: 8, background: 'rgba(240,198,116,0.07)', border: '1px solid rgba(240,198,116,0.22)' }}>
+                        {parsed.friktion}
+                    </div>
+                </>
+            )}
+            {parsed.kallor.length > 0 && (
+                <>
+                    <div style={sectionLabel}>Källor</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                        {parsed.kallor.map((u) => (
+                            <a key={u} href={u} target="_blank" rel="noreferrer"
+                               style={{ fontSize: 11, padding: '2px 9px', borderRadius: 999, background: 'rgba(158,203,255,0.1)', border: '1px solid rgba(158,203,255,0.25)', color: '#9ecbff', textDecoration: 'none', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {u.replace(/^https?:\/\/(www\.)?/, '')}
+                            </a>
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <div style={rowStyle}>
@@ -316,11 +412,11 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
                         Research-underlag{custom.research_source ? ` · ${custom.research_source}` : ''}
                     </summary>
                     <div style={{
-                        marginTop: 8, padding: 12, borderRadius: 10, fontSize: 12.5, lineHeight: 1.6,
+                        marginTop: 8, padding: 12, borderRadius: 10,
                         background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                        whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 320, overflowY: 'auto',
+                        maxHeight: 380, overflowY: 'auto',
                     }}>
-                        {custom.research_notes}
+                        <ResearchNotes raw={custom.research_notes} />
                     </div>
                 </details>
             )}
