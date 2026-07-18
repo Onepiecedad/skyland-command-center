@@ -286,6 +286,11 @@ export const ALEX_TOOLS: ToolDefinition[] = [
         }
     },
     {
+        name: 'start_ui_tour',
+        description: 'Starta en guidad rundtur av hela dashboarden på operatörens skärm. En skriptad sekvens visar varje vy i tur och ordning med förklaringskort (Alex-chatten, CRM-pipelinen, leads, sekvenser, kunder, kontoret, systemöversikt, skills). Använd när operatören ber om en genomgång, rundtur, guidning eller demo av systemet, t.ex. "visa mig runt", "ge mig en genomgång", "guida mig genom systemet". Påverkar bara skärmen — alltid säkert.',
+        parameters: { type: 'object', properties: {} }
+    },
+    {
         name: 'list_sequences',
         description: 'Lista automations-sekvenser (cold email-drip, strategisamtal-påminnelser, no-show-uppföljning) med status (draft/active/paused), trigger och antal aktiva enrollments. Använd för att se vilka sekvenser som finns och om de körs.',
         parameters: { type: 'object', properties: {} }
@@ -353,6 +358,8 @@ export async function executeToolCall(
                 return await handleEnrollInSequence(args);
             case 'navigate_ui':
                 return await handleNavigateUi(args);
+            case 'start_ui_tour':
+                return await handleStartUiTour();
             default:
                 return { success: false, error: `Unknown tool: ${name}` };
         }
@@ -937,6 +944,13 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
     return { success: true, data: { view, contact_name: contact?.name ?? null } };
 }
 
+/** start_ui_tour — trigga den skriptade guidade rundturen i frontend via SSE. */
+async function handleStartUiTour(): Promise<ToolResult> {
+    const { emitSystemEvent } = await import('../routes/eventStream');
+    emitSystemEvent('ui_action', { action: 'tour' }, 'alex');
+    return { success: true, data: { started: true } };
+}
+
 export function formatToolResultForLLM(name: string, result: ToolResult): string {
     if (!result.success) {
         return `Verktyg "${name}" misslyckades: ${result.error}`;
@@ -1141,6 +1155,8 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
                 ? `✅ Öppnade kortet för "${r.contact_name}" i CRM-vyn på skärmen.`
                 : `✅ Bytte till vyn "${r.view}" på skärmen.`;
         }
+        case 'start_ui_tour':
+            return '✅ Guidad rundtur startad på skärmen — den går igenom alla vyer steg för steg med förklaringar. Operatören kan pausa, hoppa eller avsluta med knapparna på kortet.';
         default:
             return JSON.stringify(data, null, 2);
     }

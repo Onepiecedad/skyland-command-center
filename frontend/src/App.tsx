@@ -17,6 +17,7 @@ import WebsiteView from './pages/WebsiteView';
 import { LoginView } from './components/LoginView';
 import { IntroSequence } from './components/IntroSequence';
 import { AlexDock } from './components/AlexDock';
+import { GuidedTour } from './components/GuidedTour';
 import { FocusNavigator, type CrossLayout } from './navigation/FocusNavigator';
 import { subscribeUiActions } from './navigation/uiActions';
 import { checkAuth, logout } from './api';
@@ -202,6 +203,7 @@ function App() {
 
             {/* Flytande Alex — alltid tillgänglig (⌘J). Döljs när Alex-vyn är i fokus. */}
             <AlexDock hidden={centerView === 'alex'} />
+            <GuidedTour />
         </>
     );
 }

@@ -42,16 +42,24 @@ interface UiActionData {
     contact_name?: string | null;
 }
 
+/** Navigera till en logisk vy (panel + ev. undervy). Används av SSE-bryggan och GuidedTour. */
+export function navigateToView(view: string): void {
+    const target = VIEW_TO_PANE[view];
+    if (!target) return;
+    window.dispatchEvent(new CustomEvent('scc:focus-pane', { detail: { pane: target.pane } }));
+    if (target.subview) {
+        window.dispatchEvent(new CustomEvent('scc:subview', { detail: { subview: target.subview } }));
+    }
+}
+
 function handleUiAction(data: UiActionData): void {
+    if (data.action === 'tour') {
+        window.dispatchEvent(new CustomEvent('scc:start-tour'));
+        return;
+    }
     if (data.action !== 'navigate') return;
 
-    const target = data.view ? VIEW_TO_PANE[data.view] : undefined;
-    if (target) {
-        window.dispatchEvent(new CustomEvent('scc:focus-pane', { detail: { pane: target.pane } }));
-        if (target.subview) {
-            window.dispatchEvent(new CustomEvent('scc:subview', { detail: { subview: target.subview } }));
-        }
-    }
+    if (data.view) navigateToView(data.view);
     if (data.contact_id) {
         window.dispatchEvent(new CustomEvent<OpenContactDetail>('scc:open-contact', {
             detail: { contactId: data.contact_id, contactName: data.contact_name ?? null },
