@@ -277,6 +277,11 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
                     ? <a href={custom.website} target="_blank" rel="noreferrer" style={linkStyle}>{custom.website.replace(/^https?:\/\/(www\.)?/, '')}</a>
                     : '—'}
             </Row>
+            <Row label="Adress">
+                {custom.address
+                    ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(custom.address)}`} target="_blank" rel="noreferrer" style={linkStyle}>📍 {custom.address}</a>
+                    : '—'}
+            </Row>
             <Row label="Status">{opportunity.status}</Row>
 
             {igTags.length > 0 && (

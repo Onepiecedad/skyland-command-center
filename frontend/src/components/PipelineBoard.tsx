@@ -83,7 +83,7 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
     const [error, setError] = useState<string | null>(null);
     const [dragId, setDragId] = useState<string | null>(null);
     const [dropStage, setDropStage] = useState<string | null>(null);
-    const [sortByScore, setSortByScore] = useState(true);
+    const [sortMode, setSortMode] = useState<'score' | 'name' | 'ort'>('score');
     const [tierFilter, setTierFilter] = useState<'all' | Tier>('all');
 
     const load = useCallback(async () => {
@@ -152,18 +152,26 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                 return typeof s === 'number' && tierOf(s) === tierFilter;
             });
         if (q) filtered = filtered.filter((o) => matchesSearch(o, q));
-        const ordered = sortByScore
-            ? [...filtered].sort((a, b) => (b.contact?.custom?.score ?? -1) - (a.contact?.custom?.score ?? -1))
-            : filtered;
+        const areaOf = (o: Opportunity) => String(o.contact?.custom?.area ?? 'övrigt');
+        const ordered = [...filtered].sort((a, b) => {
+            if (sortMode === 'score') return (b.contact?.custom?.score ?? -1) - (a.contact?.custom?.score ?? -1);
+            if (sortMode === 'ort') {
+                const c = areaOf(a).localeCompare(areaOf(b), 'sv');
+                return c !== 0 ? c : a.title.localeCompare(b.title, 'sv');
+            }
+            return a.title.localeCompare(b.title, 'sv');
+        });
         return { ...col, opportunities: ordered };
     });
 
     return (
         <div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-                <button onClick={() => setSortByScore((v) => !v)} style={toolBtn(sortByScore)}>
-                    {sortByScore ? '↓ Score' : 'Standardordning'}
-                </button>
+                {([['score', '↓ Score'], ['name', 'A–Ö'], ['ort', 'Ort']] as const).map(([mode, label]) => (
+                    <button key={mode} onClick={() => setSortMode(mode)} style={toolBtn(sortMode === mode)}>
+                        {label}
+                    </button>
+                ))}
                 <span style={{ opacity: 0.4, fontSize: 12, marginLeft: 4 }}>Tier:</span>
                 {(['all', 'A', 'B', 'C'] as const).map((t) => (
                     <button key={t} onClick={() => setTierFilter(t)} style={toolBtn(tierFilter === t)}>
