@@ -486,6 +486,13 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
                 </details>
             )}
 
+            {typeof custom.research_cost_usd === 'number' && (
+                <div style={{ marginTop: 10, fontSize: 11.5, opacity: 0.55 }}>
+                    Prospektkostnad: ${custom.research_cost_usd.toFixed(3)} (~{(custom.research_cost_usd * 10.5).toFixed(2)} kr)
+                    {custom.research_tokens ? ` · ${(custom.research_tokens / 1000).toFixed(0)}k tokens` : ''}
+                </div>
+            )}
+
             {score !== null && (
                 <div style={{ marginTop: 16, fontSize: 12, opacity: 0.7, lineHeight: 1.6 }}>
                     <div style={{ fontWeight: 600, opacity: 0.9, marginBottom: 4 }}>Score-motivering</div>
