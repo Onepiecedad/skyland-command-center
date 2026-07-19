@@ -72,8 +72,9 @@ router.get('/stream', (req: Request, res: Response) => {
         // Filter by customer
         if (customerId && event.data.customer_id !== customerId) return;
 
+        // OBS: ingen "event:"-rad — namngivna SSE-events når ALDRIG es.onmessage
+        // (kräver addEventListener per typ). Typen finns redan i JSON-datan.
         res.write(`id: ${event.id}\n`);
-        res.write(`event: ${event.type}\n`);
         res.write(`data: ${JSON.stringify(event)}\n\n`);
     };
 
