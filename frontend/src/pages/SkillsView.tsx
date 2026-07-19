@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, RefreshCw, Package, Code, Puzzle } from 'lucide-react';
 import { fetchSkills, fetchSkillDetail, type Skill } from '../api';
 import { getGatewaySocket } from '../gateway/gatewaySocket';
@@ -70,7 +70,23 @@ export function SkillsView() {
 
     useEffect(() => {
         loadSkills();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Gatewayn ansluter EFTER att vyn monterats (alla paneler mountas vid
+    // sidladdning) — första rpc:t avvisas därför alltid med "gateway not
+    // connected" och fallbacken är tom i molnet. Försök igen tills gatewayn
+    // svarat, max 6 gånger, i stället för att fastna på 0 skills.
+    const retryRef = useRef(0);
+    useEffect(() => {
+        if (source === 'gateway' || retryRef.current >= 6) return;
+        const t = setTimeout(() => {
+            retryRef.current += 1;
+            loadSkills();
+        }, 4000);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [source, skills]);
 
     const filteredSkills = useMemo(() => {
         let result = skills;
