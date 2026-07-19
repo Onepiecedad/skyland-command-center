@@ -106,7 +106,7 @@ export default function WebsiteView() {
     ] : [];
 
     return (
-        <div style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
+        <div className="website-view-root" style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
                 <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>🌐 Hemsida</h1>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

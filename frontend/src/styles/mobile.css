@@ -11,6 +11,9 @@ html, body, #root {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Kontorets agentlista: bara mobil (kartan gäller på desktop) */
+.office-agent-list { display: none; }
+
 @media (max-width: 700px) {
   /* Lås dokumentet — dödar iOS rubber-band och adressfälts-hopp */
   html, body {
@@ -97,14 +100,32 @@ html, body, #root {
   .cv-cards-grid { grid-template-columns: 1fr !important; }
   .cv-toolbar { flex-wrap: wrap; gap: 8px; }
 
-  /* ═══ Kontoret: SVG-kartan krympte till oläslig på smal skärm. Ge den en
-     läsbar minsta bredd och låt vyn svepa i sidled. ═══ */
-  .office-view { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .office-view svg {
-    min-width: 640px;
-    height: auto !important;
-    aspect-ratio: 1000 / 720;
+  /* ═══ Kontoret: dölj den oläsliga SVG-kartan, visa agentlistan ═══ */
+  .office-map-wrap { display: none !important; }
+  .office-view { height: auto !important; }
+  .office-agent-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 2px 12px;
   }
+  .office-agent-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: #e2e8f0;
+    text-align: left;
+    cursor: pointer;
+  }
+  .office-agent-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .office-agent-name { font-weight: 650; font-size: 14px; }
+  .office-agent-cluster { font-size: 12px; opacity: 0.5; }
+  .office-agent-status { margin-left: auto; font-size: 11px; opacity: 0.7; }
 
   /* ═══ Hemsida: KPI-raden fick aldrig flyta i sidled — svepbar rad ═══ */
   .hemsida-kpis, .website-kpis, [class*="kpi-row"] {
@@ -131,7 +152,22 @@ html, body, #root {
   }
 
   /* ═══ System-grid: en kolumn ═══ */
-  .sys-grid-fill { grid-template-columns: 1fr !important; grid-auto-rows: minmax(200px, auto) !important; }
+  /* System-grid: den fasta 2-radersmallen tvingade panel 3+ att överlappa
+     (Context & Cost bakom Integrationer). Släpp raderna → varje panel egen rad. */
+  .sys-grid-fill {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: none !important;
+    grid-auto-rows: minmax(200px, auto) !important;
+    display: grid !important;
+  }
+  .sys-dashboard--fill, .sys-dashboard { height: auto !important; overflow: visible !important; }
+
+  /* Hemsida-roten: lås bredden, mindre padding, inget sidoläckage */
+  .website-view-root {
+    padding: 12px !important;
+    max-width: 100% !important;
+    overflow-x: hidden;
+  }
 
   /* ═══ Statusbar: safe area i botten ═══ */
   .status-bar, .dashboard-v2 > footer { padding-bottom: env(safe-area-inset-bottom); }

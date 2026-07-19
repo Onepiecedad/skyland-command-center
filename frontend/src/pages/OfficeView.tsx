@@ -308,7 +308,23 @@ export default function OfficeView() {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 12 }}>
+            {/* Mobil: agentkartan blir oläslig liten — visa en tydlig lista i
+                stället (samma klick öppnar rollformuläret). CSS togglar. */}
+            <div className="office-agent-list">
+                {[{ id: 'main', name: 'Alex', cluster: 'Koordinator' } as { id: string; name: string; cluster: string }, ...DESKS].map((d) => {
+                    const st = d.id === 'main' ? mainState.status : (desks[d.id]?.status ?? 'idle');
+                    return (
+                        <button key={d.id} className="office-agent-row" onClick={() => setSheetAgent(d.id)}>
+                            <span className="office-agent-dot" style={{ background: STATUS_COLOR[st] }} />
+                            <span className="office-agent-name">{d.name}</span>
+                            <span className="office-agent-cluster">{d.cluster}</span>
+                            <span className="office-agent-status">{st === 'active' ? 'Arbetar' : st === 'idle' ? 'Ledig' : st}</span>
+                        </button>
+                    );
+                })}
+            </div>
+
+            <div className="office-map-wrap" style={{ display: 'flex', flex: 1, minHeight: 0, gap: 12 }}>
                 <svg viewBox="0 0 1000 720" style={{ flex: 1, height: '100%', minWidth: 0 }}>
                     {/* connection lines main ↔ desk */}
                     {DESKS.map((d) => {
