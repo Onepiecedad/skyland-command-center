@@ -14,6 +14,9 @@ html, body, #root {
 /* Kontorets agentlista: bara mobil (kartan gäller på desktop) */
 .office-agent-list { display: none; }
 
+/* Arkivets stäng-knapp visas bara i mobil-overlayn */
+.archive-detail-close { display: none; }
+
 @media (max-width: 700px) {
   /* Lås dokumentet — dödar iOS rubber-band och adressfälts-hopp */
   html, body {
@@ -109,6 +112,39 @@ html, body, #root {
   }
   .cv-cards-grid { grid-template-columns: 1fr !important; }
   .cv-toolbar { flex-wrap: wrap; gap: 8px; }
+
+  /* ═══ Kund- & arkivdetaljer: öppnas som fullskärms-overlay (som CRM/Leads),
+     inte inline. Enhetligt popup-beteende. ═══ */
+  .cv-detail-panel.open,
+  .archive-detail.open {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 620 !important;
+    flex: none !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 12px !important;
+    padding-top: calc(14px + env(safe-area-inset-top)) !important;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+    background: rgba(4, 14, 10, 0.96) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
+    backdrop-filter: blur(24px) !important;
+    overflow-y: auto !important;
+  }
+  /* Arkiv-roten staplar, listan blir hela vyn */
+  .archive-view { flex-direction: column !important; height: auto !important; }
+  .archive-list { width: 100% !important; }
+  /* Stäng inte-öppna arkivpanelen tar ingen plats på mobil (listan är hela vyn) */
+  .archive-detail:not(.open) { display: none !important; }
+  .archive-detail-close {
+    display: block !important;
+    position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 12px;
+    width: 34px; height: 34px; border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.7); font-size: 16px; cursor: pointer; z-index: 2;
+  }
 
   /* ═══ Kontoret: dölj den oläsliga SVG-kartan, visa agentlistan ═══ */
   .office-map-wrap { display: none !important; }

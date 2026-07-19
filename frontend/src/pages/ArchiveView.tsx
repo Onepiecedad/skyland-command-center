@@ -138,9 +138,9 @@ export default function ArchiveView() {
   );
 
   return (
-    <div style={{ display: 'flex', gap: 16, height: '100%', minHeight: 0 }}>
+    <div className="archive-view" style={{ display: 'flex', gap: 16, height: '100%', minHeight: 0 }}>
       {/* ─── Left: list + filters ─── */}
-      <div style={{ width: 380, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div className="archive-list" style={{ width: 380, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ marginBottom: 10 }}>
           <input
             value={q}
@@ -244,8 +244,8 @@ export default function ArchiveView() {
         </div>
       </div>
 
-      {/* ─── Right: report detail ─── */}
-      <div style={{
+      {/* ─── Right: report detail (overlay-popup på mobil) ─── */}
+      <div className={`archive-detail ${selected ? 'open' : ''}`} style={{
         flex: 1, minWidth: 0, overflowY: 'auto', padding: 24, borderRadius: 14,
         border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)',
       }}>
@@ -256,6 +256,11 @@ export default function ArchiveView() {
         )}
         {selected && (
           <>
+            <button
+              className="archive-detail-close"
+              onClick={() => setSelectedId(null)}
+              aria-label="Stäng"
+            >✕</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <span style={{ width: 10, height: 10, borderRadius: '50%', background: statusColor(selected.status) }} />
               <span style={{ fontSize: 13, opacity: 0.7 }}>
