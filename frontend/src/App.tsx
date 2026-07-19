@@ -202,7 +202,9 @@ function App() {
             </div>
 
             {/* Flytande Alex — alltid tillgänglig (⌘J). Döljs när Alex-vyn är i fokus. */}
-            <AlexDock hidden={centerView === 'alex'} />
+            {/* Docken (server-Alex: röst + UI-styrning) visas ÖVERALLT — Alex-vyns
+                egen chat är gateway-Alex (terminalen) och saknar röst/navigate_ui. */}
+            <AlexDock />
             <GuidedTour />
         </>
     );
