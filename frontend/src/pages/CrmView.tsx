@@ -119,7 +119,13 @@ export default function CrmView() {
                         />
                     </div>
                     {selected && selected.contact && (
-                        <div className="crm-detail" style={{ flex: '0 0 400px', position: 'sticky', top: 16 }}>
+                        <div className="crm-detail" style={{
+                            flex: '0 0 400px', position: 'sticky', top: 16,
+                            // Höjdtak + flex-kolumn: utan detta växer panelen obegränsat
+                            // och konversationslistan får ingen vägg att scrolla mot.
+                            display: 'flex', flexDirection: 'column',
+                            maxHeight: 'calc(100dvh - 120px)',
+                        }}>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
                                 <button onClick={() => setDetailTab('detail')} style={tabBtn(detailTab === 'detail')}>Detaljer</button>
                                 <button onClick={() => setDetailTab('inbox')} style={tabBtn(detailTab === 'inbox')}>Konversation</button>
@@ -131,9 +137,11 @@ export default function CrmView() {
                                     ✕
                                 </button>
                             </div>
-                            {detailTab === 'detail'
-                                ? <ContactDetail opportunity={selected} onSaved={handleSaved} onDeleted={handleDeleted} />
-                                : <ConversationInbox contactId={selected.contact.id} title={selected.title} />}
+                            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                                {detailTab === 'detail'
+                                    ? <ContactDetail opportunity={selected} onSaved={handleSaved} onDeleted={handleDeleted} />
+                                    : <ConversationInbox contactId={selected.contact.id} title={selected.title} />}
+                            </div>
                         </div>
                     )}
                 </div>

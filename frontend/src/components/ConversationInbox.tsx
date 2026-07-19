@@ -65,7 +65,7 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
                 <p style={{ opacity: 0.45, fontSize: 13 }}>Inga meddelanden än för den här kontakten.</p>
             )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', flex: 1, minHeight: 0 }}>
                 {messages.map((m) => {
                     const outbound = m.direction === 'outbound' || m.role === 'assistant';
                     return (
