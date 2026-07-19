@@ -119,7 +119,13 @@ function App() {
         return null;
     }
     if (authState === 'no') {
-        return <LoginView onSuccess={() => { setAuthState('yes'); setShowIntro(true); }} />;
+        return <LoginView onSuccess={() => {
+            // Färsk inloggning: börja alltid i Alex-vyn med en ny tråd
+            localStorage.setItem('scc-cross-layout', JSON.stringify(DEFAULT_LAYOUT));
+            sessionStorage.setItem('scc-fresh-login', '1');
+            setAuthState('yes');
+            setShowIntro(true);
+        }} />;
     }
 
     return (

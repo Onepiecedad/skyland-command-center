@@ -95,6 +95,15 @@ export default function AlexView() {
   }, []);
   const useBackendAlex = gateway.status !== 'connected' && gatewayGraceOver;
 
+  /* ─── Färsk inloggning → starta i en NY tråd (flaggan sätts av LoginView) ─── */
+  useEffect(() => {
+    if (gateway.status !== 'connected') return;
+    if (sessionStorage.getItem('scc-fresh-login') !== '1') return;
+    sessionStorage.removeItem('scc-fresh-login');
+    gateway.createNewSession().catch(() => { /* gatewayn hann tappa anslutningen — behåll aktiva tråden */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gateway.status]);
+
   /* ─── Fetch real skills from backend ─── */
   useEffect(() => {
     fetchWithAuth(SKILLS_API)
