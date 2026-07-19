@@ -313,9 +313,15 @@ export default function OfficeView() {
             <div className="office-agent-list">
                 {[{ id: 'main', name: 'Alex', cluster: 'Koordinator' } as { id: string; name: string; cluster: string }, ...DESKS].map((d) => {
                     const st = d.id === 'main' ? mainState.status : (desks[d.id]?.status ?? 'idle');
+                    const avatar = AGENT_PROFILES[d.id]?.avatar;
                     return (
                         <button key={d.id} className="office-agent-row" onClick={() => setSheetAgent(d.id)}>
-                            <span className="office-agent-dot" style={{ background: STATUS_COLOR[st] }} />
+                            <span className="office-agent-avatar" style={{ borderColor: STATUS_COLOR[st] }}>
+                                {avatar
+                                    ? <img src={avatar} alt="" />
+                                    : <span>{d.name.charAt(0)}</span>}
+                                <span className="office-agent-dot" style={{ background: STATUS_COLOR[st] }} />
+                            </span>
                             <span className="office-agent-name">{d.name}</span>
                             <span className="office-agent-cluster">{d.cluster}</span>
                             <span className="office-agent-status">{st === 'active' ? 'Arbetar' : st === 'idle' ? 'Ledig' : st}</span>

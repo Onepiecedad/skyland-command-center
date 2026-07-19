@@ -233,6 +233,7 @@ export default function WebsiteView() {
                     return (
                         <div key={s.session_uuid} style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                             <div
+                                className="website-session-row"
                                 onClick={() => setExpanded(isOpen ? null : s.session_uuid)}
                                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 4px', cursor: 'pointer' }}
                             >
