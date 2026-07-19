@@ -109,6 +109,13 @@ function App() {
         return subscribeUiActions();
     }, [authState]);
 
+    // Spela upp intro-animationen på begäran (presentationsinspelning m.m.)
+    useEffect(() => {
+        const onPlayIntro = () => setShowIntro(true);
+        window.addEventListener('scc:play-intro', onPlayIntro);
+        return () => window.removeEventListener('scc:play-intro', onPlayIntro);
+    }, []);
+
     const handleRefresh = useCallback(() => { /* behålls för CustomerView-kontraktet */ }, []);
 
     const handleLogout = useCallback(async () => {
