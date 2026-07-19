@@ -365,8 +365,13 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
 
     const loadHistory = useCallback(() => {
         if (!socketRef.current?.connected) return;
-        socketRef.current.getChatHistory(sessionKey)
+        const requestedKey = sessionKey;
+        socketRef.current.getChatHistory(requestedKey)
             .then((result) => {
+                // RACE-SKYDD: om tråden bytts medan svaret var i luften (t.ex.
+                // ny-tråd-vid-inloggning) får det gamla svaret INTE skriva över
+                // den nya trådens meddelanden.
+                if (sessionKeyRef.current !== requestedKey) return;
                 if (result.messages?.length) {
                     setMessages(result.messages.filter(m => !isSystemMessage(m)));
                 } else {
