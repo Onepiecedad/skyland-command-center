@@ -167,7 +167,9 @@
 }
 
 @media (max-width: 700px) {
-    .fnav-edge--left, .fnav-edge--right { display: none; }
+    /* Alla kantpilar bort på mobil — det dragbara korset sköter navigeringen.
+       (Upp-pilen låg ovanpå undernavens flikar som spök-"^Kunder".) */
+    .fnav-edge { display: none !important; }
     /* Safe area så korset inte hamnar bakom hemindikatorn, och full opacitet
        på touch (ingen hover som avslöjar det) */
     .fnav-minimap {

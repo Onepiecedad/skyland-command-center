@@ -41,10 +41,14 @@ export function AgentMonitor() {
     return (
         <div className="agent-monitor">
             {/* ─── Gateway Status Pill ─── */}
-            <div className={`am-gateway-pill ${isOnline ? 'am-online' : 'am-offline'}`}>
+            {/* Gateway = Joakims dator (kör pipelines). Nås den inte (mobil/molnet)
+                betyder det INTE att systemet är nere — server-Alex + CRM funkar
+                ändå. Därför "Moln" i stället för det alarmerande "Offline". */}
+            <div className={`am-gateway-pill ${isOnline ? 'am-online' : 'am-offline'}`}
+                title={isOnline ? 'Gatewayn (din dator) är ansluten — pipelines kan köras' : 'Gatewayn (din dator) nås inte just nu. Server-Alex och CRM fungerar ändå.'}>
                 <span className={`am-dot ${isOnline ? 'am-dot--online' : 'am-dot--offline'}`} />
                 <span className="am-gateway-label">
-                    {isOnline ? 'Gateway' : status === 'connecting' ? 'Ansluter…' : 'Offline'}
+                    {isOnline ? 'Gateway' : status === 'connecting' ? 'Ansluter…' : 'Moln'}
                 </span>
             </div>
 

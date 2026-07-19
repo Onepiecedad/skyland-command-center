@@ -133,7 +133,7 @@ export default function WebsiteView() {
             {stats && (
                 <>
                     {/* KPI-rad */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 16 }}>
+                    <div className="website-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 16 }}>
                         {kpis.map((k) => (
                             <div key={k.label} style={{ ...cardStyle, textAlign: 'center', padding: '14px 8px' }}>
                                 <div style={{ fontSize: 26, fontWeight: 800 }}>{k.value}</div>
@@ -143,7 +143,7 @@ export default function WebsiteView() {
                         ))}
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div className="website-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16, marginBottom: 16 }}>
                         {/* Tratt */}
                         <div style={cardStyle}>
                             <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', opacity: 0.5, marginBottom: 12 }}>

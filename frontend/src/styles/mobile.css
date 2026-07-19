@@ -87,12 +87,40 @@ html, body, #root {
     max-height: none !important;
   }
 
-  /* ═══ Kontoret: kartan får aldrig flyta utanför — skala + centrera ═══ */
-  .office-map, .office-canvas {
-    transform: scale(0.62);
-    transform-origin: top center;
-    max-width: 100%;
-    margin: 0 auto;
+  /* ═══ Vy-rötter: släpp fasta desktop-höjder (calc(100vh - 82px) sköt kort
+     utanför skärmen). Låt innehållet flöda och panelen scrolla. ═══ */
+  .customer-view, .cv-body, .cv-cards-area {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .cv-cards-grid { grid-template-columns: 1fr !important; }
+  .cv-toolbar { flex-wrap: wrap; gap: 8px; }
+
+  /* ═══ Kontoret: SVG-kartan krympte till oläslig på smal skärm. Ge den en
+     läsbar minsta bredd och låt vyn svepa i sidled. ═══ */
+  .office-view { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .office-view svg {
+    min-width: 640px;
+    height: auto !important;
+    aspect-ratio: 1000 / 720;
+  }
+
+  /* ═══ Hemsida: KPI-raden fick aldrig flyta i sidled — svepbar rad ═══ */
+  .hemsida-kpis, .website-kpis, [class*="kpi-row"] {
+    display: flex !important;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: 10px;
+  }
+  .hemsida-kpis > *, .website-kpis > *, [class*="kpi-row"] > * {
+    flex: 0 0 42%;
+    scroll-snap-align: start;
+  }
+  /* Alla 2-kolumnsgrids i innehållsvyerna → en kolumn på mobil */
+  .website-grid, .hemsida-grid, [class*="two-col"] {
+    grid-template-columns: 1fr !important;
   }
 
   /* ═══ Versionschippen: kompakt så den inte krockar med titeln ═══ */
