@@ -318,6 +318,9 @@ router.post('/tts', async (req: Request, res: Response) => {
             }
         }
         const voiceId = cachedVoiceId ?? 'EXAVITQu4vr4xnSDxMaL';
+        // SPEGLA samtals-Alex exakt: samma modell (eleven_turbo_v2_5) och samma
+        // inställningar som agentens konverserande TTS. multilingual_v2 med låg
+        // stability gav forcerat tempo och osvensk prosodi (2026-07-19).
         const ttsResp = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_64`,
             {
@@ -325,13 +328,12 @@ router.post('/tts', async (req: Request, res: Response) => {
                 headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     text,
-                    model_id: 'eleven_multilingual_v2',
-                    // Livligare leverans än default: lägre stability = mer dynamik,
-                    // lite style = mindre uppläsnings-monotoni.
+                    model_id: 'eleven_turbo_v2_5',
+                    language_code: 'sv',
                     voice_settings: {
-                        stability: 0.42,
-                        similarity_boost: 0.85,
-                        style: 0.25,
+                        stability: 0.5,
+                        similarity_boost: 0.8,
+                        speed: 0.95,
                         use_speaker_boost: true,
                     },
                 }),
