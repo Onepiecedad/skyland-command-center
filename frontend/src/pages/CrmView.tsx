@@ -123,8 +123,11 @@ export default function CrmView() {
                             flex: '0 0 400px', position: 'sticky', top: 16,
                             // Höjdtak + flex-kolumn: utan detta växer panelen obegränsat
                             // och konversationslistan får ingen vägg att scrolla mot.
+                            // Offset 210px = panelens topp-position (~197px, under CRM-flik +
+                            // sök) + marginal. Tidigare 120px lät panelbotten hamna under
+                            // skärmkanten så sista meddelandet klipptes.
                             display: 'flex', flexDirection: 'column',
-                            maxHeight: 'calc(100dvh - 120px)',
+                            maxHeight: 'calc(100dvh - 210px)',
                         }}>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
                                 <button onClick={() => setDetailTab('detail')} style={tabBtn(detailTab === 'detail')}>Detaljer</button>
