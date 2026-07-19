@@ -139,6 +139,23 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
         return () => window.removeEventListener('scc:open-contact', onOpenContact);
     }, []);
 
+    // Rundturen: öppna "bästa" kortet (första kolumnen med kort, översta kortet)
+    useEffect(() => {
+        const onTourOpen = () => {
+            setColumns(cols => {
+                for (const col of cols) {
+                    if (col.opportunities.length > 0) {
+                        onSelectContactRef.current?.(col.opportunities[0]);
+                        break;
+                    }
+                }
+                return cols;
+            });
+        };
+        window.addEventListener('scc:tour-open-card', onTourOpen);
+        return () => window.removeEventListener('scc:tour-open-card', onTourOpen);
+    }, []);
+
     useEffect(() => {
         const pending = pendingContactRef.current;
         if (!pending) return;

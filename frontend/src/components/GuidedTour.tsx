@@ -1,10 +1,11 @@
 /**
- * GuidedTour — skriptad rundtur av hela dashboarden.
+ * GuidedTour — berättad demo av HELA ARBETSPROCESSEN, i flödesordning.
  *
- * Startas av Alex (verktyget start_ui_tour → SSE → 'scc:start-tour') eller
- * programmatiskt. Varje steg fokuserar rätt vy via navigateToView() och visar
- * ett glass-kort med förklaring. Deterministisk enligt husdoktrinen:
- * instruktioner styr ton, bara kod styr flöde — turen är identisk varje gång.
+ * Startas av Alex (start_ui_tour → SSE → 'scc:start-tour'). Varje steg
+ * fokuserar rätt vy, kan utföra en UI-handling (öppna/stänga kontaktkort)
+ * och berättas av Alex ElevenLabs-röst via /voice/tts. Nästa stegs ljud
+ * FÖRHÄMTAS medan nuvarande spelas — inga tysta partier mellan stegen.
+ * Deterministisk enligt husdoktrinen: identisk berättelse varje gång.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -13,94 +14,135 @@ import { X, ChevronLeft, ChevronRight, Pause, Play, Volume2, VolumeX } from 'luc
 import { navigateToView } from '../navigation/uiActions';
 import { API_BASE } from '../api';
 
+type TourAction = 'open-card' | 'close-card';
+
 interface TourStep {
     view: string;
     title: string;
     text: string;
-    /** Auto-advance efter så här många ms (pausbart) */
+    /** Timer-fallback (ms) om berättarrösten inte kan spelas */
     duration: number;
+    /** UI-handling som utförs strax efter vybytet */
+    action?: TourAction;
 }
 
-// Texterna är skrivna för TAL, i Joakims ton: rakt, talspråk, korta meningar.
-// Inga klyschor, inga tankstreck, inga parenteser eller snedstreck (TTS:en
-// läser dem illa). Vill du ändra tonen är det bara att skriva om här.
+// Berättelsen följer ARBETSPROCESSEN, inte menyordningen. Talskriven svenska
+// i Joakims ton. Ändra tonen? Skriv om här — ren data.
 const TOUR_STEPS: TourStep[] = [
     {
         view: 'alex',
-        title: 'Alex',
-        text: 'Det här är hemmaplan. Här snackar du med mig, Alex. Jag svarar på allt som rör CRM:et, flyttar kort, loggar svar och föreslår nästa drag. Men inget skarpt händer utan ditt godkännande. Jag föreslår, du bestämmer.',
-        duration: 14000,
-    },
-    {
-        view: 'crm',
-        title: 'CRM',
-        text: 'Här är själva maskinen. Varje kort är en studio som systemet hittat, berikat och poängsatt helt själv. Research med verifierade källor och ett färdigt DM-utkast, för under femtio öre per prospekt. Gör samma jobb för hand och det tar en halvtimme per studio. Dra ett kort till Contacted, så loggas meddelandet automatiskt.',
-        duration: 18000,
-    },
-    {
-        view: 'leads',
-        title: 'Leads',
-        text: 'Hit rinner inkommande leads, från hemsidan och röstagenten. Varje lead blir samtidigt en kontakt i CRM:et. Inget tappas mellan kanalerna.',
-        duration: 12000,
-    },
-    {
-        view: 'sequences',
-        title: 'Sekvenser',
-        text: 'Färdiga mejlflöden. Cold email, påminnelser inför samtal, uppföljning när någon inte dyker upp. Allt ligger bakom en kill switch, så inget skickas förrän du säger till.',
-        duration: 12000,
-    },
-    {
-        view: 'customers',
-        title: 'Kunder',
-        text: 'Varje kund får en egen instans med mål och spelregler. Statusen räknas fram ur det som faktiskt hänt i systemet. Den går inte att fejka.',
-        duration: 12000,
+        title: 'Ordern',
+        text: 'Allt börjar med en order här. Jag skriver till Alex: hitta tatuerare i Göteborg, gör research på varje studio, bygg berikade kort och skriv personliga DM. Det är hela beställningen. Resten sköter systemet.',
+        duration: 13000,
     },
     {
         view: 'office',
-        title: 'Kontoret',
-        text: 'Här ser du teamet jobba i realtid. Researchern som gräver fram fakta, skribenten, analytikern. När en pipeline kör syns det direkt vem som gör vad.',
+        title: 'Kontoret jobbar',
+        text: 'Kontoret tar över. Researchern gräver fram verifierade fakta om varje studio, skribenten formar utkasten, och varje steg passerar hårda kvalitetsgrindar. Kostnaden? Under femtio öre per studio.',
         duration: 13000,
+    },
+    {
+        view: 'crm',
+        title: 'Resultatet landar',
+        text: 'Resultatet landar här i CRM:et. Färdiga kort, poängsatta och sorterade, med kontaktvägar, adress och allt.',
+        duration: 9000,
+    },
+    {
+        view: 'crm',
+        title: 'Ett kort',
+        text: 'Vi öppnar ett kort. Här ligger researchen med källor, och ett personligt DM klart att kopiera och skicka. Ett svep till Contacted, så loggas meddelandet automatiskt.',
+        duration: 12000,
+        action: 'open-card',
+    },
+    {
+        view: 'sequences',
+        title: 'Sekvenserna',
+        text: 'När dialogen väl rullar tar sekvenserna vid. Mejlflöden, påminnelser, uppföljning när någon inte dyker upp. Allt bakom en kill switch tills du säger kör.',
+        duration: 11000,
+        action: 'close-card',
+    },
+    {
+        view: 'website',
+        title: 'Hemsidan vakar',
+        text: 'Samtidigt jobbar hemsidan. Den bevakar varje besök och varje samtal, dygnet runt.',
+        duration: 8000,
+    },
+    {
+        view: 'leads',
+        title: 'Leads in',
+        text: 'Och allt den fångar landar här. Varje lead blir en kontakt i CRM:et. Inget tappas.',
+        duration: 8000,
     },
     {
         view: 'system',
-        title: 'Systemet',
-        text: 'Maskinrummet. Körningar, kostnader och varje händelse, loggat och synligt. Hände det, så syns det här. Ner på öret vad varje agent kostar.',
-        duration: 13000,
+        title: 'Maskinrummet',
+        text: 'Maskinrummet loggar allt. Körningar, kostnader, varje händelse, ner på öret.',
+        duration: 8000,
     },
     {
-        view: 'skills',
-        title: 'Skills',
-        text: 'Verktygslådan. Varje färdighet är versionshanterad kod med hårda kvalitetsgrindar, inte löften. Därför blir resultatet likadant varje gång. Det var rundturen. Nu kör vi.',
-        duration: 14000,
+        view: 'alex',
+        title: 'Och i mitten',
+        text: 'Och i mitten sitter jag och koordinerar. Du ger ordern, jag driver maskinen, du godkänner det som går ut. Det är Skyland. Nu kör vi.',
+        duration: 11000,
     },
 ];
+
+/** Paus efter rösten innan nästa steg — kort andning, inget dödläge. */
+const BREATH_MS = 350;
+/** Fördröjning innan UI-handlingen så vybytet hinner landa visuellt. */
+const ACTION_DELAY_MS = 700;
+
+async function fetchTtsUrl(text: string): Promise<string> {
+    const resp = await fetch(`${API_BASE}/voice/tts`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+    });
+    if (!resp.ok) throw new Error(`TTS ${resp.status}`);
+    return URL.createObjectURL(await resp.blob());
+}
+
+function runAction(action: TourAction | undefined): void {
+    if (!action) return;
+    const event = action === 'open-card' ? 'scc:tour-open-card' : 'scc:tour-close-card';
+    setTimeout(() => window.dispatchEvent(new CustomEvent(event)), ACTION_DELAY_MS);
+}
 
 export function GuidedTour() {
     const [active, setActive] = useState(false);
     const [step, setStep] = useState(0);
     const [paused, setPaused] = useState(false);
-    // Berättarröst (Alex ElevenLabs-röst via /voice/tts). På som standard;
-    // faller tyst tillbaka till timer-läge om ljud inte kan spelas.
     const [narration, setNarration] = useState(true);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const audioStepRef = useRef<number>(-1);
+    /** Förhämtade ljud-URL:er per steg — dödar tystnaden mellan stegen. */
+    const ttsCacheRef = useRef<Map<number, string>>(new Map());
+    const prefetchingRef = useRef<Set<number>>(new Set());
 
     const stopAudio = useCallback(() => {
         if (audioRef.current) {
             audioRef.current.onended = null;
             audioRef.current.pause();
-            if (audioRef.current.src.startsWith('blob:')) URL.revokeObjectURL(audioRef.current.src);
             audioRef.current = null;
         }
+    }, []);
+
+    const clearTtsCache = useCallback(() => {
+        for (const url of ttsCacheRef.current.values()) URL.revokeObjectURL(url);
+        ttsCacheRef.current.clear();
+        prefetchingRef.current.clear();
     }, []);
 
     const stop = useCallback(() => {
         setActive(false);
         setPaused(false);
         stopAudio();
+        clearTtsCache();
+        window.dispatchEvent(new CustomEvent('scc:tour-close-card'));
         if (timerRef.current) clearTimeout(timerRef.current);
-    }, [stopAudio]);
+    }, [stopAudio, clearTtsCache]);
 
     const goTo = useCallback((idx: number) => {
         if (idx < 0) return;
@@ -108,24 +150,38 @@ export function GuidedTour() {
         stopAudio();
         setStep(idx);
         navigateToView(TOUR_STEPS[idx].view);
+        runAction(TOUR_STEPS[idx].action);
     }, [stop, stopAudio]);
+
+    const prefetch = useCallback((idx: number) => {
+        if (idx >= TOUR_STEPS.length) return;
+        if (ttsCacheRef.current.has(idx) || prefetchingRef.current.has(idx)) return;
+        prefetchingRef.current.add(idx);
+        const s = TOUR_STEPS[idx];
+        fetchTtsUrl(`${s.title}. ${s.text}`)
+            .then(url => ttsCacheRef.current.set(idx, url))
+            .catch(() => { /* prefetch är best effort */ })
+            .finally(() => prefetchingRef.current.delete(idx));
+    }, []);
 
     // Start via Alex (SSE → 'scc:start-tour')
     useEffect(() => {
         const onStart = () => {
             stopAudio();
+            clearTtsCache();
             setActive(true);
             setPaused(false);
             setNarration(true);
             setStep(0);
             navigateToView(TOUR_STEPS[0].view);
+            runAction(TOUR_STEPS[0].action);
+            prefetch(1); // ligg steget före från start
         };
         window.addEventListener('scc:start-tour', onStart);
         return () => window.removeEventListener('scc:start-tour', onStart);
-    }, [stopAudio]);
+    }, [stopAudio, clearTtsCache, prefetch]);
 
-    // Framdrift per steg: berättarröst (nästa steg när Alex pratat klart),
-    // annars timer. Ljudfel → tyst fallback till timern, turen stannar aldrig.
+    // Framdrift: berättarröst (nästa steg när rösten tystnat) eller timer.
     useEffect(() => {
         if (!active || paused) return;
         let cancelled = false;
@@ -137,31 +193,24 @@ export function GuidedTour() {
         if (!narration) {
             startTimer();
         } else if (audioRef.current && audioStepRef.current === step) {
-            // Återupptag efter paus — spela vidare där rösten stannade
+            // Återupptag efter paus
             void audioRef.current.play().catch(() => { setNarration(false); startTimer(); });
         } else {
             (async () => {
                 try {
-                    const current = TOUR_STEPS[step];
-                    const resp = await fetch(`${API_BASE}/voice/tts`, {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ text: `${current.title.replace(' — ', '. ')}. ${current.text}` }),
-                    });
-                    if (!resp.ok) throw new Error(`TTS ${resp.status}`);
-                    const blob = await resp.blob();
+                    const s = TOUR_STEPS[step];
+                    const url = ttsCacheRef.current.get(step) ?? await fetchTtsUrl(`${s.title}. ${s.text}`);
+                    ttsCacheRef.current.set(step, url);
                     if (cancelled) return;
-                    const audio = new Audio(URL.createObjectURL(blob));
+                    const audio = new Audio(url);
                     audioRef.current = audio;
                     audioStepRef.current = step;
                     audio.onended = () => {
-                        // Kort andrum efter rösten innan nästa vy
-                        timerRef.current = setTimeout(() => goTo(step + 1), 1200);
+                        timerRef.current = setTimeout(() => goTo(step + 1), BREATH_MS);
                     };
                     await audio.play();
+                    prefetch(step + 1); // hämta nästa medan denna spelas
                 } catch {
-                    // Autoplay blockerad eller TTS nere → timer-läge
                     if (!cancelled) { setNarration(false); startTimer(); }
                 }
             })();
@@ -171,9 +220,9 @@ export function GuidedTour() {
             cancelled = true;
             if (timerRef.current) clearTimeout(timerRef.current);
         };
-    }, [active, paused, step, narration, goTo]);
+    }, [active, paused, step, narration, goTo, prefetch]);
 
-    // Paus stoppar rösten direkt (återupptag sköts av hufvudeffekten)
+    // Paus stoppar rösten direkt (återupptag sköts av huvudeffekten)
     useEffect(() => {
         if (paused) audioRef.current?.pause();
     }, [paused]);
@@ -199,7 +248,7 @@ export function GuidedTour() {
                     initial={{ opacity: 0, y: 24, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -12, scale: 0.97 }}
-                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
                     style={{
                         pointerEvents: 'auto', maxWidth: 560, width: '100%',
                         background: 'rgba(6, 20, 14, 0.92)',
@@ -221,7 +270,6 @@ export function GuidedTour() {
                         {current.text}
                     </p>
 
-                    {/* Progress för aktuellt steg */}
                     <div style={{ height: 2, borderRadius: 1, background: 'rgba(255,255,255,0.08)', marginBottom: 10, overflow: 'hidden' }}>
                         {!paused && (
                             <motion.div

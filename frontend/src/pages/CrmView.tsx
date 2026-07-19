@@ -29,6 +29,13 @@ export default function CrmView() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selected, setSelected] = useState<Opportunity | null>(null);
+
+    // Rundturen stänger detaljpanelen när berättelsen går vidare
+    useEffect(() => {
+        const onTourClose = () => setSelected(null);
+        window.addEventListener('scc:tour-close-card', onTourClose);
+        return () => window.removeEventListener('scc:tour-close-card', onTourClose);
+    }, []);
     const [detailTab, setDetailTab] = useState<'detail' | 'inbox'>('detail');
     const [search, setSearch] = useState('');
     const [boardVersion, setBoardVersion] = useState(0);
