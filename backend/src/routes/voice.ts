@@ -414,11 +414,22 @@ router.post('/tools', async (req: Request, res: Response) => {
                     break;
                 }
 
-                // UI-STYRNING går ALLTID till server-Alex — verktygen navigate_ui och
-                // start_ui_tour finns bara där (gateway-Alex kan inte styra skärmen).
-                // Kodgrind, inte instruktion: annars routas frågan till gatewayn när
-                // den är online och rundturen "misslyckas" trots att allt funkar.
-                const UI_INTENT = /rundtur|visa mig runt|guida mig|byt vy|presentera (dig|systemet)|genomgång av (systemet|dashboarden)|(visa|öppna|ta fram)[^.]*\b(crm|kortet|kort för|kontoret|dashboard|vyn|pipelinen)/i;
+                // RUNDTUR: helt deterministisk — inget LLM-varv. LLM:et kallar verktyget
+                // ibland och fumlar ibland ("jag kunde inte starta rundturen" trots att
+                // halva kedjan gick). Kod, inte instruktion: matcha intentet, fyra
+                // eventet direkt, svara med fast bekräftelse. Kan inte misslyckas.
+                const TOUR_INTENT = /rundtur|visa mig runt|guida mig (genom|runt)|genomgång av (systemet|dashboarden)/i;
+                if (TOUR_INTENT.test(question)) {
+                    const { emitSystemEvent } = await import('./eventStream');
+                    emitSystemEvent('ui_action', { action: 'tour' }, 'alex');
+                    result = 'Klart, rundturen rullar nu på skärmen. Den går igenom alla vyer steg för steg, och du styr tempot med knapparna på kortet. Fråga mig gärna saker medan den kör.';
+                    break;
+                }
+
+                // ÖVRIG UI-STYRNING (vybyte, öppna kontaktkort) går ALLTID till
+                // server-Alex — verktyget navigate_ui finns bara där (gateway-Alex
+                // kan inte styra skärmen).
+                const UI_INTENT = /byt vy|presentera (dig|systemet)|(visa|öppna|ta fram)[^.]*\b(crm|kortet|kort för|kontoret|dashboard|vyn|pipelinen)/i;
                 if (UI_INTENT.test(question)) {
                     result = await askServerAlex(question);
                     break;
