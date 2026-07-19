@@ -18,6 +18,7 @@ import { LoginView } from './components/LoginView';
 import { IntroSequence } from './components/IntroSequence';
 import { AlexDock } from './components/AlexDock';
 import { GuidedTour } from './components/GuidedTour';
+import { UpdateWatcher } from './components/UpdateWatcher';
 import { FocusNavigator, type CrossLayout } from './navigation/FocusNavigator';
 import { subscribeUiActions } from './navigation/uiActions';
 import { checkAuth, logout } from './api';
@@ -212,6 +213,7 @@ function App() {
                 egen chat är gateway-Alex (terminalen) och saknar röst/navigate_ui. */}
             <AlexDock />
             <GuidedTour />
+            <UpdateWatcher />
         </>
     );
 }

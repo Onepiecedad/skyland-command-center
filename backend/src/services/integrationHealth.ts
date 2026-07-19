@@ -102,8 +102,68 @@ async function checkOpenRouter(): Promise<IntegrationHealth> {
     }
 }
 
+/**
+ * n8n-webhookarna (lead-intake + analytik). En GET mot en aktiv POST-webhook
+ * svarar 404 med "not registered for GET requests" — det BEVISAR att workflowet
+ * är aktivt, utan att förorena datat med test-events. Saknas GET-hintet är
+ * workflowet inaktivt eller borttaget.
+ */
+const N8N_WEBHOOK_BASE = 'https://onepiecedad.app.n8n.cloud/webhook';
+const N8N_WEBHOOKS = ['track-event', 'void-submission', 'voice-call-ended'];
+
+async function checkN8nWebhook(path: string): Promise<IntegrationHealth> {
+    const name = `n8n:${path}`;
+    try {
+        const res = await timedFetch(`${N8N_WEBHOOK_BASE}/${path}`, { method: 'GET' });
+        const body = await res.text().catch(() => '');
+        if (res.ok || /not registered for GET/i.test(body)) return mk(name, true, 'up', res.status);
+        return mk(name, true, 'down', res.status, 'workflowet verkar inaktivt eller borttaget');
+    } catch (err) {
+        return mk(name, true, 'down', undefined, err instanceof Error ? err.message : 'nätfel');
+    }
+}
+
+/**
+ * ElevenLabs-verktygens URL:er — ngrok-läxan (2026-07-19): verktygen pekade på
+ * en död tunnel i fem dagar utan ett enda larm. Verifierar att varje webhook-
+ * verktyg agenten har pekar på SCC:s publika adress.
+ */
+async function checkElevenLabsTools(): Promise<IntegrationHealth> {
+    const name = 'elevenlabs-tools';
+    if (!config.ELEVENLABS_API_KEY || !config.ELEVENLABS_AGENT_ID) return mk(name, false, 'not_configured');
+    const expectedHost = 'scc.skylandai.se';
+    try {
+        const agentRes = await timedFetch(
+            `https://api.elevenlabs.io/v1/convai/agents/${config.ELEVENLABS_AGENT_ID}`,
+            { headers: { 'xi-api-key': config.ELEVENLABS_API_KEY } }
+        );
+        if (agentRes.status === 401 || agentRes.status === 403) return mk(name, true, 'auth_failed', agentRes.status);
+        if (!agentRes.ok) return mk(name, true, 'down', agentRes.status);
+        const agent = await agentRes.json() as { conversation_config?: { agent?: { prompt?: { tool_ids?: string[] } } } };
+        const toolIds = agent.conversation_config?.agent?.prompt?.tool_ids ?? [];
+        const wrong: string[] = [];
+        for (const id of toolIds) {
+            const toolRes = await timedFetch(`https://api.elevenlabs.io/v1/convai/tools/${id}`, {
+                headers: { 'xi-api-key': config.ELEVENLABS_API_KEY },
+            });
+            if (!toolRes.ok) continue;
+            const tool = await toolRes.json() as { tool_config?: { name?: string; api_schema?: { url?: string } } };
+            const url = tool.tool_config?.api_schema?.url ?? '';
+            if (url && !url.includes(expectedHost)) wrong.push(`${tool.tool_config?.name ?? id} → ${url}`);
+        }
+        if (wrong.length) return mk(name, true, 'down', undefined, `verktyg pekar på FEL adress: ${wrong.join('; ')}`);
+        return mk(name, true, 'up', 200, `${toolIds.length} verktyg verifierade mot ${expectedHost}`);
+    } catch (err) {
+        return mk(name, true, 'down', undefined, err instanceof Error ? err.message : 'nätfel');
+    }
+}
+
 export async function checkAll(): Promise<IntegrationHealth[]> {
-    return Promise.all([checkSupabase(), checkResend(), checkCalcom(), check46elks(), checkOpenRouter()]);
+    return Promise.all([
+        checkSupabase(), checkResend(), checkCalcom(), check46elks(), checkOpenRouter(),
+        checkElevenLabsTools(),
+        ...N8N_WEBHOOKS.map(checkN8nWebhook),
+    ]);
 }
 
 /** Periodisk vakt: proba allt, logga en synlig varning för det som är nere/auth-fel. */
