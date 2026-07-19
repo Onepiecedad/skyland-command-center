@@ -291,6 +291,54 @@ router.get('/status', (_req: Request, res: Response) => {
 });
 
 // ============================================================================
+// POST /api/v1/voice/tts — berättarröst för den guidade rundturen.
+// Använder SAMMA ElevenLabs-röst som Alex-agenten (voice_id hämtas från
+// agentkonfigen och cachas) så att rundturen bokstavligen berättas av Alex.
+// ============================================================================
+let cachedVoiceId: string | null = null;
+
+router.post('/tts', async (req: Request, res: Response) => {
+    const text = typeof req.body?.text === 'string' ? req.body.text.slice(0, 700) : '';
+    if (!text) {
+        return res.status(400).json({ error: 'text is required' });
+    }
+    const apiKey = config.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+        return res.status(503).json({ error: 'ELEVENLABS_API_KEY not configured' });
+    }
+    try {
+        if (!cachedVoiceId && config.ELEVENLABS_AGENT_ID) {
+            const agentResp = await fetch(
+                `https://api.elevenlabs.io/v1/convai/agents/${config.ELEVENLABS_AGENT_ID}`,
+                { headers: { 'xi-api-key': apiKey } }
+            );
+            if (agentResp.ok) {
+                const agent = await agentResp.json() as { conversation_config?: { tts?: { voice_id?: string } } };
+                cachedVoiceId = agent.conversation_config?.tts?.voice_id ?? null;
+            }
+        }
+        const voiceId = cachedVoiceId ?? 'EXAVITQu4vr4xnSDxMaL';
+        const ttsResp = await fetch(
+            `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_64`,
+            {
+                method: 'POST',
+                headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2' }),
+            }
+        );
+        if (!ttsResp.ok) {
+            console.error('[voice/tts] ElevenLabs TTS failed:', ttsResp.status);
+            return res.status(502).json({ error: 'TTS generation failed' });
+        }
+        res.setHeader('Content-Type', 'audio/mpeg');
+        return res.send(Buffer.from(await ttsResp.arrayBuffer()));
+    } catch (err) {
+        console.error('[voice/tts] error:', err instanceof Error ? err.message : err);
+        return res.status(500).json({ error: 'Internal TTS error' });
+    }
+});
+
+// ============================================================================
 // POST /api/v1/voice/tools
 // Receives tool-call webhooks from ElevenLabs Conversational AI
 // Tools:
@@ -422,7 +470,7 @@ router.post('/tools', async (req: Request, res: Response) => {
                 if (TOUR_INTENT.test(question)) {
                     const { emitSystemEvent } = await import('./eventStream');
                     emitSystemEvent('ui_action', { action: 'tour' }, 'alex');
-                    result = 'Klart, rundturen rullar nu på skärmen. Den går igenom alla vyer steg för steg, och du styr tempot med knapparna på kortet. Fråga mig gärna saker medan den kör.';
+                    result = 'Klart, rundturen startar nu på skärmen. Jag berättar om varje vy och går vidare automatiskt. Vi hörs när den är klar!';
                     break;
                 }
 

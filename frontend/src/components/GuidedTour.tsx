@@ -9,8 +9,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { navigateToView } from '../navigation/uiActions';
+import { API_BASE } from '../api';
 
 interface TourStep {
     view: string;
@@ -75,39 +76,104 @@ export function GuidedTour() {
     const [active, setActive] = useState(false);
     const [step, setStep] = useState(0);
     const [paused, setPaused] = useState(false);
+    // Berättarröst (Alex ElevenLabs-röst via /voice/tts). På som standard;
+    // faller tyst tillbaka till timer-läge om ljud inte kan spelas.
+    const [narration, setNarration] = useState(true);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const audioStepRef = useRef<number>(-1);
+
+    const stopAudio = useCallback(() => {
+        if (audioRef.current) {
+            audioRef.current.onended = null;
+            audioRef.current.pause();
+            if (audioRef.current.src.startsWith('blob:')) URL.revokeObjectURL(audioRef.current.src);
+            audioRef.current = null;
+        }
+    }, []);
 
     const stop = useCallback(() => {
         setActive(false);
         setPaused(false);
+        stopAudio();
         if (timerRef.current) clearTimeout(timerRef.current);
-    }, []);
+    }, [stopAudio]);
 
     const goTo = useCallback((idx: number) => {
         if (idx < 0) return;
         if (idx >= TOUR_STEPS.length) { stop(); return; }
+        stopAudio();
         setStep(idx);
         navigateToView(TOUR_STEPS[idx].view);
-    }, [stop]);
+    }, [stop, stopAudio]);
 
     // Start via Alex (SSE → 'scc:start-tour')
     useEffect(() => {
         const onStart = () => {
+            stopAudio();
             setActive(true);
             setPaused(false);
+            setNarration(true);
             setStep(0);
             navigateToView(TOUR_STEPS[0].view);
         };
         window.addEventListener('scc:start-tour', onStart);
         return () => window.removeEventListener('scc:start-tour', onStart);
-    }, []);
+    }, [stopAudio]);
 
-    // Auto-advance (pausbart)
+    // Framdrift per steg: berättarröst (nästa steg när Alex pratat klart),
+    // annars timer. Ljudfel → tyst fallback till timern, turen stannar aldrig.
     useEffect(() => {
         if (!active || paused) return;
-        timerRef.current = setTimeout(() => goTo(step + 1), TOUR_STEPS[step].duration);
-        return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-    }, [active, paused, step, goTo]);
+        let cancelled = false;
+
+        const startTimer = () => {
+            timerRef.current = setTimeout(() => goTo(step + 1), TOUR_STEPS[step].duration);
+        };
+
+        if (!narration) {
+            startTimer();
+        } else if (audioRef.current && audioStepRef.current === step) {
+            // Återupptag efter paus — spela vidare där rösten stannade
+            void audioRef.current.play().catch(() => { setNarration(false); startTimer(); });
+        } else {
+            (async () => {
+                try {
+                    const current = TOUR_STEPS[step];
+                    const resp = await fetch(`${API_BASE}/voice/tts`, {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: `${current.title.replace(' — ', '. ')}. ${current.text}` }),
+                    });
+                    if (!resp.ok) throw new Error(`TTS ${resp.status}`);
+                    const blob = await resp.blob();
+                    if (cancelled) return;
+                    const audio = new Audio(URL.createObjectURL(blob));
+                    audioRef.current = audio;
+                    audioStepRef.current = step;
+                    audio.onended = () => {
+                        // Kort andrum efter rösten innan nästa vy
+                        timerRef.current = setTimeout(() => goTo(step + 1), 1200);
+                    };
+                    await audio.play();
+                } catch {
+                    // Autoplay blockerad eller TTS nere → timer-läge
+                    if (!cancelled) { setNarration(false); startTimer(); }
+                }
+            })();
+        }
+
+        return () => {
+            cancelled = true;
+            if (timerRef.current) clearTimeout(timerRef.current);
+        };
+    }, [active, paused, step, narration, goTo]);
+
+    // Paus stoppar rösten direkt (återupptag sköts av hufvudeffekten)
+    useEffect(() => {
+        if (paused) audioRef.current?.pause();
+    }, [paused]);
 
     if (!active) return null;
 
@@ -185,6 +251,12 @@ export function GuidedTour() {
                         <button onClick={() => goTo(step - 1)} disabled={step === 0} title="Föregående"
                             style={{ ...navBtn, opacity: step === 0 ? 0.35 : 1 }}>
                             <ChevronLeft size={15} />
+                        </button>
+                        <button
+                            onClick={() => { if (narration) stopAudio(); setNarration(n => !n); }}
+                            title={narration ? 'Stäng av berättarrösten' : 'Slå på berättarrösten'}
+                            style={{ ...navBtn, color: narration ? '#34d399' : 'rgba(255,255,255,0.4)' }}>
+                            {narration ? <Volume2 size={14} /> : <VolumeX size={14} />}
                         </button>
                         <button onClick={() => setPaused(p => !p)} title={paused ? 'Fortsätt' : 'Pausa'}
                             style={{ ...navBtn, borderColor: 'rgba(16,185,129,0.35)', color: '#34d399' }}>
