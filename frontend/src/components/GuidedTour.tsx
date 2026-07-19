@@ -21,53 +21,56 @@ interface TourStep {
     duration: number;
 }
 
+// Texterna är skrivna för TAL, i Joakims ton: rakt, talspråk, korta meningar.
+// Inga klyschor, inga tankstreck, inga parenteser eller snedstreck (TTS:en
+// läser dem illa). Vill du ändra tonen är det bara att skriva om här.
 const TOUR_STEPS: TourStep[] = [
     {
         view: 'alex',
-        title: 'Alex — kommandocentralen',
-        text: 'Här pratar du med Alex, systemets hjärna. Alex svarar på frågor om allt i CRM:et, flyttar kort, loggar interaktioner och föreslår åtgärder. Allt som påverkar en kund kräver ditt godkännande — Alex föreslår, du bestämmer.',
+        title: 'Alex',
+        text: 'Det här är hemmaplan. Här snackar du med mig, Alex. Jag svarar på allt som rör CRM:et, flyttar kort, loggar svar och föreslår nästa drag. Men inget skarpt händer utan ditt godkännande. Jag föreslår, du bestämmer.',
         duration: 14000,
     },
     {
         view: 'crm',
-        title: 'CRM — prospekteringsmaskinen',
-        text: 'Kanban-pipelinen med alla prospekt. Varje kort är automatiskt hittat, berikat och poängsatt (tier A/B/C), med AI-research och personligt DM-utkast — allt för under 50 öre per prospekt. Dra ett kort till Contacted så loggas meddelandet automatiskt i konversationshistoriken.',
+        title: 'CRM',
+        text: 'Här är själva maskinen. Varje kort är en studio som systemet hittat, berikat och poängsatt helt själv. Research med verifierade källor och ett färdigt DM-utkast, för under femtio öre per prospekt. Gör samma jobb för hand och det tar en halvtimme per studio. Dra ett kort till Contacted, så loggas meddelandet automatiskt.',
         duration: 18000,
     },
     {
         view: 'leads',
-        title: 'Leads — inflödet',
-        text: 'Inkommande leads från hemsidan och röstagenten landar här via automatiska flöden. Varje lead blir samtidigt en kontakt i CRM:et, så inget tappas bort mellan kanalerna.',
+        title: 'Leads',
+        text: 'Hit rinner inkommande leads, från hemsidan och röstagenten. Varje lead blir samtidigt en kontakt i CRM:et. Inget tappas mellan kanalerna.',
         duration: 12000,
     },
     {
         view: 'sequences',
-        title: 'Sekvenser — automatiska flöden',
-        text: 'Fördefinierade mejlflöden: cold email-drip, påminnelser inför strategisamtal, no-show-uppföljning. Utskick skyddas av en global kill switch — inget går ut förrän den är på.',
+        title: 'Sekvenser',
+        text: 'Färdiga mejlflöden. Cold email, påminnelser inför samtal, uppföljning när någon inte dyker upp. Allt ligger bakom en kill switch, så inget skickas förrän du säger till.',
         duration: 12000,
     },
     {
         view: 'customers',
-        title: 'Kunder — instanserna',
-        text: 'Varje kund har en egen instans med charter, mål och guardrails. Statusen (aktiv/varning/fel) härleds automatiskt från verklig aktivitet — den kan aldrig fejkas manuellt.',
+        title: 'Kunder',
+        text: 'Varje kund får en egen instans med mål och spelregler. Statusen räknas fram ur det som faktiskt hänt i systemet. Den går inte att fejka.',
         duration: 12000,
     },
     {
         view: 'office',
-        title: 'Kontoret — agentteamet',
-        text: 'Här ser du AI-agenterna i realtid: researcher som gräver fram verifierade fakta, writer, analyst med flera. När en pipeline kör syns arbetet live — vem som jobbar, med vad.',
+        title: 'Kontoret',
+        text: 'Här ser du teamet jobba i realtid. Researchern som gräver fram fakta, skribenten, analytikern. När en pipeline kör syns det direkt vem som gör vad.',
         duration: 13000,
     },
     {
         view: 'system',
-        title: 'Systemöversikt — maskinrummet',
-        text: 'Körningar, kostnader, aktivitetslogg och eventström. Allt som händer i systemet loggas och är synligt här — om det hände så syns det. Kostnadsspårning per agent och modell ingår.',
+        title: 'Systemet',
+        text: 'Maskinrummet. Körningar, kostnader och varje händelse, loggat och synligt. Hände det, så syns det här. Ner på öret vad varje agent kostar.',
         duration: 13000,
     },
     {
         view: 'skills',
-        title: 'Skills — verktygslådan',
-        text: 'Agenternas färdigheter: prospektering, research, DM-generering med hårda kvalitetsgrindar. Varje skill är versionshanterad kod — inte löften. Det är därför resultatet blir likadant varje gång. Det var hela rundturen!',
+        title: 'Skills',
+        text: 'Verktygslådan. Varje färdighet är versionshanterad kod med hårda kvalitetsgrindar, inte löften. Därför blir resultatet likadant varje gång. Det var rundturen. Nu kör vi.',
         duration: 14000,
     },
 ];
