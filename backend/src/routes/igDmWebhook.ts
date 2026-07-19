@@ -67,6 +67,20 @@ router.post('/', async (req: Request, res: Response) => {
             }
         }
 
+        // 2b. Innehålls-dedupe (längre meddelanden): backfill från Graph-API:t
+        // får inte dubblera trådar som redan loggats manuellt (utan mid).
+        if (text.length > 20) {
+            const { data: dupContent } = await supabase
+                .from('messages').select('id')
+                .eq('channel', 'instagram')
+                .eq('content', text)
+                .filter('metadata->>contact_id', 'eq', contact.id)
+                .limit(1);
+            if (dupContent && dupContent.length > 0) {
+                return res.json({ matched: true, deduped: true, by: 'content' });
+            }
+        }
+
         // 3. Logga i konversationstråden
         const createdAt = timestamp
             ? new Date(typeof timestamp === 'number' ? timestamp : Date.parse(timestamp)).toISOString()
