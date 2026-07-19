@@ -272,7 +272,13 @@ function DraggableMinimap({ layout, labels, navigate }: DraggableMinimapProps) {
             <button className="fnav-mini" onClick={() => navigate('right')}>{labels[layout.right]}</button>
             <div />
             <button className="fnav-mini" onClick={() => navigate('down')}>{labels[layout.down]}</button>
-            <div />
+            {/* Alex-knappen bor i samma kluster — ett dragbart objekt, inte två */}
+            <button
+                className="fnav-alex"
+                onClick={() => window.dispatchEvent(new CustomEvent('scc:open-alex'))}
+                title="Prata med Alex (⌘J)"
+                aria-label="Öppna Alex"
+            >✦</button>
         </div>
     );
 }
