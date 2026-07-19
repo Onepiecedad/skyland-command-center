@@ -199,18 +199,80 @@ export function FocusNavigator({ panes, labels, defaultLayout, storageKey = 'scc
                 );
             })}
 
-            {/* ── Minimap: korset i miniatyr, klickbart ── */}
-            <div className="fnav-minimap" aria-label="Navigationskors">
-                <div />
-                <button className="fnav-mini" onClick={() => navigate('up')}>{labels[layout.up]}</button>
-                <div />
-                <button className="fnav-mini" onClick={() => navigate('left')}>{labels[layout.left]}</button>
-                <button className="fnav-mini fnav-mini--center" onClick={() => { /* redan i fokus */ }}>{labels[layout.center]}</button>
-                <button className="fnav-mini" onClick={() => navigate('right')}>{labels[layout.right]}</button>
-                <div />
-                <button className="fnav-mini" onClick={() => navigate('down')}>{labels[layout.down]}</button>
-                <div />
-            </div>
+            {/* ── Minimap: korset i miniatyr, klickbart OCH dragbart ── */}
+            <DraggableMinimap layout={layout} labels={labels} navigate={navigate} />
+        </div>
+    );
+}
+
+/**
+ * Dragbart navigationskors. Håll på handtaget (☰) och dra — positionen sparas
+ * i localStorage. Klick på riktningarna navigerar som förut. Collapse-knapp
+ * fäller ihop till en liten knapp när det är i vägen.
+ */
+interface DraggableMinimapProps {
+    layout: CrossLayout;
+    labels: Record<string, string>;
+    navigate: (dir: Direction) => void;
+}
+
+function DraggableMinimap({ layout, labels, navigate }: DraggableMinimapProps) {
+    const KEY = 'scc-minimap-pos';
+    const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
+        try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch { return null; }
+    });
+    const [collapsed, setCollapsed] = useState(false);
+    const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null);
+
+    const onPointerDown = (e: React.PointerEvent) => {
+        const rect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
+        dragRef.current = {
+            startX: e.clientX, startY: e.clientY,
+            baseX: pos?.x ?? rect.left, baseY: pos?.y ?? rect.top,
+        };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    };
+    const onPointerMove = (e: React.PointerEvent) => {
+        if (!dragRef.current) return;
+        const d = dragRef.current;
+        const nx = Math.max(4, Math.min(window.innerWidth - 80, d.baseX + (e.clientX - d.startX)));
+        const ny = Math.max(4, Math.min(window.innerHeight - 60, d.baseY + (e.clientY - d.startY)));
+        setPos({ x: nx, y: ny });
+    };
+    const onPointerUp = () => {
+        if (pos) { try { localStorage.setItem(KEY, JSON.stringify(pos)); } catch { /* ignore */ } }
+        dragRef.current = null;
+    };
+
+    // Fri position → fixed med koordinater; annars default (nedre vänster via CSS)
+    const style: React.CSSProperties = pos
+        ? { position: 'fixed', left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' }
+        : {};
+
+    if (collapsed) {
+        return (
+            <button
+                className="fnav-collapsed-btn"
+                style={style}
+                onClick={() => setCollapsed(false)}
+                title="Visa navigationskorset"
+                aria-label="Visa navigationskors"
+            >✛</button>
+        );
+    }
+
+    return (
+        <div className="fnav-minimap" style={style} aria-label="Navigationskors">
+            <button className="fnav-drag" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+                title="Dra för att flytta" aria-label="Flytta korset">☰</button>
+            <button className="fnav-mini" onClick={() => navigate('up')}>{labels[layout.up]}</button>
+            <button className="fnav-collapse" onClick={() => setCollapsed(true)} title="Fäll ihop" aria-label="Dölj korset">–</button>
+            <button className="fnav-mini" onClick={() => navigate('left')}>{labels[layout.left]}</button>
+            <button className="fnav-mini fnav-mini--center">{labels[layout.center]}</button>
+            <button className="fnav-mini" onClick={() => navigate('right')}>{labels[layout.right]}</button>
+            <div />
+            <button className="fnav-mini" onClick={() => navigate('down')}>{labels[layout.down]}</button>
+            <div />
         </div>
     );
 }

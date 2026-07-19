@@ -55,6 +55,7 @@ export function UpdateWatcher() {
 
     return (
         <button
+            className="update-watcher-chip"
             onClick={() => window.location.reload()}
             title="En ny version av dashboarden är deployad — klicka för att ladda om"
             style={{

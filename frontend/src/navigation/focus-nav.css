@@ -26,6 +26,13 @@
     z-index: 2;
 }
 
+/* Grannvyer får ALDRIG läcka igenom mittvyn (spöktext på mobil). Parkerade
+   paneler göms helt tills de swappas in. */
+.fnav-pane[aria-hidden="true"] {
+    visibility: hidden;
+    pointer-events: none;
+}
+
 /* ── Kantpilar ── */
 
 .fnav-edge {
@@ -110,6 +117,50 @@
     cursor: default;
 }
 
+/* ── Drag-handtag + collapse ── */
+.fnav-drag {
+    min-width: 0;
+    padding: 4px 6px;
+    border-radius: 8px;
+    border: 1px solid rgba(52, 211, 153, 0.14);
+    background: rgba(52, 211, 153, 0.05);
+    color: rgba(167, 243, 208, 0.5);
+    font-size: 11px;
+    cursor: grab;
+    touch-action: none; /* pointer-drag ska inte trigga sido-scroll */
+}
+.fnav-drag:active { cursor: grabbing; }
+
+.fnav-collapse {
+    min-width: 0;
+    padding: 4px 6px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+}
+.fnav-collapse:hover { color: #fff; }
+
+.fnav-collapsed-btn {
+    position: absolute;
+    z-index: 30;
+    left: 14px;
+    bottom: calc(14px + env(safe-area-inset-bottom));
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    background: rgba(4, 14, 10, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    color: #34d399;
+    font-size: 16px;
+    cursor: pointer;
+}
+
 /* Kantpilarna behövs bara på touch — desktop/laptop har piltangenterna */
 @media (hover: hover) and (pointer: fine) {
     .fnav-edge { display: none; }
@@ -117,6 +168,13 @@
 
 @media (max-width: 700px) {
     .fnav-edge--left, .fnav-edge--right { display: none; }
-    .fnav-minimap { left: 8px; bottom: 8px; }
-    .fnav-mini { min-width: 46px; font-size: 9px; }
+    /* Safe area så korset inte hamnar bakom hemindikatorn, och full opacitet
+       på touch (ingen hover som avslöjar det) */
+    .fnav-minimap {
+        left: 8px;
+        bottom: calc(8px + env(safe-area-inset-bottom));
+        opacity: 0.92;
+    }
+    .fnav-mini { min-width: 44px; font-size: 9px; padding: 5px 7px; }
+    .fnav-drag, .fnav-collapse { padding: 5px; }
 }

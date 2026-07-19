@@ -87,8 +87,20 @@ html, body, #root {
     max-height: none !important;
   }
 
-  /* ═══ Kontoret: skala ner skrivbordskartan ═══ */
-  .office-map, .office-canvas { transform: scale(0.6); transform-origin: top left; }
+  /* ═══ Kontoret: kartan får aldrig flyta utanför — skala + centrera ═══ */
+  .office-map, .office-canvas {
+    transform: scale(0.62);
+    transform-origin: top center;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  /* ═══ Versionschippen: kompakt så den inte krockar med titeln ═══ */
+  .update-watcher-chip {
+    font-size: 11px !important;
+    padding: 5px 10px !important;
+    top: calc(6px + env(safe-area-inset-top)) !important;
+  }
 
   /* ═══ System-grid: en kolumn ═══ */
   .sys-grid-fill { grid-template-columns: 1fr !important; grid-auto-rows: minmax(200px, auto) !important; }
