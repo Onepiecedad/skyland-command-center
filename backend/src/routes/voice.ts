@@ -414,6 +414,16 @@ router.post('/tools', async (req: Request, res: Response) => {
                     break;
                 }
 
+                // UI-STYRNING går ALLTID till server-Alex — verktygen navigate_ui och
+                // start_ui_tour finns bara där (gateway-Alex kan inte styra skärmen).
+                // Kodgrind, inte instruktion: annars routas frågan till gatewayn när
+                // den är online och rundturen "misslyckas" trots att allt funkar.
+                const UI_INTENT = /rundtur|visa mig runt|guida mig|byt vy|presentera (dig|systemet)|genomgång av (systemet|dashboarden)|(visa|öppna|ta fram)[^.]*\b(crm|kortet|kort för|kontoret|dashboard|vyn|pipelinen)/i;
+                if (UI_INTENT.test(question)) {
+                    result = await askServerAlex(question);
+                    break;
+                }
+
                 // Dispatch to the MAIN agent in a FRESH session — same brain,
                 // skills and tool permissions as WhatsApp/webchat.
                 const hookToken = config.OPENCLAW_HOOK_TOKEN || config.CLAWDBOT_GATEWAY_TOKEN;
