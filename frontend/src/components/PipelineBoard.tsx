@@ -84,6 +84,7 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
     const [error, setError] = useState<string | null>(null);
     const [dropStage, setDropStage] = useState<string | null>(null);
     const [drag, setDrag] = useState<{ oppId: string; title: string; x: number; y: number } | null>(null);
+    const colsRef = useRef<HTMLDivElement>(null);
     const [sortMode, setSortMode] = useState<'score' | 'name' | 'ort'>('score');
     const [tierFilter, setTierFilter] = useState<'all' | Tier>('all');
 
@@ -196,30 +197,56 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
         e.preventDefault();
         e.stopPropagation();
         const oppId = opp.id;
-        // Stäng av text-markering under draget (annars markeras korttexten istället).
-        document.body.style.setProperty('user-select', 'none');
-        document.body.style.setProperty('-webkit-user-select', 'none');
+        const body = document.body.style;
+        // Lås markering + scroll så browsern inte kapar gesten (annars markeras text / draget hänger).
+        body.setProperty('user-select', 'none');
+        body.setProperty('-webkit-user-select', 'none');
+        body.setProperty('touch-action', 'none');
+        body.setProperty('overflow', 'hidden');
         setDrag({ oppId, title: opp.title, x: e.clientX, y: e.clientY });
+
+        const ptr = { x: e.clientX, y: e.clientY };
         let overStage: string | null = null;
+
+        // Auto-scrolla kolumnlisten när fingret är nära kanten (mobil: mål-kolumnen ligger off-screen).
+        let raf = 0;
+        const tick = () => {
+            const c = colsRef.current;
+            if (c) {
+                const r = c.getBoundingClientRect();
+                const EDGE = 72, SPEED = 16;
+                if (ptr.x > r.right - EDGE) c.scrollLeft += SPEED;
+                else if (ptr.x < r.left + EDGE) c.scrollLeft -= SPEED;
+            }
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+
         const onMove = (ev: PointerEvent) => {
             ev.preventDefault();
+            ptr.x = ev.clientX; ptr.y = ev.clientY;
             setDrag((d) => (d ? { ...d, x: ev.clientX, y: ev.clientY } : d));
             const el = document.elementFromPoint(ev.clientX, ev.clientY) as Element | null;
             const colEl = el?.closest('[data-stage-id]') as HTMLElement | null;
             overStage = colEl?.getAttribute('data-stage-id') ?? null;
             setDropStage(overStage);
         };
-        const onUp = () => {
+        const finish = () => {
+            cancelAnimationFrame(raf);
             window.removeEventListener('pointermove', onMove);
-            window.removeEventListener('pointerup', onUp);
-            document.body.style.removeProperty('user-select');
-            document.body.style.removeProperty('-webkit-user-select');
+            window.removeEventListener('pointerup', finish);
+            window.removeEventListener('pointercancel', finish);
+            body.removeProperty('user-select');
+            body.removeProperty('-webkit-user-select');
+            body.removeProperty('touch-action');
+            body.removeProperty('overflow');
             if (overStage) void moveCard(oppId, overStage);
             setDrag(null);
             setDropStage(null);
         };
         window.addEventListener('pointermove', onMove, { passive: false });
-        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointerup', finish);
+        window.addEventListener('pointercancel', finish);
     }, [moveCard]);
 
     if (loading) return <p style={{ opacity: 0.6 }}>Laddar pipeline…</p>;
@@ -273,7 +300,7 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                     );
                 })()}
             </div>
-            <div className="pl-columns" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
+            <div ref={colsRef} className="pl-columns" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
             {viewColumns.map((col) => (
                 <div
                     key={col.stage.id}
