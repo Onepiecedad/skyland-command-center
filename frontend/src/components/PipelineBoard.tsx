@@ -196,6 +196,9 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
         e.preventDefault();
         e.stopPropagation();
         const oppId = opp.id;
+        // Stäng av text-markering under draget (annars markeras korttexten istället).
+        document.body.style.setProperty('user-select', 'none');
+        document.body.style.setProperty('-webkit-user-select', 'none');
         setDrag({ oppId, title: opp.title, x: e.clientX, y: e.clientY });
         let overStage: string | null = null;
         const onMove = (ev: PointerEvent) => {
@@ -209,6 +212,8 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
         const onUp = () => {
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onUp);
+            document.body.style.removeProperty('user-select');
+            document.body.style.removeProperty('-webkit-user-select');
             if (overStage) void moveCard(oppId, overStage);
             setDrag(null);
             setDropStage(null);
@@ -296,6 +301,9 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                                 borderRadius: 10,
                                 padding: '10px 12px',
                                 cursor: 'pointer',
+                                userSelect: 'none',
+                                WebkitUserSelect: 'none',
+                                WebkitTouchCallout: 'none',
                                 opacity: drag?.oppId === opp.id ? 0.4 : 1,
                             }}
                         >
