@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Skyland AI — Vi bokar in betalande kunder i din kalender</title>
-<meta name="description" content="Facebook-annonser som fyller din kalender med betalande kunder — åt tatueringsstudios i Göteborg och Mölndal. Ingen fast avgift. Du betalar bara provision per bokning.">
+<title>Skyland AI — Jag bokar in betalande kunder i din kalender</title>
+<meta name="description" content="Facebook-annonser som fyller din kalender med betalande kunder, åt tatueringsstudios i Göteborg och Mölndal. Ingen fast avgift, ingen bindningstid. Du betalar provision per bokning.">
 <link rel="canonical" href="https://studios.skylandai.se/">
 <meta property="og:title" content="Skyland AI — betalande kunder i din kalender, provision per bokning">
-<meta property="og:description" content="FB-annonser som bokar kunder åt tatueringsstudios i Göteborg. Ingen fast avgift — du betalar bara per bokning.">
+<meta property="og:description" content="FB-annonser som bokar kunder åt tatueringsstudios i Göteborg. Ingen fast avgift, ingen bindningstid. Du betalar provision per bokning.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://studios.skylandai.se/">
 <meta name="theme-color" content="#0e1013">
@@ -16,8 +16,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0e1013; --cream:#f4f1e8; --gray:#8e8b7e; --orange:#e9a23b;
-    --card:#1a1d22; --line:rgba(244,241,232,0.14);
+    --bg:#0f0c09; --cream:#f4f1e8; --gray:#8e8b7e; --orange:#e9a23b;
+    --gold-hi:#f7dd9c; --gold-lo:#a86a1e;
+    --card:#181310; --line:rgba(244,241,232,0.14);
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
@@ -43,7 +44,7 @@
   h1 .o{color:var(--orange)}
   .lede{font-size:clamp(18px,2.4vw,23px); color:var(--gray); font-weight:500; max-width:660px; margin-top:26px; line-height:1.42}
   .cta-row{display:flex; flex-wrap:wrap; gap:16px; margin-top:38px; align-items:center}
-  .btn{display:inline-flex; align-items:center; justify-content:center; gap:10px; background:var(--orange); color:#12100b;
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:10px; background:linear-gradient(150deg,var(--gold-hi),var(--orange) 58%,var(--gold-lo)); color:#1a1206;
     font-weight:800; font-size:19px; padding:18px 34px; border-radius:999px; text-decoration:none;
     transition:transform .15s ease, box-shadow .15s ease}
   .btn:hover{transform:translateY(-2px); box-shadow:0 10px 30px rgba(233,162,59,.25)}
@@ -79,6 +80,12 @@
   .proof{background:var(--card); border-radius:24px; padding:46px 42px; margin-top:8px}
   .proof .q{font-size:clamp(21px,2.9vw,30px); font-weight:800; line-height:1.32; letter-spacing:-.5px}
   .proof .q .o{color:var(--orange)}
+  /* Metallisk guld-gradient på accentorden (svart + guld-paletten) */
+  h1 .o, h2 .o, .band .big .o, .proof .q .o{
+    background:linear-gradient(178deg,var(--gold-hi) 0%, var(--orange) 52%, var(--gold-lo) 100%);
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    color:var(--orange);
+  }
   .proof .by{color:var(--gray); margin-top:18px; font-size:16px}
   .proof .by a{color:var(--orange); text-decoration:none}
 
@@ -114,9 +121,22 @@
     .band{padding:32px 24px}
     .proof{padding:32px 24px}
   }
+/* ── Premium bakgrund: mjuka glow-lager + filmkorn + subtil parallax ── */
+.fx{position:fixed; left:0; right:0; top:-30vh; height:160vh; z-index:0; pointer-events:none; will-change:transform;
+  background:
+    radial-gradient(46vw 46vw at 20% 12%, rgba(233,162,59,0.14), transparent 60%),
+    radial-gradient(52vw 42vw at 86% 84%, rgba(233,162,59,0.07), transparent 62%),
+    radial-gradient(40vw 40vw at 92% 6%, rgba(120,150,200,0.05), transparent 60%);}
+.grain{position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:180px 180px;}
+.wrap{position:relative; z-index:1}
+@media(prefers-reduced-motion:reduce){ .fx{transform:none !important} }
 </style>
 </head>
 <body>
+<div class="fx" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
 
 <div class="wrap">
   <nav>
@@ -128,33 +148,33 @@
 <div class="wrap">
   <header>
     <div class="kicker">För tatueringsstudios i Göteborg</div>
-    <h1>Vi bokar in betalande kunder i din kalender. <span class="o">Du betalar bara när vi levererar.</span></h1>
-    <p class="lede">Facebook-annonser som fyller dina tomma tider med riktiga bokningar. Ingen fast avgift, ingen bindningstid — bara provision per bokning. Du tatuerar, jag fixar flödet.</p>
+    <h1>Jag bokar in betalande kunder i din kalender. <span class="o">Du betalar mig först när någon faktiskt bokar.</span></h1>
+    <p class="lede">Facebook-annonser som fyller dina tomma tider med riktiga bokningar. Ingen fast avgift till mig, ingen bindningstid, bara provision per bokning. Du sätter en liten annonsbudget som blir dina kunder, och en enda sittning tjänar in den. Du tatuerar, jag fixar flödet.</p>
     <div class="cta-row">
       <a class="btn" href="https://cal.com/joakim-landqvist-yrcioq/15min" target="_blank" rel="noopener">Boka ett kort möte →</a>
       <a class="btn btn-ghost" href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">Eller skriv <span class="kw" style="margin-left:4px">"stol"</span> i en DM</a>
     </div>
-    <p class="microline">15 minuter, videosamtal. <b>Ingen pitch-press</b> — vi kollar helt enkelt om det passar din studio.</p>
+    <p class="microline">15 minuter, videosamtal. <b>Ingen pitch-press</b>, jag kollar helt enkelt om det passar din studio.</p>
   </header>
 </div>
 
 <div class="wrap">
   <section>
-    <div class="sec-kicker">Risken ligger hos mig</div>
+    <div class="sec-kicker">Rakt om kostnaden</div>
     <div class="band">
-      <div class="big">Du lägger inte en krona i förskott. <span class="o">Jag får betalt först när en riktig kund är bokad hos dig.</span></div>
+      <div class="big">Du betalar aldrig mig i förskott. <span class="o">Jag får betalt först när en riktig kund är bokad hos dig.</span></div>
       <ul>
         <li>
           <div class="t">Ingen fast avgift</div>
-          <p>Inga månadskostnader, inga uppstartsavgifter. Du binder dig inte till något.</p>
+          <p>Inga månadskostnader, inga uppstartsavgifter, ingen bindning. Du betalar aldrig mig i förskott.</p>
         </li>
         <li>
-          <div class="t">Bara per bokning</div>
-          <p>Du betalar en provision för varje kund vi faktiskt bokar in — inget annat.</p>
+          <div class="t">Du styr annonsbudgeten</div>
+          <p>En liten annonsbudget går till Meta, inte till mig. Den drar in kunderna. Du sätter den själv, och en enda bokning tjänar in den.</p>
         </li>
         <li>
           <div class="t">Samma mål som du</div>
-          <p>Jag tjänar bara när du tjänar. Därför jagar jag bokningar, inte fakturor.</p>
+          <p>Jag tjänar bara på bokningar, inte fakturor. Därför jagar jag kunder som faktiskt dyker upp.</p>
         </li>
       </ul>
     </div>
@@ -169,7 +189,7 @@
       <div class="step">
         <div class="n">1</div>
         <h3>Jag bygger annonsen</h3>
-        <p>Riktade Facebook- och Instagram-annonser mot folk i Göteborg som vill tatuera sig — i din stil, ditt namn.</p>
+        <p>Riktade Facebook- och Instagram-annonser mot folk i Göteborg som vill tatuera sig, i din stil och ditt namn.</p>
       </div>
       <div class="step">
         <div class="n">2</div>
@@ -179,7 +199,7 @@
       <div class="step">
         <div class="n">3</div>
         <h3>Du får betalt</h3>
-        <p>Kunden dyker upp och sätter sig i stolen. Du betalar bara provisionen för bokningen — resten är din.</p>
+        <p>Kunden dyker upp och sätter sig i stolen. Då tar jag min provision, resten är din.</p>
       </div>
     </div>
   </section>
@@ -189,8 +209,8 @@
   <section>
     <div class="sec-kicker">Bevisat, inte lovat</div>
     <div class="proof">
-      <div class="q">Skriv <span class="o">"stol"</span> till mitt Instagram och se vad som händer. Du får svar på sekunder — <span class="o">samma sorts flöde jag bygger åt dig.</span></div>
-      <div class="by">Ingen pitch. Bara systemet, körande live på mitt eget konto. Testa på <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">@skylandaisystem</a> — sen tar vi resten på mötet.</div>
+      <div class="q">Skriv <span class="o">"stol"</span> till mitt Instagram och se vad som händer. Du får svar på sekunder, <span class="o">samma sorts flöde jag bygger åt dig.</span></div>
+      <div class="by">Ingen pitch. Bara systemet, körande live på mitt eget konto. Testa på <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">@skylandaisystem</a>, sen tar vi resten på mötet.</div>
     </div>
   </section>
 </div>
@@ -198,8 +218,8 @@
 <div class="wrap">
   <section class="close" id="boka" style="border-bottom:none">
     <div class="sec-kicker">Nästa steg</div>
-    <h2>Boka ett kort möte. <span class="o">Vi kollar om det passar.</span></h2>
-    <p class="sec-sub">15 minuter på video. Jag visar exakt hur upplägget skulle se ut för just din studio — och du bestämmer sen. Noll press.</p>
+    <h2>Boka ett kort möte. <span class="o">Sen vet du om det passar.</span></h2>
+    <p class="sec-sub">15 minuter på video. Jag visar exakt hur upplägget skulle se ut för just din studio, och du bestämmer sen. Noll press.</p>
     <div class="cta-row">
       <a class="btn" href="https://cal.com/joakim-landqvist-yrcioq/15min" target="_blank" rel="noopener">Boka en tid →</a>
     </div>
@@ -231,9 +251,19 @@
 <div class="wrap">
   <footer>
     <div class="brand">SKYLAND</div>
-    <div class="meta">AI-SYSTEM · GÖTEBORG / MÖLNDAL · <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">@SKYLANDAISYSTEM</a></div>
+    <div class="meta">GÖTEBORG / MÖLNDAL · <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">@SKYLANDAISYSTEM</a></div>
   </footer>
 </div>
 
+<script>
+(function () {
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var fx = document.querySelector('.fx');
+  if (!fx) return;
+  var ticking = false;
+  function update() { fx.style.transform = 'translate3d(0,' + ((window.scrollY || 0) * 0.08) + 'px,0)'; ticking = false; }
+  window.addEventListener('scroll', function () { if (!ticking) { requestAnimationFrame(update); ticking = true; } }, { passive: true });
+})();
+</script>
 </body>
 </html>
