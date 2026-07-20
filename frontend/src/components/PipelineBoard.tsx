@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { GripVertical } from 'lucide-react';
 import { fetchBoard, moveOpportunity, type BoardColumn, type Opportunity } from '../api';
 
 /**
@@ -81,8 +82,8 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
     const [columns, setColumns] = useState<BoardColumn[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [dragId, setDragId] = useState<string | null>(null);
     const [dropStage, setDropStage] = useState<string | null>(null);
+    const [drag, setDrag] = useState<{ oppId: string; title: string; x: number; y: number } | null>(null);
     const [sortMode, setSortMode] = useState<'score' | 'name' | 'ort'>('score');
     const [tierFilter, setTierFilter] = useState<'all' | Tier>('all');
 
@@ -169,13 +170,8 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
         }
     }, [columns]);
 
-    const handleDrop = useCallback(async (stageId: string) => {
-        const oppId = dragId;
-        setDropStage(null);
-        setDragId(null);
-        if (!oppId) return;
-
-        // Find current column of the dragged opportunity.
+    // Optimistisk flytt av ett kort till en annan stage.
+    const moveCard = useCallback(async (oppId: string, stageId: string) => {
         let moved: Opportunity | undefined;
         const prev = columns;
         const next = columns.map((col) => {
@@ -184,17 +180,42 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
             return { ...col, opportunities: col.opportunities.filter((o) => o.id !== oppId) };
         });
         if (!moved || moved.stage_id === stageId) return;
-
         const target = next.find((c) => c.stage.id === stageId);
         if (target) target.opportunities = [{ ...moved, stage_id: stageId }, ...target.opportunities];
         setColumns(next);
-
         try {
             await moveOpportunity(oppId, stageId);
         } catch {
-            setColumns(prev); // rollback on failure
+            setColumns(prev); // rollback vid fel
         }
-    }, [columns, dragId]);
+    }, [columns]);
+
+    // Pekar-drag från kortets grepp — funkar på touch (mobil) OCH mus (desktop).
+    // Greppet har touch-action:none så fingret drar kortet i stället för att skrolla.
+    const startDrag = useCallback((e: React.PointerEvent, opp: Opportunity) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const oppId = opp.id;
+        setDrag({ oppId, title: opp.title, x: e.clientX, y: e.clientY });
+        let overStage: string | null = null;
+        const onMove = (ev: PointerEvent) => {
+            ev.preventDefault();
+            setDrag((d) => (d ? { ...d, x: ev.clientX, y: ev.clientY } : d));
+            const el = document.elementFromPoint(ev.clientX, ev.clientY) as Element | null;
+            const colEl = el?.closest('[data-stage-id]') as HTMLElement | null;
+            overStage = colEl?.getAttribute('data-stage-id') ?? null;
+            setDropStage(overStage);
+        };
+        const onUp = () => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            if (overStage) void moveCard(oppId, overStage);
+            setDrag(null);
+            setDropStage(null);
+        };
+        window.addEventListener('pointermove', onMove, { passive: false });
+        window.addEventListener('pointerup', onUp);
+    }, [moveCard]);
 
     if (loading) return <p style={{ opacity: 0.6 }}>Laddar pipeline…</p>;
     if (error) return <p style={{ color: '#ff6b6b' }}>Fel: {error}</p>;
@@ -252,13 +273,12 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                 <div
                     key={col.stage.id}
                     className="pl-col"
+                    data-stage-id={col.stage.id}
                     style={{
                         ...glassCol,
                         outline: dropStage === col.stage.id ? '2px solid rgba(120,180,255,0.6)' : 'none',
+                        transition: 'outline 0.1s',
                     }}
-                    onDragOver={(e) => { e.preventDefault(); setDropStage(col.stage.id); }}
-                    onDragLeave={() => setDropStage((s) => (s === col.stage.id ? null : s))}
-                    onDrop={() => void handleDrop(col.stage.id)}
                 >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, fontWeight: 600, opacity: 0.85 }}>
                         <span>{col.stage.name}</span>
@@ -268,20 +288,30 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                     {col.opportunities.map((opp) => (
                         <div
                             key={opp.id}
-                            draggable
-                            onDragStart={() => setDragId(opp.id)}
                             onClick={() => opp.contact?.id && onSelectContact?.(opp)}
                             style={{
+                                position: 'relative',
                                 background: 'rgba(255,255,255,0.06)',
                                 border: '1px solid rgba(255,255,255,0.10)',
                                 borderRadius: 10,
                                 padding: '10px 12px',
-                                cursor: 'grab',
-                                opacity: dragId === opp.id ? 0.4 : 1,
+                                cursor: 'pointer',
+                                opacity: drag?.oppId === opp.id ? 0.4 : 1,
                             }}
                         >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                                <div style={{ fontSize: 14, fontWeight: 600 }}>{opp.title}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+                                    <button
+                                        onPointerDown={(e) => startDrag(e, opp)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        title="Dra för att flytta"
+                                        aria-label="Dra för att flytta"
+                                        style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.42)', cursor: 'grab', display: 'flex', alignItems: 'center', padding: 6, margin: '-6px -2px -6px -6px', flex: '0 0 auto', touchAction: 'none' }}
+                                    >
+                                        <GripVertical size={17} />
+                                    </button>
+                                    <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opp.title}</div>
+                                </div>
                                 {typeof opp.contact?.custom?.score === 'number' && (
                                     <span
                                         title="Prospect-score"
@@ -353,6 +383,12 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                 </div>
             ))}
             </div>
+
+            {drag && (
+                <div style={{ position: 'fixed', left: drag.x + 14, top: drag.y - 12, zIndex: 1000, pointerEvents: 'none', background: 'rgba(28,30,36,0.96)', border: '1px solid rgba(120,180,255,0.5)', borderRadius: 10, padding: '9px 13px', fontSize: 14, fontWeight: 600, color: '#e8e4d8', boxShadow: '0 12px 34px rgba(0,0,0,0.55)', maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {drag.title}
+                </div>
+            )}
         </div>
     );
 }
