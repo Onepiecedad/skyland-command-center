@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase';
 import { logger } from '../services/logger';
 import { emitSystemEvent } from './eventStream.js';
 import { onStageChanged } from '../services/sequenceEvents';
+import { createAutoTodo } from '../services/todos';
 
 /**
  * Pipelines API (SCC-24, F1: CRM-kärnan)
@@ -197,6 +198,19 @@ router.post('/opportunities/:id/move', async (req: Request, res: Response) => {
             } catch (err) {
                 console.error('[Pipelines] auto-log contacted error:', err);
             }
+        }
+
+        // Auto-todo vid Meeting Booked: förbered mötet (dedupas per opportunity).
+        if (stageName === 'Meeting Booked' && data.contact_id) {
+            const { data: c } = await supabase
+                .from('contacts').select('name').eq('id', data.contact_id).maybeSingle();
+            await createAutoTodo({
+                title: `Förbered möte: ${c?.name ?? 'kontakt'}`,
+                priority: 'high',
+                contactId: data.contact_id,
+                opportunityId: data.id,
+                autoKey: `meeting:${data.id}`,
+            });
         }
 
         // Sekvens-trigger (SCC-42): stage ändrad → skriv in i matchande sekvenser (fire-and-forget)

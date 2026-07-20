@@ -278,6 +278,75 @@ export async function fetchActivities(params?: {
     return data.activities || [];
 }
 
+/* ─── Todos (operatörens att-göra-lista) ─── */
+
+export interface Todo {
+    id: string;
+    title: string;
+    notes: string | null;
+    done: boolean;
+    due_at: string | null;
+    priority: 'low' | 'normal' | 'high' | 'urgent';
+    contact_id: string | null;
+    opportunity_id: string | null;
+    source: string;
+    created_at: string;
+    completed_at: string | null;
+}
+
+export async function fetchTodos(params?: {
+    done?: 'true' | 'false' | 'all';
+    contact_id?: string;
+    limit?: number;
+}): Promise<Todo[]> {
+    const sp = new URLSearchParams();
+    if (params?.done) sp.set('done', params.done);
+    if (params?.contact_id) sp.set('contact_id', params.contact_id);
+    if (params?.limit) sp.set('limit', String(params.limit));
+    const res = await fetchWithAuth(`${API_BASE}/todos?${sp}`);
+    const data = await res.json();
+    return data.todos || [];
+}
+
+export async function createTodo(input: {
+    title: string;
+    due_at?: string;
+    priority?: 'low' | 'normal' | 'high' | 'urgent';
+    notes?: string;
+    contact_id?: string;
+}): Promise<Todo> {
+    const res = await fetchWithAuth(`${API_BASE}/todos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+    });
+    const data = await res.json();
+    return data.todo;
+}
+
+export async function updateTodo(
+    id: string,
+    patch: {
+        title?: string;
+        notes?: string | null;
+        due_at?: string | null;
+        priority?: 'low' | 'normal' | 'high' | 'urgent';
+        done?: boolean;
+    },
+): Promise<Todo> {
+    const res = await fetchWithAuth(`${API_BASE}/todos/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+    });
+    const data = await res.json();
+    return data.todo;
+}
+
+export async function deleteTodo(id: string): Promise<void> {
+    await fetchWithAuth(`${API_BASE}/todos/${id}`, { method: 'DELETE' });
+}
+
 export async function fetchTasks(params?: {
     limit?: number;
     offset?: number;

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
-import { LayoutGrid, Target, Workflow, Globe, Briefcase, Archive, Monitor, Puzzle, LogOut } from 'lucide-react';
+import { LayoutGrid, Target, Workflow, Globe, Briefcase, Archive, Monitor, Puzzle, ScrollText, ListChecks, CalendarDays, LogOut } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -13,6 +13,9 @@ import ArchiveView from './pages/ArchiveView';
 import LeadsView from './pages/LeadsView';
 import CrmView from './pages/CrmView';
 import SequencesView from './pages/SequencesView';
+import LoggView from './pages/LoggView';
+import TodoView from './pages/TodoView';
+import CalendarView from './pages/CalendarView';
 import WebsiteView from './pages/WebsiteView';
 import { LoginView } from './components/LoginView';
 import { IntroSequence } from './components/IntroSequence';
@@ -203,6 +206,9 @@ function App() {
                                     storageKey="scc-sub-system"
                                     views={[
                                         { key: 'system', label: 'Översikt', icon: <Monitor size={13} strokeWidth={2} />, render: () => <SystemDashboard /> },
+                                        { key: 'logg', label: 'Logg', icon: <ScrollText size={13} strokeWidth={2} />, render: () => <LoggView /> },
+                                        { key: 'todo', label: 'Att göra', icon: <ListChecks size={13} strokeWidth={2} />, render: () => <TodoView /> },
+                                        { key: 'kalender', label: 'Kalender', icon: <CalendarDays size={13} strokeWidth={2} />, render: () => <CalendarView /> },
                                         { key: 'skills', label: 'Skills', icon: <Puzzle size={13} strokeWidth={2} />, render: () => <SkillsView /> },
                                     ]}
                                 />

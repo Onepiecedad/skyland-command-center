@@ -4,7 +4,9 @@ import { supabase, websiteSupabase } from '../services/supabase';
 import { config } from '../config';
 import { logger } from '../services/logger';
 import { authMiddleware } from '../middleware/auth';
+import { webIntakeLimiter } from '../middleware/rateLimiter';
 import { upsertContactFromLead } from '../services/contacts';
+import { createAutoTodo } from '../services/todos';
 
 /**
  * Leads Intake — website (skylandai.se) → SCC
@@ -316,6 +318,66 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
     } catch (err) {
         console.error('[Leads Delete] Unexpected error:', err);
         return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// POST /web — publikt intag från landningssidornas formulär (studios.skylandai.se).
+// Ingen token (körs från webbläsare). Skydd: honeypot + rate limit + CORS-origin.
+// Skapar en kontakt i CRM:et, loggar en lead-aktivitet och en "Svara"-todo.
+// ============================================================================
+const webLeadSchema = z.object({
+    namn: z.string().min(1).max(120),
+    studio: z.string().max(160).optional(),
+    kontakt: z.string().min(1).max(200),
+    bot_field: z.string().optional(), // honeypot — botar fyller i, människor ser den inte
+});
+
+router.post('/web', webIntakeLimiter, async (req: Request, res: Response) => {
+    const parsed = webLeadSchema.safeParse(req.body);
+    if (!parsed.success) {
+        return res.status(400).json({ error: 'validation failed', details: parsed.error.issues });
+    }
+    const { namn, studio, kontakt, bot_field } = parsed.data;
+    // Honeypot ifylld = bot. Svara OK men gör inget (avslöja inte fällan).
+    if (bot_field && bot_field.trim()) return res.json({ ok: true });
+
+    const looksEmail = /.+@.+\..+/.test(kontakt);
+    const dedupeKey = `studios:${(looksEmail ? kontakt : namn).toLowerCase().trim()}`;
+    try {
+        const contact = await upsertContactFromLead({
+            source: 'void_form',
+            name: namn,
+            company: studio ?? null,
+            email: looksEmail ? kontakt : null,
+            message: `Lead från studios.skylandai.se. Kontakt: ${kontakt}${studio ? ` · Studio: ${studio}` : ''}`,
+            extracted: { channel: 'studios-landing', kontakt_raw: kontakt },
+        }, dedupeKey);
+
+        await supabase.from('activities').insert({
+            customer_id: null,
+            agent: 'studios-landing',
+            action: 'lead.studios_landing',
+            event_type: 'lead',
+            severity: 'info',
+            details: { name: namn, studio: studio ?? null, kontakt, contact_id: contact?.id ?? null },
+        });
+
+        if (contact?.id) {
+            await createAutoTodo({
+                title: `Svara: ${namn}${studio ? ` (${studio})` : ''}`,
+                notes: `Ny lead från studios.skylandai.se. Kontakt: ${kontakt}`,
+                priority: 'high',
+                contactId: contact.id,
+                autoKey: `webform:${contact.id}`,
+            });
+        }
+
+        logger.info('leads', `studios-landing lead: ${namn}`, { contact_id: contact?.id });
+        return res.json({ ok: true });
+    } catch (err) {
+        logger.error('leads', `web-intake fel: ${err instanceof Error ? err.message : String(err)}`);
+        return res.status(500).json({ error: 'internal error' });
     }
 });
 

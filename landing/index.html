@@ -127,6 +127,8 @@
     radial-gradient(46vw 46vw at 20% 12%, rgba(233,162,59,0.14), transparent 60%),
     radial-gradient(52vw 42vw at 86% 84%, rgba(233,162,59,0.07), transparent 62%),
     radial-gradient(40vw 40vw at 92% 6%, rgba(120,150,200,0.05), transparent 60%);}
+.fx2{position:fixed; left:0; right:0; top:-20vh; height:150vh; z-index:0; pointer-events:none; will-change:transform;
+  background:radial-gradient(30vw 30vw at 50% 22%, rgba(247,221,156,0.12), transparent 60%);}
 .grain{position:fixed; inset:0; z-index:0; pointer-events:none; opacity:.05;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   background-size:180px 180px;}
@@ -136,6 +138,7 @@
 </head>
 <body>
 <div class="fx" aria-hidden="true"></div>
+<div class="fx2" aria-hidden="true"></div>
 <div class="grain" aria-hidden="true"></div>
 
 <div class="wrap">
@@ -225,9 +228,8 @@
     </div>
 
     <div class="form-wrap">
-      <form name="kontakt" method="POST" data-netlify="true" netlify-honeypot="bot-field">
-        <input type="hidden" name="form-name" value="kontakt">
-        <p style="display:none"><label>Fyll inte i detta: <input name="bot-field"></label></p>
+      <form id="lead-form">
+        <p style="position:absolute; left:-9999px" aria-hidden="true"><label>Lämna tomt <input name="bot_field" tabindex="-1" autocomplete="off"></label></p>
         <p class="sec-kicker" style="margin-bottom:22px">Föredrar du att jag hör av mig? Skriv en rad.</p>
         <div class="field">
           <label for="namn">Namn</label>
@@ -242,6 +244,7 @@
           <input id="kontakt-info" type="text" name="kontakt" required placeholder="Så jag kan svara dig">
         </div>
         <button class="btn" type="submit">Skicka →</button>
+        <p id="form-status" class="form-note" role="status" style="min-height:1em"></p>
         <p class="form-note">Hellre DM? Skriv "stol" till <a href="https://instagram.com/skylandaisystem" target="_blank" rel="noopener">@skylandaisystem</a> så får du svar direkt.</p>
       </form>
     </div>
@@ -257,12 +260,48 @@
 
 <script>
 (function () {
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  var fx = document.querySelector('.fx');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var fx = document.querySelector('.fx'), fx2 = document.querySelector('.fx2');
   if (!fx) return;
-  var ticking = false;
-  function update() { fx.style.transform = 'translate3d(0,' + ((window.scrollY || 0) * 0.08) + 'px,0)'; ticking = false; }
-  window.addEventListener('scroll', function () { if (!ticking) { requestAnimationFrame(update); ticking = true; } }, { passive: true });
+  var sy = 0, mx = 0, my = 0, tick = false;
+  function render() {
+    fx.style.transform = 'translate3d(' + (mx * 12) + 'px,' + (sy * 0.20 + my * 12) + 'px,0)';
+    if (fx2) fx2.style.transform = 'translate3d(' + (mx * -26) + 'px,' + (sy * 0.45 + my * -20) + 'px,0)';
+    tick = false;
+  }
+  function req() { if (!tick) { requestAnimationFrame(render); tick = true; } }
+  if (!reduce) {
+    window.addEventListener('scroll', function () { sy = window.scrollY || 0; req(); }, { passive: true });
+    window.addEventListener('pointermove', function (e) {
+      mx = (e.clientX / window.innerWidth - 0.5);
+      my = (e.clientY / window.innerHeight - 0.5);
+      req();
+    }, { passive: true });
+  }
+})();
+</script>
+<script>
+(function () {
+  var f = document.getElementById('lead-form');
+  if (!f) return;
+  var status = document.getElementById('form-status');
+  f.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = f.querySelector('button[type=submit]');
+    var data = {
+      namn: (f.namn.value || '').trim(),
+      studio: (f.studio.value || '').trim(),
+      kontakt: (f.kontakt.value || '').trim(),
+      bot_field: f.bot_field ? f.bot_field.value : ''
+    };
+    if (!data.namn || !data.kontakt) { status.textContent = 'Fyll i namn och kontakt.'; return; }
+    btn.disabled = true; status.textContent = 'Skickar…';
+    fetch('https://scc.skylandai.se/api/v1/leads/web', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+    }).then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+      .then(function () { f.reset(); status.textContent = 'Tack! Jag hör av mig så snart jag kan.'; btn.disabled = false; })
+      .catch(function () { status.textContent = 'Något strular. Skriv "stol" till @skylandaisystem så fixar vi det där.'; btn.disabled = false; });
+  });
 })();
 </script>
 </body>

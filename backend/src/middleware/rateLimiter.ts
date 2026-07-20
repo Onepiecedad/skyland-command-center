@@ -23,6 +23,18 @@ export const chatLimiter = rateLimit({
 });
 
 /**
+ * Publikt webbformulär-intag (landningssidor) — 6 per minut per IP.
+ * Snålt tilltaget: en människa fyller inte i fler än så, spam stoppas.
+ */
+export const webIntakeLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 6,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'För många försök, vänta en stund.' },
+});
+
+/**
  * Admin-specific limiter — 30 requests per minute per IP.
  */
 export const adminLimiter = rateLimit({

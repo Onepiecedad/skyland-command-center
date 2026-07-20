@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { supabase } from '../services/supabase';
 import { config } from '../config';
 import { logger } from '../services/logger';
+import { createAutoTodo } from '../services/todos';
 
 const router = Router();
 
@@ -127,6 +128,19 @@ router.post('/', async (req: Request, res: Response) => {
                     });
                 }
             }
+
+            // Auto-todo: en öppen "Svara"-punkt per kontakt (dedupas på auto_key).
+            const endOfToday = new Date();
+            endOfToday.setHours(23, 59, 0, 0);
+            await createAutoTodo({
+                title: `Svara ${contact.name}`,
+                notes: text.length > 120 ? `${text.slice(0, 117)}…` : text,
+                dueAt: endOfToday.toISOString(),
+                priority: 'high',
+                contactId: contact.id,
+                opportunityId: (opp as { id?: string } | null)?.id ?? null,
+                autoKey: `reply:${contact.id}`,
+            });
         }
 
         logger.info('igDm', `DM ${direction} loggad för ${contact.name} (@${handle})${movedToReplied ? ' + auto-flytt → Replied' : ''}`);

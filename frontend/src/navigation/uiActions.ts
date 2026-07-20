@@ -52,6 +52,14 @@ export function navigateToView(view: string): void {
     }
 }
 
+/** Hoppa till ett kontaktkort i CRM:t (från t.ex. en todo eller loggrad). */
+export function focusContact(contactId: string, contactName: string | null = null): void {
+    navigateToView('crm');
+    window.dispatchEvent(new CustomEvent<OpenContactDetail>('scc:open-contact', {
+        detail: { contactId, contactName },
+    }));
+}
+
 function handleUiAction(data: UiActionData): void {
     if (data.action === 'tour') {
         window.dispatchEvent(new CustomEvent('scc:start-tour'));

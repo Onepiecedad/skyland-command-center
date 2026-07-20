@@ -62,6 +62,7 @@ import leadsRouter from './routes/leads.js';
 import contactsRouter from './routes/contacts.js';
 import pipelinesRouter from './routes/pipelines.js';
 import activitiesDbRouter from './routes/activitiesDb.js';
+import todosRouter from './routes/todos.js';
 import voiceRouter from './routes/voice.js';
 import gatewayRouter from './routes/gateway.js';
 import websiteRouter from './routes/website.js';
@@ -118,9 +119,11 @@ class Server {
     }));
 
     // CORS — configured origins plus any localhost port in dev (Vite falls back to 5174+ when 5173 is busy).
-    const allowedOrigins = process.env.FRONTEND_URL
+    const baseOrigins = process.env.FRONTEND_URL
       ? [process.env.FRONTEND_URL]
       : ['http://localhost:5173', 'https://scc.skylandai.se'];
+    // Landningssidorna postar leads till /api/v1/leads/web från sina egna domäner.
+    const allowedOrigins = [...baseOrigins, 'https://studios.skylandai.se'];
     this.app.use(cors({
       origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         if (!origin) return callback(null, true); // non-browser clients (curl, server-to-server)
@@ -206,6 +209,7 @@ class Server {
     this.app.use('/api/v1/skills', skillRegistryRouter);       // File-based skill registry
     this.app.use('/api/v1/skills-db', skillsRouter);           // DB-backed skills (fallback)
     this.app.use('/api/v1/activities', activitiesDbRouter); // Supabase-backed (legacy mock stays at /api/activities)
+    this.app.use('/api/v1/todos', todosRouter);            // Operatörens att-göra-lista
     this.app.use('/api/v1/customers', customersRouter);
     this.app.use('/api/v1/contacts', contactsRouter);
     this.app.use('/api/v1/pipelines', pipelinesRouter);

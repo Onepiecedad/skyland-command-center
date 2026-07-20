@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import type { Activity } from '../api';
 import { fetchActivities } from '../api';
 import { SegmentedControl } from './SegmentedControl';
+import { focusContact } from '../navigation/uiActions';
 
 /* ─── Filter Configuration ─── */
 interface FilterConfig {
@@ -18,6 +19,8 @@ const FILTERS: FilterConfig[] = [
     { key: 'response', label: 'Svar', icon: '🤖', query: { event_type: 'chat_responded' } },
     { key: 'message', label: 'Meddelanden', icon: '👤', query: { event_type: 'chat_received' } },
     { key: 'lead', label: 'Leads', icon: '🎯', query: { event_type: 'lead' } },
+    { key: 'crm', label: 'Försäljning', icon: '🤝', query: { event_type: 'crm' } },
+    { key: 'todo', label: 'Att göra', icon: '✅', query: { event_type: 'todo' } },
     { key: 'error', label: 'Fel', icon: '⚠️', query: { severity: 'error' } },
     { key: 'cron', label: 'Cron', icon: '🔄', query: { event_type: 'cron_trigger' } },
 ];
@@ -40,7 +43,21 @@ const EVENT_TYPE_ICONS: Record<string, string> = {
     cron_trigger: '🔄',
     heartbeat: '💓',
     lead: '🎯',
+    crm: '🤝',
+    todo: '✅',
 };
+
+/** Kort, läsbar sammanfattning av details för CRM/todo-rader (kontakt · flytt · notis). */
+function summarize(a: Activity): string {
+    const d = (a.details || {}) as Record<string, unknown>;
+    const parts: string[] = [];
+    const name = d.contact_name ?? d.contact ?? d.kort;
+    if (name) parts.push(String(name));
+    if (d.from && d.to) parts.push(`${d.from} → ${d.to}`);
+    else if (d.auto_moved) parts.push(String(d.auto_moved));
+    if (d.note) parts.push(String(d.note));
+    return parts.join(' · ');
+}
 
 interface Props {
     selectedCustomerId: string | null;
@@ -130,10 +147,16 @@ export function ActivityLog({ selectedCustomerId }: Props) {
                                 : `Inga ${currentFilter.label.toLowerCase()} hittades`}
                         </p>
                     ) : (
-                        activities.map(a => (
+                        activities.map(a => {
+                            const cid = (a.details as Record<string, unknown> | null)?.contact_id;
+                            const clickable = typeof cid === 'string' && cid.length > 0;
+                            return (
                             <div
                                 key={a.id}
                                 className={`activity-row ${a.severity === 'error' ? 'activity-row--error' : ''}`}
+                                onClick={clickable ? () => focusContact(cid as string) : undefined}
+                                style={clickable ? { cursor: 'pointer' } : undefined}
+                                title={clickable ? 'Öppna kontaktkortet' : undefined}
                             >
                                 <span className="activity-time">{formatTime(a.created_at)}</span>
                                 <span
@@ -145,8 +168,18 @@ export function ActivityLog({ selectedCustomerId }: Props) {
                                 </span>
                                 <span className="activity-agent">{a.agent}</span>
                                 <span className="activity-action">{a.action}</span>
+                                {summarize(a) && (
+                                    <span
+                                        className="activity-detail"
+                                        style={{ opacity: 0.62, marginLeft: 8, fontSize: '0.85em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                        title={summarize(a)}
+                                    >
+                                        {summarize(a)}
+                                    </span>
+                                )}
                             </div>
-                        ))
+                            );
+                        })
                     )}
                 </div>
             )}
