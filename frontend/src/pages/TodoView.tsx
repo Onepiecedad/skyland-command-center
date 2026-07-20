@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Circle, Plus, Trash2, CalendarClock } from 'lucide-react';
-import { fetchTodos, createTodo, updateTodo, deleteTodo, type Todo } from '../api';
+import { CheckCircle2, Circle, Plus, Trash2, CalendarClock, Sparkles, Copy } from 'lucide-react';
+import { fetchTodos, createTodo, updateTodo, deleteTodo, draftReply, type Todo } from '../api';
 import { focusContact } from '../navigation/uiActions';
+
+const isReplyTodo = (t: Todo): boolean => /^(Svara|Följ upp)/i.test(t.title);
 
 /**
  * TodoView — "ska ske"-linsen i cockpit-trion Logg / Att göra / Kalender.
@@ -51,6 +53,8 @@ export default function TodoView() {
     const [showDone, setShowDone] = useState(false);
     const [newTitle, setNewTitle] = useState('');
     const [newDue, setNewDue] = useState('');
+    const [draft, setDraft] = useState<{ id: string; text: string } | null>(null);
+    const [drafting, setDrafting] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         try {
@@ -105,6 +109,18 @@ export default function TodoView() {
         catch { void load(); }
     }, [load]);
 
+    const genDraft = useCallback(async (t: Todo) => {
+        if (!t.contact_id) return;
+        setDrafting(t.id); setDraft(null);
+        try {
+            const text = await draftReply(t.contact_id);
+            setDraft({ id: t.id, text });
+        } catch (err) {
+            setDraft({ id: t.id, text: 'Kunde inte generera utkast: ' + (err instanceof Error ? err.message : 'okänt fel') });
+        }
+        setDrafting(null);
+    }, []);
+
     const open = useMemo(() => todos.filter(t => !t.done), [todos]);
     const grouped = useMemo(() => {
         const map: Record<string, Todo[]> = { overdue: [], today: [], upcoming: [], none: [] };
@@ -151,7 +167,8 @@ export default function TodoView() {
                                 {g.label} <span style={{ opacity: 0.6 }}>· {grouped[g.key].length}</span>
                             </div>
                             {grouped[g.key].map(t => (
-                                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderBottom: '1px solid #222', background: 'rgba(255,255,255,0.01)' }}>
+                                <div key={t.id}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderBottom: draft?.id === t.id ? 'none' : '1px solid #222', background: 'rgba(255,255,255,0.01)' }}>
                                     <button onClick={() => void toggle(t)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7f8a7f', display: 'flex' }} title="Markera klar">
                                         {t.done ? <CheckCircle2 size={18} color="#6b7f6b" /> : <Circle size={18} />}
                                     </button>
@@ -172,11 +189,28 @@ export default function TodoView() {
                                         </span>
                                     )}
                                     {t.source === 'auto' && <span style={{ fontSize: 10, letterSpacing: 1, color: '#5f7a5f', border: '1px solid #2c3c2c', padding: '1px 5px', borderRadius: 4 }}>AUTO</span>}
+                                    {isReplyTodo(t) && t.contact_id && (
+                                        <button onClick={() => void genDraft(t)} disabled={drafting === t.id} style={{ ...snoozeBtn, color: '#e0a03a', borderColor: '#3a3020', display: 'flex', alignItems: 'center', gap: 4 }} title="Generera svarsutkast i din röst">
+                                            <Sparkles size={12} /> {drafting === t.id ? '…' : 'Utkast'}
+                                        </button>
+                                    )}
                                     <button onClick={() => void snooze(t, 1)} style={snoozeBtn} title="Skjut till imorgon">1d</button>
                                     <button onClick={() => void snooze(t, 7)} style={snoozeBtn} title="Skjut en vecka">1v</button>
                                     <button onClick={() => void remove(t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5a5a5a', display: 'flex' }} title="Ta bort">
                                         <Trash2 size={15} />
                                     </button>
+                                </div>
+                                {draft?.id === t.id && (
+                                    <div style={{ background: 'rgba(233,162,59,0.05)', border: '1px solid #2c2c2c', borderRadius: 6, padding: '11px 13px', margin: '2px 0 10px 34px', fontSize: 13, color: '#d8d3c7' }}>
+                                        <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>{draft.text}</div>
+                                        <div style={{ display: 'flex', gap: 8, marginTop: 11 }}>
+                                            <button onClick={() => { void navigator.clipboard.writeText(draft.text); }} style={{ ...snoozeBtn, display: 'flex', alignItems: 'center', gap: 4 }}><Copy size={12} /> Kopiera</button>
+                                            {t.contact_id && <button onClick={() => focusContact(t.contact_id as string)} style={snoozeBtn}>Öppna konversation ↗</button>}
+                                            <button onClick={() => void genDraft(t)} style={snoozeBtn} title="Nytt utkast">Gör om</button>
+                                            <button onClick={() => setDraft(null)} style={snoozeBtn}>Stäng</button>
+                                        </div>
+                                    </div>
+                                )}
                                 </div>
                             ))}
                         </div>

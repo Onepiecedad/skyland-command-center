@@ -347,6 +347,17 @@ export async function deleteTodo(id: string): Promise<void> {
     await fetchWithAuth(`${API_BASE}/todos/${id}`, { method: 'DELETE' });
 }
 
+/** Genererar ett svarsutkast i Joakims röst utifrån konversationen med kontakten. */
+export async function draftReply(contactId: string): Promise<string> {
+    const res = await fetchWithAuth(`${API_BASE}/contacts/${contactId}/draft-reply`, { method: 'POST' });
+    if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as { error?: string }).error || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    return data.draft as string;
+}
+
 export async function fetchTasks(params?: {
     limit?: number;
     offset?: number;

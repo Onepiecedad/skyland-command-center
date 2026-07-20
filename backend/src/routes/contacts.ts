@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { supabase } from '../services/supabase';
 import { logger } from '../services/logger';
+import { getAdapter } from '../llm/adapter';
+import { VOICE_PROFILE } from '../llm/voiceProfile';
 
 /**
  * Contacts API (SCC-23 / SCC-26, F1: CRM-kärnan)
@@ -224,6 +226,57 @@ router.get('/:id/conversation', async (req: Request, res: Response) => {
     } catch (err) {
         console.error('[Contacts] conversation error:', err);
         return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ============================================================================
+// POST /:id/draft-reply — generera ett svarsutkast i Joakims röst utifrån
+// konversationen. Returnerar { draft }. Operatören granskar och skickar själv.
+// ============================================================================
+router.post('/:id/draft-reply', async (req: Request, res: Response) => {
+    try {
+        const { data: contact, error: cErr } = await supabase
+            .from('contacts').select('id, name, custom').eq('id', req.params.id).single();
+        if (cErr || !contact) return res.status(404).json({ error: 'Contact not found' });
+
+        const custom = (contact.custom || {}) as Record<string, unknown>;
+        const sessionUuid = typeof custom.session_uuid === 'string' ? custom.session_uuid : null;
+        const orClauses = [`metadata->>contact_id.eq.${contact.id}`];
+        if (sessionUuid) orClauses.push(`metadata->>session_uuid.eq.${sessionUuid}`);
+
+        const { data: messages } = await supabase
+            .from('messages').select('direction, content, created_at')
+            .or(orClauses.join(','))
+            .order('created_at', { ascending: true })
+            .limit(40);
+
+        const withText = (messages || []).filter((m: { content?: string }) => (m.content || '').trim());
+        if (withText.length === 0) {
+            return res.status(400).json({ error: 'Ingen konversation att svara på än.' });
+        }
+
+        const transcript = withText.slice(-20).map((m: { direction: string; content: string }) => {
+            const who = m.direction === 'outbound' ? 'Joakim' : m.direction === 'inbound' ? 'Prospekt' : 'Notis';
+            return `${who}: ${m.content}`;
+        }).join('\n');
+
+        const systemPrompt = `${VOICE_PROFILE}
+
+UPPGIFT: Skriv Joakims NÄSTA svar i en Instagram-DM med ett prospekt (en tatuerarstudio, kontakt: ${contact.name ?? 'okänd'}). Nedan är konversationen. Skriv ENBART svaret som ska skickas — inga citattecken, ingen förklaring, ingen rubrik. Kort. Håll röstprofilen strikt: du (aldrig ni), inga tankstreck, inga klyschor, låg press, gärna en liten ja-fråga på slutet.`;
+
+        const out = await getAdapter().chat({
+            systemPrompt,
+            messages: [{ role: 'user', content: transcript }],
+        });
+
+        const draft = (out.text || '').trim();
+        if (!draft) return res.status(502).json({ error: 'Tomt utkast från modellen.' });
+
+        logger.info('contacts', `draft-reply genererat för ${contact.name}`, { contact_id: contact.id });
+        return res.json({ draft });
+    } catch (err) {
+        logger.error('contacts', `draft-reply fel: ${err instanceof Error ? err.message : String(err)}`);
+        return res.status(500).json({ error: 'internal error' });
     }
 });
 

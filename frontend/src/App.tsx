@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
-import { LayoutGrid, Target, Workflow, Globe, Briefcase, Archive, Monitor, Puzzle, ScrollText, ListChecks, CalendarDays, LogOut } from 'lucide-react';
+import { LayoutGrid, Target, Workflow, Globe, Briefcase, Archive, Monitor, Puzzle, ScrollText, ListChecks, CalendarDays, Sunrise, LogOut } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -14,6 +14,7 @@ import LeadsView from './pages/LeadsView';
 import CrmView from './pages/CrmView';
 import SequencesView from './pages/SequencesView';
 import LoggView from './pages/LoggView';
+import TodayView from './pages/TodayView';
 import TodoView from './pages/TodoView';
 import CalendarView from './pages/CalendarView';
 import WebsiteView from './pages/WebsiteView';
@@ -205,6 +206,7 @@ function App() {
                                 <SubViewPane
                                     storageKey="scc-sub-system"
                                     views={[
+                                        { key: 'idag', label: 'Min dag', icon: <Sunrise size={13} strokeWidth={2} />, render: () => <TodayView /> },
                                         { key: 'system', label: 'Översikt', icon: <Monitor size={13} strokeWidth={2} />, render: () => <SystemDashboard /> },
                                         { key: 'logg', label: 'Logg', icon: <ScrollText size={13} strokeWidth={2} />, render: () => <LoggView /> },
                                         { key: 'todo', label: 'Att göra', icon: <ListChecks size={13} strokeWidth={2} />, render: () => <TodoView /> },
