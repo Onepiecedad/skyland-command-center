@@ -281,7 +281,7 @@ function execWaitUntil(step: StepRow, enr: EnrollmentRow): StepResult {
     return { status: 'success', control: 'wait', waitMs, detail: { target: new Date(target).toISOString() } };
 }
 
-async function execStep(
+export async function execStep(
     step: StepRow, enr: EnrollmentRow, contact: ContactRow, enrolledAtISO: string
 ): Promise<StepResult> {
     switch (step.type) {

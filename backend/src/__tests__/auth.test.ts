@@ -10,6 +10,7 @@ import type { Express } from 'express';
 // Mock Supabase BEFORE importing the app
 import './helpers/mockSupabase';
 import { createTestApp } from './helpers/testApp';
+import { createSessionToken, COOKIE_NAME } from '../services/session';
 
 const VALID_TOKEN = 'test-token-abc123';  // Matches setup.ts SCC_API_TOKEN
 
@@ -50,6 +51,33 @@ describe('Auth Middleware', () => {
                 .get(`/api/v1/costs?range=7d&token=${VALID_TOKEN}`);
 
             expect(res.status).not.toBe(401);
+        });
+
+        it('should reject a malformed Authorization scheme with 401', async () => {
+            const res = await request(app)
+                .get('/api/v1/costs?range=7d')
+                .set('Authorization', VALID_TOKEN); // saknar "Bearer "-prefix
+
+            expect(res.status).toBe(401);
+        });
+
+        it('should accept a valid operator session cookie', async () => {
+            const cookie = createSessionToken();
+            expect(cookie).not.toBeNull();
+
+            const res = await request(app)
+                .get('/api/v1/costs?range=7d')
+                .set('Cookie', `${COOKIE_NAME}=${cookie}`);
+
+            expect(res.status).not.toBe(401);
+        });
+
+        it('should reject a tampered session cookie with 401', async () => {
+            const res = await request(app)
+                .get('/api/v1/costs?range=7d')
+                .set('Cookie', `${COOKIE_NAME}=999999.badsignature`);
+
+            expect(res.status).toBe(401);
         });
     });
 

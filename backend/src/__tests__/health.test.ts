@@ -25,12 +25,12 @@ describe('GET /api/v1/health', () => {
         app = createTestApp();
     });
 
-    it('should return { ok: true } with 200', async () => {
+    it('should return healthy status with 200', async () => {
         const res = await request(app).get('/api/v1/health');
 
         expect(res.status).toBe(200);
-        expect(res.body).toHaveProperty('ok', true);
-        expect(res.body).toHaveProperty('time');
+        expect(res.body).toHaveProperty('status', 'healthy');
+        expect(res.body).toHaveProperty('timestamp');
     });
 
     it('should not require auth token', async () => {
@@ -38,6 +38,6 @@ describe('GET /api/v1/health', () => {
         const res = await request(app).get('/api/v1/health');
 
         expect(res.status).toBe(200);
-        expect(res.body.ok).toBe(true);
+        expect(res.body.status).toBe('healthy');
     });
 });

@@ -18,8 +18,9 @@ export function createTestApp() {
     app.use(cors());
     app.use(express.json());
 
-    // Health — before auth (matches real app)
-    app.use('/api/v1', healthRouter);
+    // Health — before auth (healthRouter defines GET /, so mount it at
+    // /api/v1/health to expose the unauthenticated health check there).
+    app.use('/api/v1/health', healthRouter);
 
     // Auth middleware
     app.use(globalLimiter);
