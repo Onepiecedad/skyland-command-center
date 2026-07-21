@@ -33,3 +33,4 @@ backend/.env.bak*
 *.env.bak*
 database/backups/
 frontend/.env.production
+backend/coverage/ # täckningsrapporten ska inte in i repot

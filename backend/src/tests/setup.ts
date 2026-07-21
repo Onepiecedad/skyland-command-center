@@ -12,6 +12,8 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
 process.env.SCC_API_TOKEN = 'test-token-abc123';
 process.env.LLM_PROVIDER = 'openai';
 process.env.OPENAI_API_KEY = 'test-openai-key';
+process.env.DEEPSEEK_API_KEY = 'test-deepseek-key';
+process.env.OPENROUTER_API_KEY = 'test-openrouter-key';
 process.env.LLM_MODEL = 'gpt-4o';
 process.env.AUTH_SESSION_SECRET = 'test-session-secret';
 // Webhook-tokens: sätts deterministiskt så pre-auth-routrarna valideras mot ett
