@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { fetchPipelines, type Pipeline, type Opportunity, type Contact, type ContactCustom } from '../api';
 import PipelineBoard from '../components/PipelineBoard';
 import ConversationInbox from '../components/ConversationInbox';
+import MaterialPanel from '../components/MaterialPanel';
 import ContactDetail from '../components/ContactDetail';
 
 function tabBtn(active: boolean): React.CSSProperties {
@@ -36,7 +37,7 @@ export default function CrmView() {
         window.addEventListener('scc:tour-close-card', onTourClose);
         return () => window.removeEventListener('scc:tour-close-card', onTourClose);
     }, []);
-    const [detailTab, setDetailTab] = useState<'detail' | 'inbox'>('detail');
+    const [detailTab, setDetailTab] = useState<'detail' | 'inbox' | 'material'>('detail');
     const [search, setSearch] = useState('');
     const [boardVersion, setBoardVersion] = useState(0);
 
@@ -132,6 +133,7 @@ export default function CrmView() {
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
                                 <button onClick={() => setDetailTab('detail')} style={tabBtn(detailTab === 'detail')}>Detaljer</button>
                                 <button onClick={() => setDetailTab('inbox')} style={tabBtn(detailTab === 'inbox')}>Konversation</button>
+                                <button onClick={() => setDetailTab('material')} style={tabBtn(detailTab === 'material')}>Material</button>
                                 <button
                                     onClick={() => setSelected(null)}
                                     style={{ marginLeft: 'auto', ...tabBtn(false), padding: '4px 10px' }}
@@ -143,7 +145,9 @@ export default function CrmView() {
                             <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                                 {detailTab === 'detail'
                                     ? <ContactDetail opportunity={selected} onSaved={handleSaved} onDeleted={handleDeleted} />
-                                    : <ConversationInbox contactId={selected.contact.id} title={selected.title} />}
+                                    : detailTab === 'inbox'
+                                        ? <ConversationInbox contactId={selected.contact.id} title={selected.title} />
+                                        : <MaterialPanel contactId={selected.contact.id} />}
                             </div>
                         </div>
                     )}

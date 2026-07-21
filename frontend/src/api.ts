@@ -358,6 +358,84 @@ export async function draftReply(contactId: string): Promise<string> {
     return data.draft as string;
 }
 
+// ─── Studio-material-arkiv ───
+export type StudioAssetKind =
+    | 'landing' | 'ad' | 'carousel' | 'video' | 'poster' | 'sheet' | 'one-pager' | 'internal-brief' | 'other';
+
+export interface StudioAsset {
+    id: string;
+    contact_id: string;
+    kind: StudioAssetKind;
+    audience: 'internal' | 'client';
+    title: string;
+    storage_path: string;
+    mime: string | null;
+    file_size: number | null;
+    version: number;
+    is_latest: boolean;
+    source: string | null;
+    tags: string[];
+    notes: string | null;
+    created_at: string;
+    url: string | null;
+}
+
+export async function fetchStudioAssets(contactId: string): Promise<StudioAsset[]> {
+    const res = await fetchWithAuth(`${API_BASE}/studio-assets?contact_id=${encodeURIComponent(contactId)}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return (data.assets || []) as StudioAsset[];
+}
+
+export async function getStudioAssetUrl(id: string, ttl?: number): Promise<string> {
+    const q = ttl ? `?ttl=${ttl}` : '';
+    const res = await fetchWithAuth(`${API_BASE}/studio-assets/${id}/url${q}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.url as string;
+}
+
+export async function deleteStudioAsset(id: string): Promise<void> {
+    const res = await fetchWithAuth(`${API_BASE}/studio-assets/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+/** Ladda upp en fil: hämta signerad upload-URL, PUTa filen direkt till Storage, registrera raden. */
+export async function uploadStudioAsset(input: {
+    contactId: string;
+    file: File;
+    kind: StudioAssetKind;
+    audience: 'internal' | 'client';
+    title: string;
+}): Promise<StudioAsset> {
+    const urlRes = await fetchWithAuth(`${API_BASE}/studio-assets/upload-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_id: input.contactId, filename: input.file.name, kind: input.kind }),
+    });
+    if (!urlRes.ok) throw new Error(`upload-url HTTP ${urlRes.status}`);
+    const { path, upload_url } = await urlRes.json();
+
+    const put = await fetch(upload_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': input.file.type || 'application/octet-stream', 'x-upsert': 'true' },
+        body: input.file,
+    });
+    if (!put.ok) throw new Error(`Storage-upload HTTP ${put.status}`);
+
+    const rowRes = await fetchWithAuth(`${API_BASE}/studio-assets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            contact_id: input.contactId, kind: input.kind, audience: input.audience,
+            title: input.title, storage_path: path, mime: input.file.type || null, file_size: input.file.size,
+        }),
+    });
+    if (!rowRes.ok) throw new Error(`spara-rad HTTP ${rowRes.status}`);
+    const data = await rowRes.json();
+    return data.asset as StudioAsset;
+}
+
 export async function fetchTasks(params?: {
     limit?: number;
     offset?: number;

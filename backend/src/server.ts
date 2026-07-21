@@ -60,6 +60,7 @@ import adminRouter from './routes/admin.js';
 import openworkWebhookRouter from './routes/openworkWebhook.js';
 import leadsRouter from './routes/leads.js';
 import contactsRouter from './routes/contacts.js';
+import studioAssetsRouter from './routes/studioAssets.js';
 import pipelinesRouter from './routes/pipelines.js';
 import activitiesDbRouter from './routes/activitiesDb.js';
 import todosRouter from './routes/todos.js';
@@ -212,6 +213,7 @@ class Server {
     this.app.use('/api/v1/todos', todosRouter);            // Operatörens att-göra-lista
     this.app.use('/api/v1/customers', customersRouter);
     this.app.use('/api/v1/contacts', contactsRouter);
+    this.app.use('/api/v1/studio-assets', studioAssetsRouter); // Studio-material-arkiv (Storage-backat)
     this.app.use('/api/v1/pipelines', pipelinesRouter);
     this.app.use('/api/v1/tasks', tasksRouter);
     this.app.use('/api/v1/runs', runsRouter);
