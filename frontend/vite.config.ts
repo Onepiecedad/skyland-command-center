@@ -49,6 +49,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: './src/test/setup.ts'
+    setupFiles: './src/test/setup.ts',
+    // Vitest kör bara enhetstester i src/. e2e/ ägs av Playwright — annars
+    // försöker vitest köra Playwright-specen och krockar med dess test().
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**']
   }
 });
