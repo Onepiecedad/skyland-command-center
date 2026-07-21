@@ -1,7 +1,7 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-07-13
+> Senast uppdaterad: 2026-07-21
 
 > ## 🧭 BÖRJA HÄR (nuläge, läs först)
 > Ny session? Läs dessa i ordning innan du gör något:
@@ -239,18 +239,41 @@ SCC_PUBLIC_BASE_URL=<publik URL för callbacks>
 - Proaktiva triggers (agenter agerar utan prompt)
 - Kundinstanser med egen dashboard (klickbar i 3D)
 - Röst-input/output (Web Speech API + ElevenLabs)
-- CI/CD pipeline (saknas helt)
-- Tester (inga .test.ts-filer finns)
 - Docker/deployment-konfiguration
 - The Stream (realtidsdata-flöde)
 - Energilinjer mellan strukturer i 3D
+
+> **Tester + CI/CD är LEVERERAT (2026-07-21)** — se avsnittet "Testning & CI" nedan.
+
+---
+
+## Testning & CI (levererat 2026-07-21)
+
+Testinfran påstods tidigare saknas helt. Det stämmer INTE längre — den var delvis
+trasig (4 HTTP-suiter kraschade pga saknad `supertest`) och är nu lagad + kraftigt utbyggd.
+
+- **Backend:** vitest, ~187 tester över 27 suiter. Kör `npm test` i `backend/`. Täcker de
+  högsta riskytorna: utskicksgrind (`comms`/`sequenceRunner` — kill switch + dagsbudget),
+  dispatch-policy & routing (`taskService`), claw-rate-limits, sekvens-triggrar (drip-stopp),
+  CRM dedupe/merge, webhook-token-auth (leads/email/igDm/calcom), LLM-verktygslager +
+  adapter-parsing, samt route-lagret (auth/validering/404).
+- **Frontend:** vitest + `@testing-library` (jsdom), komponent-smokes. Kör `npm test` i
+  `frontend/`. Vitest är begränsad till `src/**` (se `vite.config.ts`) — `e2e/` ägs av Playwright.
+- **E2E:** Playwright (`frontend/e2e/`, `playwright.config.ts`). Kör `npm run test:e2e`
+  (kräver backend igång + `E2E_PASSWORD`). Se `frontend/e2e/README.md`. Ingår INTE i CI än.
+- **CI:** GitHub Actions (`.github/workflows/ci.yml`) kör backend + frontend vid varje push/PR.
+
+**Mock-mönster:** supabase mockas per testfil — vanligast en "per-tabell-FIFO" (`vi.hoisted`
+state + `from(table)` som köar svar), eller `src/__tests__/helpers/mockSupabase.ts` för
+HTTP-tester (supertest). Test-env/token sätts i `src/tests/setup.ts` (global setupFile) —
+lägg nya test-env-vars DÄR, inte i `.env`. **Bryt aldrig gröna tester; CI gatekeepar.**
 
 ---
 
 ## Att tänka på när du jobbar med koden
 
 1. **Backend-filen `index.ts` är stor (~2300 rader)** — all routing ligger i en fil. Hantera med omsorg.
-2. **Inga tester finns** — var extra noggrann med att inte bryta befintlig funktionalitet.
+2. **Tester finns nu (~190 st) + CI** — kör `npm test` i `backend/` och `frontend/` innan du pushar; GitHub Actions kör dem vid varje push. Se avsnittet "Testning & CI". Bryt inte gröna tester.
 3. **Inga node_modules i repot** — kör `npm install` i både `backend/` och `frontend/` först.
 4. **Supabase-credentials krävs** — utan `.env` med rätt nycklar startar inte backend.
 5. **customer_status är en VIEW** — den beräknas automatiskt från activities + tasks. Ändra aldrig status manuellt.

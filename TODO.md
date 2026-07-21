@@ -1,5 +1,10 @@
 # Skyland Command Center — TODO / Backlog
 
+## Infra (klart)
+
+- [x] **Testsvit + CI** (2026-07-21): ~187 backend-tester (vitest), frontend komponent-smokes, Playwright-E2E (login→CRM), GitHub Actions vid varje push. Se "Testning & CI" i `CLAUDE.md`/`README.md`. Kör `npm test` i `backend/` + `frontend/` före push.
+- [ ] E2E i CI (kräver `E2E_PASSWORD` som GitHub Secret + körande app) — valfritt nästa steg.
+
 ## Säkerhetsskuld (måste stängas före extern kunddata / F4)
 
 - [ ] **RLS avstängt** på alla kärntabeller (inkl. nya `contacts`). Aktivera RLS + skriv policies. Aktivera INTE utan policies — låser all åtkomst.

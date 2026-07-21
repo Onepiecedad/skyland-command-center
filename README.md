@@ -67,6 +67,18 @@ Your SCC dashboard (`skyland-command-center/frontend/`) includes several custom-
 - **`skyland-command-center/frontend/public/config/pricing.json`:** Custom pricing definitions for models used in the Context & Cost Monitor.
 - **`skyland-command-center/frontend/.env`:** Environment variables for frontend (e.g., ElevenLabs API keys, SCC Backend URL).
 
+## 4b. Testning & CI (levererat 2026-07-21)
+
+- **Backend:** `cd backend && npm test` — vitest, ~187 tester över 27 suiter (utskicksgrind,
+  dispatch-policy/routing, claw-rate-limits, sekvens-triggrar, CRM dedupe/merge, webhook-auth,
+  LLM-verktyg/adapter, route-lagret). Test-env sätts i `backend/src/tests/setup.ts`.
+- **Frontend:** `cd frontend && npm test` — vitest + `@testing-library` (jsdom), komponent-smokes
+  i `src/`. Vitest är begränsad till `src/**` (se `vite.config.ts`).
+- **E2E:** `cd frontend && npm run test:e2e` — Playwright (login→CRM + boot-krasch). Kräver backend
+  igång + `E2E_PASSWORD`. Engångsuppsättning: `npx playwright install chromium`. Se `frontend/e2e/README.md`.
+- **CI:** GitHub Actions (`.github/workflows/ci.yml`) kör backend + frontend automatiskt vid varje
+  push/PR. E2E ingår inte i CI än (kräver körande app + secret för lösenordet).
+
 ## 5. Next Steps / Ongoing Tasks
 
 - **F2 — stäng loopen:** utgående e-post (egen domän, SPF/DKIM/DMARC), SMS via 46elks, kalender/bokning kopplad till röst-AI. Gör SCC oberoende av GHL i egen drift.
@@ -77,4 +89,4 @@ Your SCC dashboard (`skyland-command-center/frontend/`) includes several custom-
 
 --- 
 
-**Ursprunglig setup-dok av Alex 2026-02-13 · uppdaterad 2026-07-12 (F1 CRM)**
+**Ursprunglig setup-dok av Alex 2026-02-13 · uppdaterad 2026-07-12 (F1 CRM) · 2026-07-21 (tester + CI)**
