@@ -6,12 +6,27 @@
 import type { ToolDefinition } from './adapter';
 import { supabase } from '../services/supabase';
 import { enrollContact } from '../services/sequenceEvents';
+import { getPackage, listPackages } from '../production/packages';
 
 // ============================================================================
 // Tool Definitions (for LLM function calling)
 // ============================================================================
 
 export const ALEX_TOOLS: ToolDefinition[] = [
+    {
+        name: 'produce_package',
+        description: 'Beställ produktion av ett materialpaket för en studio/kontakt. T.ex. "skapa paket 1 för All Gold Tattoo" → 4 text/bild-annonser + en 30s film, byggt på studions eget IG-material. Skapar en review-task som (efter godkännande) dispatchas till OpenClaw-producern: den hämtar bilder+reels via Apify, bygger annonser+film enligt mallarna och lägger dem på kontaktkortet. Ange contact_id ELLER studio-namn.',
+        parameters: {
+            type: 'object',
+            properties: {
+                contact_id: { type: 'string', description: 'Studions kontakt-UUID. Föredra detta.' },
+                studio: { type: 'string', description: 'Studions namn om UUID saknas (t.ex. "All Gold Tattoo").' },
+                package: { type: 'string', description: 'Paketets id', enum: ['paket-1'] },
+                notes: { type: 'string', description: 'Extra instruktioner till producern (valfritt): vinkel, erbjudande, ton.' }
+            },
+            required: ['package']
+        }
+    },
     {
         name: 'get_customer_status',
         description: 'Hämta status och information för en specifik kund. Använd detta för att få översikt över kundens nuvarande tillstånd, fel, varningar och öppna tasks.',
@@ -334,6 +349,8 @@ export async function executeToolCall(
                 return await handleListRecentActivities(args);
             case 'create_task_proposal':
                 return await handleCreateTaskProposal(args);
+            case 'produce_package':
+                return await handleProducePackage(args);
             case 'list_open_tasks':
                 return await handleListOpenTasks(args);
             case 'get_customer_errors':
@@ -491,6 +508,77 @@ async function handleCreateTaskProposal(args: Record<string, unknown>): Promise<
             status: data.status,
             message: 'Task skapad med status=review. Kräver godkännande innan den körs.'
         }
+    };
+}
+
+interface StudioContact {
+    id: string;
+    name: string;
+    custom: Record<string, unknown> | null;
+}
+
+async function handleProducePackage(args: Record<string, unknown>): Promise<ToolResult> {
+    const pkg = getPackage(String(args.package ?? ''));
+    if (!pkg) {
+        return { success: false, error: `Okänt paket "${args.package}". Tillgängliga: ${listPackages().map(p => p.id).join(', ')}` };
+    }
+
+    // Resolvera studion (kontakt) via id eller namn
+    let contact: StudioContact | null = null;
+    if (args.contact_id) {
+        const { data } = await supabase.from('contacts').select('id, name, custom').eq('id', String(args.contact_id)).maybeSingle();
+        contact = (data as StudioContact | null) ?? null;
+    } else if (args.studio) {
+        const { data } = await supabase.from('contacts').select('id, name, custom').ilike('name', `%${String(args.studio)}%`).limit(1);
+        contact = ((data?.[0] as StudioContact | undefined) ?? null);
+    }
+    if (!contact) {
+        return { success: false, error: 'Hittade ingen studio/kontakt. Ange contact_id eller ett studio-namn som finns i CRM.' };
+    }
+
+    const custom = contact.custom ?? {};
+    const ig = typeof custom.instagram === 'string' ? custom.instagram : null;
+
+    // Koppla ev. opportunity för spårning på kortet
+    const { data: opp } = await supabase.from('opportunities').select('id').eq('contact_id', contact.id).limit(1).maybeSingle();
+
+    const input: Record<string, unknown> = {
+        contact_id: contact.id,
+        studio: contact.name,
+        instagram: ig,
+        opportunity_id: opp?.id ?? null,
+        package: pkg.id,
+        items: pkg.items,
+        recipe: pkg.recipe,
+        notes: args.notes ? String(args.notes) : null,
+        source: 'alex_chat',
+        created_via: 'llm_tool_call',
+    };
+
+    // SUGGEST-guardrail: skapas alltid som review och dispatchas till OpenClaw-producern efter godkännande
+    const { data: task, error } = await supabase
+        .from('tasks')
+        .insert({
+            title: `Producera ${pkg.name} för ${contact.name}`,
+            executor: 'claw:produce-package',
+            status: 'review',
+            priority: 'normal',
+            description: `${pkg.description}${ig ? ` IG: @${String(ig).replace(/^@/, '')}.` : ''}${args.notes ? ` Instruktioner: ${args.notes}` : ''}`,
+            input,
+        })
+        .select()
+        .single();
+    if (error) return { success: false, error: error.message };
+
+    return {
+        success: true,
+        data: {
+            task_id: task.id,
+            status: task.status,
+            package: pkg.name,
+            studio: contact.name,
+            message: `Skapade produktions-task (review) för ${pkg.name} → ${contact.name}. Godkänn i Väntande så hämtar OpenClaw studions IG-material via Apify, bygger ${pkg.items.map(i => `${i.count}× ${i.kind}`).join(' + ')} och lägger det på kortet.`,
+        },
     };
 }
 

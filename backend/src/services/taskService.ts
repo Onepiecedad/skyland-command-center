@@ -11,7 +11,7 @@ const CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER = config.CLAW_MAX_RUNS_PER_HOUR_PER_CU
 const CLAW_MAX_RUNS_PER_HOUR_GLOBAL = config.CLAW_MAX_RUNS_PER_HOUR_GLOBAL;
 
 // Claw executor allowlist (Ticket 19)
-const CLAW_EXECUTOR_ALLOWLIST = ['claw:research', 'claw:prospect-finder', 'claw:content', 'claw:deep-research', 'claw:report-writer'];
+const CLAW_EXECUTOR_ALLOWLIST = ['claw:research', 'claw:prospect-finder', 'claw:content', 'claw:deep-research', 'claw:report-writer', 'claw:produce-package'];
 
 // ============================================================================
 // Types
