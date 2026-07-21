@@ -68,6 +68,21 @@ export default function MaterialPanel({ contactId }: MaterialPanelProps) {
         if (fileRef.current) fileRef.current.value = '';
     }, [contactId, upKind, upAudience, load]);
 
+    const openAsset = useCallback(async (a: StudioAsset) => {
+        if (!a.url) return;
+        const isHtml = /\.html?$/i.test(a.storage_path) || (a.mime?.includes('html') ?? false) || a.kind === 'landing' || a.kind === 'one-pager';
+        if (!isHtml) { window.open(a.url, '_blank'); return; }
+        // Supabase serverar HTML som text/plain (säkerhet). Hämta och öppna som
+        // en text/html-blob så sidan renderas och åäö blir rätt.
+        try {
+            const res = await fetch(a.url);
+            const buf = await res.arrayBuffer();
+            window.open(URL.createObjectURL(new Blob([buf], { type: 'text/html;charset=utf-8' })), '_blank');
+        } catch {
+            window.open(a.url, '_blank');
+        }
+    }, []);
+
     const copyLink = useCallback(async (id: string) => {
         try {
             const url = await getStudioAssetUrl(id, 604800); // 7 dygn för kunddelning
@@ -106,7 +121,7 @@ export default function MaterialPanel({ contactId }: MaterialPanelProps) {
                 {isImg && a.url && <img src={a.url} alt={a.title} style={{ width: '100%', borderRadius: 6, maxHeight: 160, objectFit: 'cover' }} />}
                 {isVid && a.url && <video src={a.url} controls preload="metadata" style={{ width: '100%', borderRadius: 6, maxHeight: 200 }} />}
                 <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                    {a.url && <a href={a.url} target="_blank" rel="noreferrer" style={{ ...iconBtn, textDecoration: 'none' }}><Download size={12} /> Öppna</a>}
+                    {a.url && <button onClick={() => void openAsset(a)} style={iconBtn}><Download size={12} /> Öppna</button>}
                     <button onClick={() => void copyLink(a.id)} style={iconBtn} title="Kopiera delningslänk (7 dygn)"><Link2 size={12} /> Länk</button>
                     <button onClick={() => void remove(a)} style={{ ...iconBtn, marginLeft: 'auto', color: '#c56b6b' }} title="Ta bort"><Trash2 size={12} /></button>
                 </div>
