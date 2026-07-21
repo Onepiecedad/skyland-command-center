@@ -34,3 +34,6 @@ backend/.env.bak*
 database/backups/
 frontend/.env.production
 backend/coverage/ # täckningsrapporten ska inte in i repot
+
+frontend/test-results/
+frontend/playwright-report/
