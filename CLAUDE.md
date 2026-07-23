@@ -1,18 +1,21 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-07-21
+> Senast uppdaterad: 2026-07-23
 
 > ## 🧭 BÖRJA HÄR (nuläge, läs först)
 > Ny session? Läs dessa i ordning innan du gör något:
-> 1. `docs/HANDOVER_2026-07-18.md` — SENASTE läget: hela prospekteringsmaskinen komplett
->    (discover/prospect/dm/batch-pipelines, 52 kort över 7 orter, 47 validerade DM,
->    14 kontaktade, kostnadsstämplar, alla driftläxor). Operatörens jobb: skicka öppnare.
-> 2. `docs/HANDOVER_2026-07-13.md` — äldre bakgrund: prospekterings-pipelinens födelse + 37
->    första leads, CRM-kort med score/IG/filter, GHL-MCP-verifiering.
-> 2. `docs/HANDOVER-CRM-F1-och-leadlista.md` — bakgrund: F1 CRM-kärnan, affärsmodellen
+> 1. `docs/HANDOVER_2026-07-23.md` — SENASTE läget: affärsmodell-byte (annonsbudget-modellen),
+>    material-arkiv (Fas 2), `produce_package` (Fas 3 — Alex producerar 4 annonser + 30s film),
+>    Borås (12 nya studior) + Scrapling-omkopplat research-flöde. Öppna trådar: SCC→OpenClaw-
+>    dispatch blockerad (localhost), beauty-doktrin kvar, säkerhet innan extern kunddata.
+> 2. `docs/HANDOVER_2026-07-19.md` — bakgrund: röststyrning, mobil-UX, IG-DM-autologg,
+>    integrationsvakt + de första varma svaren från marknaden.
+> 3. `docs/HANDOVER_2026-07-18.md` — bakgrund: hela prospekteringsmaskinen komplett
+>    (discover/prospect/dm/batch-pipelines, 52 kort över 7 orter, 47 validerade DM).
+> 4. `docs/HANDOVER-CRM-F1-och-leadlista.md` — bakgrund: F1 CRM-kärnan, affärsmodellen
 >    (kursen/MEXPAND), GHL-strategin, öppna beslut.
-> 3. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
+> 5. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
 >
 > **Var vi står (2026-07-13):** F1 CRM-kärnan levererad. Ovanpå den finns nu ett **prospekterings-spår**
 > för Joakims egen kundanskaffning: ny pipeline **"Prospecting (Agency)"** (8 stages) med **37 riktiga

@@ -2,6 +2,26 @@
 
 Endpoint specification for SCC → OpenClaw async task dispatch.
 
+> ## ⚠️ PRODUKTION KÖR PULL-LÄGE (2026-07-23)
+> Push-modellen nedan (SCC → OpenClaw-hook) fungerar BARA när gatewayn är nåbar
+> från SCC. I produktion kör SCC på Render (moln) och kan **inte** nå gatewayn på
+> Macens `127.0.0.1:18789`. Därför vänder vi på kopplingen:
+>
+> - **SCC (Render):** sätt env `OPENCLAW_DISPATCH_MODE=pull`. Då pushar dispatchern
+>   inte — den KÖAR körningen (`task_runs.worker_id='pull:queued'`, task kvar
+>   `in_progress`).
+> - **Macen:** kör `scripts/scc_poller.py` (i openclaw-config). Den hämtar köade
+>   körningar via `GET /api/v1/claw/pending?worker=<id>` (Bearer `SCC_API_TOKEN`),
+>   avfyrar agenten på gatewayns `/hooks/agent` (samma meddelande som hooken byggde),
+>   och agenten rapporterar tillbaka via `scc-callback` → `/api/v1/claw/task-result`
+>   (oförändrat).
+> - **Claim:** `/claw/pending` uppdaterar atomiskt `pull:queued → pull:claimed:<worker>`
+>   så en körning aldrig dubbelkörs. Avfyras agenten aldrig fångar reapern körningen
+>   (timeout → failed) efter `TASK_RUN_TIMEOUT_MINUTES`.
+>
+> Push-läget (default `OPENCLAW_DISPATCH_MODE=push`) behålls oförändrat för lokal
+> körning / framtida publik tunnel. Resten av detta dokument beskriver push-kontraktet.
+
 ## Hook Endpoint
 
 **URL:** `POST /hooks/scc/dispatch`

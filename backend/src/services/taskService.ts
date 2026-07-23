@@ -295,6 +295,22 @@ export async function executeClawWebhook(
     task: Record<string, unknown>,
     runId: string
 ): Promise<{ triggered: boolean; error?: string }> {
+    // PULL-läge: SCC (t.ex. på Render) kan inte nå OpenClaw-gatewayn på Macens
+    // localhost. Istället för att pusha KÖAR vi körningen: task_run stämplas
+    // 'pull:queued' och blir kvar i running/in_progress tills pollern på Macen
+    // claimar den via GET /claw/pending och rapporterar tillbaka via /claw/task-result.
+    if (config.OPENCLAW_DISPATCH_MODE === 'pull') {
+        const { error } = await supabase
+            .from('task_runs')
+            .update({ worker_id: 'pull:queued' })
+            .eq('id', runId);
+        if (error) {
+            return { triggered: false, error: `Kunde inte köa för pull: ${error.message}` };
+        }
+        logger.info('claw', `Köade ${task.executor} (task ${task.id}, run ${runId}) för pull-pickup`);
+        return { triggered: true };
+    }
+
     const hookUrl = config.OPENCLAW_HOOK_URL;
     const hookToken = config.OPENCLAW_HOOK_TOKEN;
     const publicBaseUrl = config.SCC_PUBLIC_BASE_URL || config.BACKEND_URL || 'http://localhost:3001';

@@ -44,6 +44,10 @@ const envSchema = z.object({
     N8N_WEBHOOK_URL: z.string().optional(),
     OPENCLAW_HOOK_URL: z.string().optional(),
     OPENCLAW_HOOK_TOKEN: z.string().optional(),
+    // 'push' = SCC pushar till OpenClaw-hooken (originaldesign, funkar bara när gatewayn
+    // är nåbar från servern). 'pull' = SCC köar claw-körningar och en poller på Macen
+    // hämtar dem via GET /claw/pending (krävs på Render — molnet når inte localhost-gatewayn).
+    OPENCLAW_DISPATCH_MODE: z.enum(['push', 'pull']).default('push'),
     OPENCLAW_WORKSPACE: z.string().optional(),
     ARCHIVE_PATH: z.string().optional(),
     SKILLS_DIR: z.string().optional(),

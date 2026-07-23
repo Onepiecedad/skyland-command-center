@@ -244,4 +244,64 @@ router.post('/claw/task-result', async (req: Request, res: Response) => {
     }
 });
 
+// GET /claw/pending - PULL-läge: pollern på Macen hämtar köade claw-körningar.
+// Render (moln) kan inte pusha till gatewayn på Macens localhost, så vi vänder på
+// kopplingen: dispatchern köar körningen (worker_id='pull:queued'), och denna
+// endpoint listar + CLAIMAR dem atomiskt (queued→claimed) så en körning aldrig
+// dubbelkörs. Pollern avfyrar sedan agenten lokalt och rapporterar via /claw/task-result.
+// Bakom global Bearer-auth (SCC_API_TOKEN) — samma token pollern redan har.
+router.get('/claw/pending', async (req: Request, res: Response) => {
+    try {
+        const worker = typeof req.query.worker === 'string' && req.query.worker
+            ? req.query.worker
+            : `mac-${Date.now()}`;
+        const limit = Math.min(parseInt(String(req.query.limit ?? '5'), 10) || 5, 25);
+
+        const { data: runs, error } = await supabase
+            .from('task_runs')
+            .select('id, task_id, executor, input_snapshot, tasks(title, customer_id, input)')
+            .eq('status', 'running')
+            .eq('worker_id', 'pull:queued')
+            .like('executor', 'claw:%')
+            .order('queued_at', { ascending: true })
+            .limit(limit);
+
+        if (error) {
+            console.error('Error fetching pending claw runs:', error);
+            return res.status(500).json({ error: error.message });
+        }
+
+        const pending: Array<Record<string, unknown>> = [];
+        for (const r of runs ?? []) {
+            // Atomisk claim: uppdatera bara om den fortfarande är 'pull:queued'.
+            const { data: claimed } = await supabase
+                .from('task_runs')
+                .update({ worker_id: `pull:claimed:${worker}` })
+                .eq('id', r.id)
+                .eq('worker_id', 'pull:queued')
+                .select('id')
+                .maybeSingle();
+
+            if (!claimed) continue; // en annan poller hann före
+
+            const task = Array.isArray(r.tasks) ? r.tasks[0] : r.tasks as
+                { title?: string; customer_id?: string | null; input?: unknown } | null;
+
+            pending.push({
+                task_id: r.task_id,
+                run_id: r.id,
+                agent_id: (r.executor as string).replace('claw:', ''),
+                prompt: task?.title ?? '',
+                input: task?.input ?? r.input_snapshot ?? {},
+                customer_id: task?.customer_id ?? null,
+            });
+        }
+
+        return res.json({ pending, count: pending.length, worker });
+    } catch (err) {
+        console.error('Unexpected error in claw pending:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 export default router;

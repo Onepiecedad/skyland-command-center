@@ -2064,3 +2064,120 @@ prospekt i marginalkostnad. Alex körde slutbatchen med exakt sann rapportering 
 go-live-listan för kundleverans. Se `docs/HANDOVER_2026-07-18.md`.
 
 *Senast uppdaterad: 2026-07-18*
+
+---
+
+## Söndag 2026-07-19 — röststyrning, mobil-UX, IG-autologg, integrationsvakt + första svaren
+
+**Rubrik:** Systemet gick från "verktyg" till "levererar värde på riktigt". Fyra varma svar från
+~20 kalla IG-DM, en telefontid bokad (Wolfstreet, mån 16:15). Parallellt hårdnade dashboarden,
+röst-Alex fick styra UI:t, och hela IG-tråd-loggningen automatiserades. ~30 commits.
+
+**Röst & UI-styrning (Alex kör skärmen):**
+- `navigate_ui` + `start_ui_tour`-verktyg → Alex (chatt OCH röst) byter vy, öppnar kontaktkort och
+  startar guidad rundtur via SSE-eventhubben. Deterministiskt, inget LLM i flödet.
+- **Rundtur 2.0**: berättad av Alex egen ElevenLabs-röst (eleven_turbo_v2_5, sv), processordning
+  order→kontor→CRM→kort öppnas→sekvenser→hemsida→leads→maskinrum→Alex, TTS-prefetch, kort-öppning.
+- Felsökningskedja som lärde 4 sanningar: (1) ElevenLabs-verktygen pekade på **död ngrok** sedan
+  tisdag (all röst bruten), (2) voice-routen skickade UI-frågor till fel hjärna → kodgrind, (3)
+  röstskalet gissade i st f att routa → prompt-fix, (4) **SSE-strömmen var döv** pga `event:`-namnrad
+  (namngivna events når aldrig `onmessage`) — fixen väckte ALL eventström i systemet.
+
+**Mobil-UX 2.0:** låst appskal (position:fixed, 100dvh), dragbart+ihopfällbart navigationskors med
+Alex-knappen inbyggd (ett objekt, inte två), grannvyer hård-dolda (ingen spöktext), CRM horisontell
+drift låst (klick funkar i alla kolumner), kund/arkiv som fullskärms-overlay, kontoret som
+agentlista med avatarer, hemsida bredd-låst. Gateway-badge visar "Moln" ist f "Offline".
+
+**IG-DM-autologg (loopen sluts):** n8n postar varje DM (in + echo av egna) → SCC matchar handle mot
+kontakt, loggar tråd (mid + innehålls-dedupe), auto-flyttar Contacted→Replied vid svar. Backfill-
+script drog hela inboxen historiskt. Operatören rör aldrig mer bokföringen.
+
+**Integrationsvakt + versionsvakt:** daglig ping av n8n-webhookar (GET-probe) + ElevenLabs-verktygens
+URL:er mot scc.skylandai.se (ngrok-läxan kodifierad) + UpdateWatcher-chip vid ny deploy.
+
+**DM-doktrin skärpt:** AI-markör-grindar (tankstreck + klyschor underkänns), 4 roterande
+beläggningsfrågor, namnpresentation i första pitchen, signaturer bannlysta. Svarshanterings-grind:
+kort med dm_hook vägrar köras utan `--force` (Alex tolkade "prospektet svarade" som DM-beställning).
+
+**Hemsida:** tracker-buggen (sendBeacon tvingade cookies → CORS-blockerade ALL analytik sedan start)
+fixad. Riktiga siffror börjar flöda.
+
+**Defaults:** inloggning → Alex-vy med ny tråd; Prospecting (Agency) default-pipeline. loadHistory
+race-skydd (ny tråd skrevs över av gammal historik).
+
+**Presentationsfilm + Göteborg-annonspaket (sälj-leverans):** SCC-presentationsfilm (Alex-röst,
+web+dashboard, intro-animation) samt komplett annonspaket åt prospekt Göteborg Tattoo byggt på deras
+eget IG-material via Apify — differentierad + erbjudande-karusell, reels-mockup, 30s montage (7 klipp
+à 4,10s). Marknadsanalys via Meta Ad Library: hela nischen kör identisk rabattformel → gästartist-
+vinkeln är öppningen.
+
+**Facit sälj:** 4 varma svar av ~20 kontaktade (Wolfstreet 👍+telefontid mån 16:15, Göteborg i
+prisförhandling/annonsintresse, All Gold, Skinspiration). >20% svarsfrekvens på kall IG-DM.
+
+**Kvar:** skicka Wolfstreet-nr (gjort), Göteborg-svar + annonser, resten av öppnarna 8–10/dag,
+key-rotation, go-live-lista. Se `docs/HANDOVER_2026-07-19.md`.
+
+*Senast uppdaterad: 2026-07-19*
+
+---
+
+## 2026-07-20 → 07-23 — affärsmodell-byte, material-arkiv (Fas 2), produce_package (Fas 3), Borås + Scrapling
+
+**Rubrik:** Erbjudandet bytte modell, Alex fick förmåga att PRODUCERA komplett material själv, och
+research-flödet blev token-snålt. Från "sälj-maskin" till "sälj- + leverans-maskin".
+
+**Affärsmodell bytt (annonsbudget-modellen):** Gamla pitchen ("ren provision, jag tar risken") ut,
+nya in: **studion sätter en liten annonsbudget, jag tar provision/andel per bokad sittning, inget
+fast.** Alla 11 Outreach Ready-pitchar omskrivna. Doktrinen (`dm-stil.md`) och validatorn
+(`dm_pipeline.sh`) låstes till modellen — "annons" är inte längre förbjuden mekanik, och
+`provision|andel` krävs i pitch-blocket. Drivet av Joakim: "jag vill inte betala för annonsen".
+
+**IG-DM härdat (två buggar):** (1) n8n-autosvaret fyrade in i en prospekterings-tråd (Joakim Tattoo)
+för att det nyckelord-matchade "vecka" — bytte till exakt matchning (`norm===kw`) + tog bort
+"vecka" + rensade tankstreck. (2) Webhooken matchade på handle och tappade meddelanden tyst vid
+handle-mismatch (Valhalla lagrad som `juanes.art`, svarade från `valhalla_ink_studio_`). Nu:
+matcha på IG numeriskt id först, self-heal (spara `ig_id` vid träff), och vid no-match logga
+`ig_dm_unmatched` (severity warning) i st f tyst drop. Handle rättad i DB + backfill kört.
+
+**Fas 2 — material-arkiv per studio:** Ny tabell `studio_assets` + privat Storage-bucket
+`studio-material` (signerade URL:er). Ny route `studioAssets.ts` (lista/upload-url/signed-url/radera)
+— stora filer (video) laddas DIREKT till Storage via signerad upload-URL, kringgår Renders 10 MB-
+gräns. Ny **Material-flik** på kontaktkortet (`MaterialPanel.tsx`). Buggar lagade: upload-URL:en
+dubbel-prependade Supabase-basen (502); CSP blockerade video (`mediaSrc` += `https:`); HTML-material
+öppnas via text/html-blob (Supabase tvingar text/plain).
+
+**Fas 3 — Alex producerar material själv:** Nytt verktyg `produce_package` (Master Brain) →
+review-task → OpenClaw-agenten `produce-package`: hämtar studions IG-material via Apify →
+**4 annonser (ImageMagick) + 30s film (ffmpeg)** → laddar upp till studio_assets. Annonsfonten
+brandad till **Anton** (fallback till system-font). Plus `find_prospects` (discovery via chatt).
+Körde skarpt end-to-end på **All Gold** (4 Anton-annonser + film, dubbletter rensade).
+
+**Borås — 12 nya studior:** discover_pipeline (Google Maps → filter → score) → research → DM-öppnare,
+hela vägen. Tre luckor lagade i tur och ordning: (a) doktrinen hade gamla modellen + tankstreck,
+(b) validatorn krävde fortfarande "provision" och förbjöd "annons", (c) runtime saknade
+`verticals/tattoo.json`. Efter alla tre fick alla 12 kort korrekta öppnare.
+
+**Scrapling MCP inkopplat + research-flödet omkopplat:** Installerat i `~/.scrapling-venv`, registrerat
+i mcporter (STDIO, 10 verktyg), ny skill `skills/scrapling/SKILL.md`. Research-flödet pekar nu på
+**`scrapling.get`/`stealthy_fetch` för studiornas sajter + bokningssystem/tech-koll** (token-snålt
+via CSS-selektorer + `main_content_only`, anti-bot-tåligt) i st f de betalda Apify-actorsen
+(techstack/pagespeed/facebook). **Apify behålls** för IG-media (produce_package) + Google Maps
+(discover) + Google-recensioner (svårscrapat, skött actor mer tillförlitlig). Uppdaterade dokument:
+`tattoo_brief.md`, `beauty_brief.md`, `RESEARCHER_SPEC_V1.md`, `TOOL_RUNTIME_BASELINE.md`.
+
+**Kostnadsnot:** OpenRouter-spik ($3.20 på 45 min) var debug-omkörningar (research gjordes om per
+misslyckad batch) + gateway-Alex freelance-timeout — inte en läcka. Produktiv research-kostnad
+stämplad: $0.44.
+
+**SCC→OpenClaw-dispatch LÖST (pull-modell):** Render-molnet når inte gatewayn på Macens localhost, så
+kopplingen vändes. Ny env `OPENCLAW_DISPATCH_MODE=pull` (default `push`) gör att dispatchern KÖAR
+claw-körningar (`task_runs.worker_id='pull:queued'`) i st f att pusha; ny endpoint
+`GET /api/v1/claw/pending` listar + claimar atomiskt; ny poller `openclaw-config/scripts/scc_poller.py`
+hämtar, avfyrar agenten lokalt (`/hooks/agent`) och agenten rapporterar via `scc-callback` →
+`/claw/task-result` (oförändrat). Push-läget kvar för lokal körning/ev. framtida tunnel.
+
+**Kvar:** sätt `OPENCLAW_DISPATCH_MODE=pull` i Render + starta pollern på Macen (launchd, se
+`scc_poller.README.md`). Beauty-doktrinen (`dm-stil-beauty.md`) behöver samma modell/tankstreck-fix.
+Se `docs/HANDOVER_2026-07-23.md`.
+
+*Senast uppdaterad: 2026-07-23*
