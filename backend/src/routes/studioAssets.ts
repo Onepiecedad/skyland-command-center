@@ -120,11 +120,13 @@ router.post('/upload-url', async (req: Request, res: Response) => {
         const { data, error } = await supabase.storage.from(BUCKET).createSignedUploadUrl(path);
         if (error || !data) return res.status(500).json({ error: error?.message ?? 'kunde inte skapa upload-URL' });
 
-        return res.json({
-            path,
-            upload_url: `${config.SUPABASE_URL}/storage/v1${data.signedUrl}`,
-            token: data.token,
-        });
+        // supabase-js returnerar antingen en full URL (nyare) eller en relativ path
+        // (äldre). Bygg aldrig på bas-URL:en två gånger.
+        const uploadUrl = data.signedUrl.startsWith('http')
+            ? data.signedUrl
+            : `${config.SUPABASE_URL}/storage/v1${data.signedUrl}`;
+
+        return res.json({ path, upload_url: uploadUrl, token: data.token });
     } catch (err) {
         logger.error('studioAssets', `upload-url-fel: ${err instanceof Error ? err.message : String(err)}`);
         return res.status(500).json({ error: 'internal error' });
