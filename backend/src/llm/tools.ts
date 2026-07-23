@@ -28,6 +28,20 @@ export const ALEX_TOOLS: ToolDefinition[] = [
         }
     },
     {
+        name: 'find_prospects',
+        description: 'Hitta NYA prospekt (studios) att kontakta via discovery-pipelinen. T.ex. "hitta 25 tatuerare i Borås". Skapar en review-task som (efter godkännande) dispatchas till OpenClaw: söker Google Maps via Apify, filtrerar bort fel bransch, scorar och skapar nya kort i New Prospect. Ange ort.',
+        parameters: {
+            type: 'object',
+            properties: {
+                ort: { type: 'string', description: 'Orten att söka i (t.ex. "Borås", "Kungälv").' },
+                vertical: { type: 'string', description: 'Nisch/vertikal', enum: ['tattoo', 'beauty'] },
+                max: { type: 'number', description: 'Max antal prospekt att hämta (default 25).' },
+                notes: { type: 'string', description: 'Extra instruktioner till discovery (valfritt).' }
+            },
+            required: ['ort']
+        }
+    },
+    {
         name: 'get_customer_status',
         description: 'Hämta status och information för en specifik kund. Använd detta för att få översikt över kundens nuvarande tillstånd, fel, varningar och öppna tasks.',
         parameters: {
@@ -351,6 +365,8 @@ export async function executeToolCall(
                 return await handleCreateTaskProposal(args);
             case 'produce_package':
                 return await handleProducePackage(args);
+            case 'find_prospects':
+                return await handleFindProspects(args);
             case 'list_open_tasks':
                 return await handleListOpenTasks(args);
             case 'get_customer_errors':
@@ -578,6 +594,48 @@ async function handleProducePackage(args: Record<string, unknown>): Promise<Tool
             package: pkg.name,
             studio: contact.name,
             message: `Skapade produktions-task (review) för ${pkg.name} → ${contact.name}. Godkänn i Väntande så hämtar OpenClaw studions IG-material via Apify, bygger ${pkg.items.map(i => `${i.count}× ${i.kind}`).join(' + ')} och lägger det på kortet.`,
+        },
+    };
+}
+
+async function handleFindProspects(args: Record<string, unknown>): Promise<ToolResult> {
+    const ort = String(args.ort ?? '').trim();
+    if (!ort) return { success: false, error: 'Ange en ort att söka i (t.ex. "Borås").' };
+
+    const vertical = args.vertical === 'beauty' ? 'beauty' : 'tattoo';
+    const max = Math.min(Math.max(parseInt(String(args.max ?? 25), 10) || 25, 1), 100);
+    const nicheLabel = vertical === 'beauty' ? 'beauty-verksamheter' : 'tatuerare';
+
+    const input: Record<string, unknown> = {
+        ort,
+        vertical,
+        max,
+        notes: args.notes ? String(args.notes) : null,
+        source: 'alex_chat',
+        created_via: 'llm_tool_call',
+    };
+
+    // SUGGEST-guardrail: skapas som review och dispatchas till OpenClaw-discovery efter godkännande
+    const { data: task, error } = await supabase
+        .from('tasks')
+        .insert({
+            title: `Hitta ${max} ${nicheLabel} i ${ort}`,
+            executor: 'claw:prospect-finder',
+            status: 'review',
+            priority: 'normal',
+            description: `Discovery: ${nicheLabel} i ${ort} (max ${max}).${args.notes ? ` ${args.notes}` : ''}`,
+            input,
+        })
+        .select()
+        .single();
+    if (error) return { success: false, error: error.message };
+
+    return {
+        success: true,
+        data: {
+            task_id: task.id,
+            status: task.status,
+            message: `Skapade discovery-task (review): ${max} ${nicheLabel} i ${ort}. Godkänn i Väntande så kör OpenClaw pipelinen (Apify → filtrera → scora) och lägger nya kort i New Prospect.`,
         },
     };
 }
