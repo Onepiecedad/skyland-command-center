@@ -229,7 +229,11 @@ class Server {
     this.app.use('/api/v1/context', contextDataRouter);
     this.app.use('/api/v1/tools', toolCallsRouter);
     this.app.use('/api/v1/events', eventStreamRouter);
-    this.app.use('/api/v1/dispatch', dispatchRouter);
+    // OBS: monteras på /api/v1 (INTE /api/v1/dispatch) så sökvägarna blir
+    // /api/v1/tasks/:id/dispatch + /api/v1/claw|n8n/task-result + /api/v1/claw/pending
+    // — vilket är vad frontend (dispatch-knappen), scc-callback-skillen, taskService
+    // och pollern alla förväntar sig. En tidigare /api/v1/dispatch-montering bröt allt.
+    this.app.use('/api/v1', dispatchRouter);
     this.app.use('/api/v1/progress', progressRouter);
     this.app.use('/api/v1/reports', reportsRouter);
     this.app.use('/api/v1/recovery', errorRecoveryRouter);
