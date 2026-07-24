@@ -2181,3 +2181,86 @@ hämtar, avfyrar agenten lokalt (`/hooks/agent`) och agenten rapporterar via `sc
 Se `docs/HANDOVER_2026-07-23.md`.
 
 *Senast uppdaterad: 2026-07-23*
+
+---
+
+## 2026-07-23 (kväll/natt) — beauty-vertikalen byggd + Meta Ad Library-spaning (parallell Cowork-session)
+
+**Rubrik:** Prospekteringsmaskinen blev flervertikal (tattoo + beauty via config, inte forkar) och
+fick ögon på konkurrenternas Meta-annonser. Merged med dagsessionens annonsbudget-arbete (`f8d094e`).
+
+**Beauty-vertikalen (BV-1–BV-7):** allt nischspecifikt till `verticals/<namn>.json`; alla pipelines
+tar `--vertical` (tattoo default, bitidentiskt — regressionstestat); prospect/dm härleder vertikal ur
+kortets niche-tag. Ny Supabase-pipeline "Prospecting (Beauty)" (8 stages, migration applicerad).
+Beauty: exkluderingsfilter, paket-/behandlingsmix-signaler, paketviktad scoring (GTM v2), IVO-brief,
+`dm-stil-beauty.md` med juridiska kodgrindar (botox/garantier/kredit fäller). Buggfixar: exakt
+pipeline-match (substring hade träffat fel med två prospecting-pipelines), ort ur `custom.area`.
+Tickets: `docs/TICKETS_BEAUTY_VERTICAL.md`. KVAR: BV-8-pilot + BESLUT om beauty-doktrinens
+affärsmodell (GTM v2 paketprovision vs annonsbudget-modellen).
+
+**ads_pipeline (nytt):** Meta Ad Library via Apify. Marknadsläge → rapport med långkörarlista
+(livslängd = vinnar-proxy) i `~/clawd/out/ads-reports/`; prospekt-läge stämplar runs_ads/ads_notes.
+Skarp körning "tatuerare" SE: 300 annonser/89 annonsörer — rabattmallen är en riksmall (8 annonsörer,
+4 städer, identisk copy; Gothenburg Tattoo aktiv 225 dgr), trygghetsvinkeln bevisad + ledig i GBG,
+TELLO expanderande kedja, Malte annonserar kursen. 5 CRM-kort stämplade ur datasetet (GT, TELLO,
+Wolfstreet, Dark Tattoos, Ejvind) — inga nej-stämplar ur frånvaro. Apify-krediten SLUT ($5/$5).
+
+**sync_skills.sh (nytt):** repo→runtime med körningsvakt, per-skill-radering och skydd för
+.venv/.env/node_modules/loggar (första synken rev phone-voice-venven — därav skyddet). Ersätter
+manuell skill-kopiering.
+
+**Exec-bitar:** dm_pipeline.sh + prospect_pipeline.py tappade +x i commits (hade gett
+PermissionError i DM-steget) — chmod:ade tillbaka, mode-ändring att committa.
+
+**Kvar:** BV-8-pilot (kräver Apify-kredit), beauty-doktrin-beslutet, ads-koll per kort
+(--all-unchecked), 8 tattoo-öppnare + Wolfstreet-samtalet med annonsdatan som ammunition.
+Se `docs/HANDOVER_2026-07-23.md` Del 2.
+
+*Senast uppdaterad: 2026-07-24 (natt)*
+
+---
+
+## 2026-07-24 — SCC→OpenClaw-dispatch: pull-modellen fullt driftsatt + testad end-to-end
+
+**Rubrik:** Dispatchen (SCC i molnet → OpenClaw-agenter på Macen) gick från "byggd men blockerad"
+till **skarpt bevisad**: `✓ avfyrade produce-package` hela vägen. Render-molnet styr nu lokala
+agenter utan tunnel. Sex separata grindar lagade på vägen.
+
+**Aktivering:** `OPENCLAW_DISPATCH_MODE=pull` satt i Render-env; deployen behövde tryckas manuellt
+(auto-deploy hade inte rullat ut dispatch-koden). Pollern startad på Macen.
+
+**Grindarna, i tur och ordning:**
+1. **Deploy inte utrullad** — nya commitsen låg i main men Render körde gammal version (uptime 9,6h).
+   Manual Deploy → live.
+2. **Monterings-bugg (rotorsak):** produktionens `server.ts` monterade dispatch-routern på
+   `/api/v1/dispatch`, men **frontend-dispatchknappen, scc-callback-skillen, taskService OCH gamla
+   `index.ts`** förväntade `/api/v1`. En entrypoint-refaktor (index→server) hade tyst brutit dispatch,
+   callbacks och dispatch-knappen. Fix: monterade om till `/api/v1` (en rad) → allt konsekvent, och
+   frontend-knappen funkar igen på köpet.
+3. **Callback-sökväg:** hann lappa skill/taskService till `/api/v1/dispatch` innan monteringsfixen —
+   återställda till `/api/v1`.
+4. **Agent-registrering:** `produce-package` + `prospect-finder` fanns som mappar men saknades i
+   gatewayns `openclaw.json` `agents.list` → 400. Registrerade båda, kopierade workspaces till
+   `~/clawd/_agents/`, körde `deploy_openclaw_config.sh`, startade om gatewayn
+   (`launchctl kickstart -k gui/$UID/ai.openclaw.gateway`).
+5. **sessionKey:** gatewayns `/hooks/agent` kräver `sessionKey` som börjar med **`hook:`** —
+   pollern skickade `scc:…` → `{"error":"sessionKey must start with one of: hook:"}`. Bytte till
+   `hook:scc-…`. (Det, inte agenten, var själva 400:an.)
+6. **py3.9-kompat:** launchd kör system-python 3.9 medan interaktivt var 3.14 — `dict | None`-
+   annoteringar kraschade under launchd. `from __future__ import annotations` löste det.
+
+**Drift:** pollern (`openclaw-config/scripts/scc_poller.py`) kör nu permanent via launchd
+(`com.skyland.scc-poller`, KeepAlive + RunAtLoad, loggar i `logs/scc_poller.launchd.log`). Plockar
+köade claw-körningar via `GET /api/v1/claw/pending`, avfyrar agenten lokalt, agenten rapporterar via
+`scc-callback` → `/api/v1/claw/task-result`.
+
+**Två-Alexar bekräftat:** verktygen (`produce_package`, `find_prospects`) sitter på **server-Alex**
+(flytande docken `⌘J`, `/api/v1/chat`, "server-läge · full CRM-åtkomst") — INTE på gateway-Alex
+(stora vyn, WebSocket mot gatewayn), som frilansar med egna skript.
+
+**Kvar:** (a) Apify-krediten är slut → agenten spawnar men felar när den ska hämta IG-material;
+riktigt material kräver påfyllning. (b) `produce_package` skapar tasken **utan customer_id**, och
+approval-UI:t (`PendingApprovals`) är per kund → kundlösa prospekt-tasks syns inte där (godkändes via
+API i testet). Behöver en global "Väntande"-vy. Se `docs/HANDOVER_2026-07-24.md`.
+
+*Senast uppdaterad: 2026-07-24*
