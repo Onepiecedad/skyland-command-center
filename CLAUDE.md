@@ -1,25 +1,36 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-07-24
+> Senast uppdaterad: 2026-07-27
 
 > ## 🧭 BÖRJA HÄR (nuläge, läs först)
 > Ny session? Läs dessa i ordning innan du gör något:
-> 1. `docs/HANDOVER_2026-07-24.md` — SENASTE läget: **SCC→OpenClaw-dispatchen fullt driftsatt +
+> 1. `docs/HANDOVER_2026-07-27.md` — SENASTE läget: **annonssystemet steg 1+2 KLARA.**
+>    Skill `ad-intel` i drift (Meta Ad Library → tabell `ad_library` i Supabase, RLS på),
+>    681 annonser scrapade (SE, tattoo+beauty). Terräng: av 65 CRM-kort annonserar 1
+>    (Gothenburg Tattoo, 229 dgr på MEXPAND-mallen ordagrant); beauty har mönstervolymen
+>    (MediQ 987 dgr). Affärsbeslut: studion betalar annonskostnad, 10 % provision
+>    (doktriner säger 15–20 % — ej uppdaterade). Nästa: steg 3 `ad-factory` (bygg på
+>    content-pipeline, duplicera inte). Apify-krediterna fungerar igen.
+>    **OBS städlista (avsnitt 4b):** OpenClaw uppgraderad till 2026.7.1-2 (Node 24.18)
+>    — WhatsApp-kanalen i restart-loop, webbsök trasigt, 15 tillägg avstängda (bl.a.
+>    scrapling), live-konfig ur synk med repot → kör INTE deploy_openclaw_config.sh
+>    förrän repot uppdaterats. Alex nås under tiden på `http://127.0.0.1:18789/`.
+> 2. `docs/HANDOVER_2026-07-24.md` — bakgrund: **SCC→OpenClaw-dispatchen fullt driftsatt +
 >    testad end-to-end** (pull-modell: `OPENCLAW_DISPATCH_MODE=pull` i Render + poller på Macen via
 >    launchd `com.skyland.scc-poller`). Sex grindar lagade (montering `/api/v1`, agent-registrering,
 >    sessionKey `hook:`, py3.9). Två-Alexar: verktygen finns på server-Alex (⌘J-docken), inte
 >    gateway-Alex. Öppna trådar: Apify-kredit slut, kundlösa produce-tasks syns ej i approval-UI.
-> 2. `docs/HANDOVER_2026-07-23.md` — bakgrund: affärsmodell-byte (annonsbudget-modellen),
+> 3. `docs/HANDOVER_2026-07-23.md` — bakgrund: affärsmodell-byte (annonsbudget-modellen),
 >    material-arkiv (Fas 2), `produce_package` (Fas 3), Borås, Scrapling-omkopplat research-flöde.
 >    **Del 2:** beauty-vertikalen byggd (Prospecting (Beauty) i prod) + ads_pipeline + sync_skills.sh.
-> 3. `docs/HANDOVER_2026-07-19.md` — bakgrund: röststyrning, mobil-UX, IG-DM-autologg,
+> 4. `docs/HANDOVER_2026-07-19.md` — bakgrund: röststyrning, mobil-UX, IG-DM-autologg,
 >    integrationsvakt + de första varma svaren från marknaden.
-> 4. `docs/HANDOVER_2026-07-18.md` — bakgrund: hela prospekteringsmaskinen komplett
+> 5. `docs/HANDOVER_2026-07-18.md` — bakgrund: hela prospekteringsmaskinen komplett
 >    (discover/prospect/dm/batch-pipelines, 52 kort över 7 orter, 47 validerade DM).
-> 5. `docs/HANDOVER-CRM-F1-och-leadlista.md` — bakgrund: F1 CRM-kärnan, affärsmodellen
+> 6. `docs/HANDOVER-CRM-F1-och-leadlista.md` — bakgrund: F1 CRM-kärnan, affärsmodellen
 >    (kursen/MEXPAND), GHL-strategin, öppna beslut.
-> 6. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
+> 7. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
 >
 > **Var vi står (2026-07-23):** Prospekteringsmaskinen är FLERVERTIKAL — tattoo (skarp drift:
 > 60+ kort, 8 öppnare kvar i kö, 4 varma dialoger) och beauty (byggd, väntar på BV-8-pilot +
