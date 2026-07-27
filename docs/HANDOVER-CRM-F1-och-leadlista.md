@@ -69,6 +69,7 @@ Verifierat: contacts=5, default_pipelines=1, stages=6, opportunities=0. Alla tre
 Källa: `ai-agency-course-extract/` (hela kursen OCR:ad + GHL-analysdokument).
 
 - **Ersättning:** ren provision, **15–20% av totala försäljningsbeloppet inkl. moms**.
+  *(OBS 2026-07-27: ERSATT — kanon är annonsbudget-modellen: studion betalar annonskostnaden, Joakim tar 10 % provision.)*
   Ex: paket 10 000 kr → 1 500 kr till Joakim, 8 500 kr till studion. Kursen rekommenderar
   att starta på provision (Joakim sköter closingen själv).
 - **Leveransmotorn (MEXPAND):** FB/IG-annons → Facebook Lead Form (namn/telefon/mail)

@@ -9,13 +9,20 @@
 >    Skill `ad-intel` i drift (Meta Ad Library → tabell `ad_library` i Supabase, RLS på),
 >    681 annonser scrapade (SE, tattoo+beauty). Terräng: av 65 CRM-kort annonserar 1
 >    (Gothenburg Tattoo, 229 dgr på MEXPAND-mallen ordagrant); beauty har mönstervolymen
->    (MediQ 987 dgr). Affärsbeslut: studion betalar annonskostnad, 10 % provision
->    (doktriner säger 15–20 % — ej uppdaterade). Nästa: steg 3 `ad-factory` (bygg på
+>    (MediQ 987 dgr). Affärsbeslut (KANON, bekräftat av Joakim 2026-07-27): studion betalar
+>    annonskostnad, 10 % provision — doktriner + docs uppdaterade med 10 %-noter. Nästa: steg 3 `ad-factory` (bygg på
 >    content-pipeline, duplicera inte). Apify-krediterna fungerar igen.
->    **OBS städlista (avsnitt 4b):** OpenClaw uppgraderad till 2026.7.1-2 (Node 24.18)
->    — WhatsApp-kanalen i restart-loop, webbsök trasigt, 15 tillägg avstängda (bl.a.
->    scrapling), live-konfig ur synk med repot → kör INTE deploy_openclaw_config.sh
->    förrän repot uppdaterats. Alex nås under tiden på `http://127.0.0.1:18789/`.
+>    **Städlista (avsnitt 4b) — MESTADELS AVKLARAD 2026-07-27 kväll:** WhatsApp
+>    OMLÄNKAD (orsaken var "not linked" efter uppgraderingen; QR via `openclaw
+>    channels login --channel whatsapp`) — healthy/connected. Webbsök: gamla
+>    `exa-web-search-free` finns inte längre på ClawHub — officiella
+>    `@openclaw/exa-plugin` 2026.7.1 installerad + laddad. Repots `openclaw.json`
+>    SYNKAD från live (commit `88e809e` i openclaw-config) → deploy_openclaw_config.sh
+>    är säker att köra igen. KVAR: `scrapling` blockerad uppströms (ClawHub v1.0.1
+>    kräver plugin-API 1.0.0, runtime kör 2026.7.1-2) — räkna med haltande
+>    prospect-research tills den uppdaterats; övriga 13 avstängda tillägg tas vid
+>    behov. OBS: Terminalens default-`openclaw` kraschar (Homebrew-node@22 +
+>    libsimdjson) — använd nvm-binären `~/.nvm/versions/node/v24.18.0/bin/openclaw`.
 > 2. `docs/HANDOVER_2026-07-24.md` — bakgrund: **SCC→OpenClaw-dispatchen fullt driftsatt +
 >    testad end-to-end** (pull-modell: `OPENCLAW_DISPATCH_MODE=pull` i Render + poller på Macen via
 >    launchd `com.skyland.scc-poller`). Sex grindar lagade (montering `/api/v1`, agent-registrering,

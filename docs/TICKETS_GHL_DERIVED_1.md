@@ -19,7 +19,7 @@ fallerar operativt = ett ställe där SCC måste göra rätt från början. Prio
 ### SCC-36 · Attribution på kontaktnivå (förstklassigt designmål)
 **GHL-felet:** Attribution/rapportering olöst sedan 2019. "Dataexport kräver att man går
 runt manuellt i CRM." Näst mest konsekventa gapet i hela analysen.
-**Varför för dig:** Hela affären är provision (15–20 % av försäljningsvärde). Utan
+**Varför för dig:** Hela affären är provision (10 % — kanon 2026-07-27; tidigare 15–20 %). Utan
 attribution kan du varken bevisa ROI för kund eller räkna ut din egen faktura.
 **DoD:**
 - [ ] `messages`/`activities` kan knyta hela kedjan: lead → kontakt → opportunity → bokning → betalning.

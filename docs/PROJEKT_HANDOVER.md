@@ -10,7 +10,8 @@
 
 Joakim driver **Skyland AI** — en AI-byrå vars affär är att **fylla stolar hos lokala
 tjänsteföretag** (först: tatuerare i Göteborg/Mölndal) mot ren provision (15–20 % av
-försäljningsvärdet inkl. moms). Modellen kommer från AI Agency Course (Malte) och levereras
+försäljningsvärdet inkl. moms). *(OBS 2026-07-27: kanon är nu annonsbudget-modellen —
+studion betalar annonskostnaden, Joakim tar 10 % provision.)* Modellen kommer från AI Agency Course (Malte) och levereras
 klassiskt via GoHighLevel — men Joakims slutmål är att **äga hela stacken själv**:
 
 **Skyland Command Center (SCC)** — ett eget AI-drivet operativsystem där agenten **Alex**

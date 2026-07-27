@@ -3,6 +3,7 @@
 > Ny gren av prospekteringsmaskinen: samma pipelines, ny nisch. Underlag:
 > `skylandbeautygtmplanv2.md` (provisionsmodell v2: 15–20 % på paketvärde,
 > golv 1 000 kr, trigger vid betalt paket).
+> **OBS 2026-07-27: kanon är nu 10 % provision (beslut Joakim) — 15–20 % är historik.**
 >
 > **Princip: forka INTE skripten.** Allt nischspecifikt (söktermer, scoring,
 > research-brief, DM-doktrin, pipeline-val) flyttas till en vertikal-config som
@@ -221,7 +222,7 @@ respektfull, trygghet/kontroll — aldrig hype.
 
 **Doktrin (ur GTM v2, kondenserad till lag)**
 - Öppnare: hälsning + EN verifierad klinik-unik detalj + kapacitetsfrågan ("skulle ni ha plats för fler kunder just nu?" — 3–4 roterande varianter, samma anti-stämpel-logik som beläggningsfrågan).
-- Uppföljning (vid svar): kärnerbjudandet — provision 15–20 % på paketet/kuren kunden tecknar, golv 1 000 kr, betalning först när kunden betalat, inga fasta avgifter, ingen bindning, kliniken äger allt — + permission-CTA.
+- Uppföljning (vid svar): kärnerbjudandet — provision 10 % på paketet/kuren kunden tecknar (kanon 2026-07-27, tidigare 15–20 %), golv 1 000 kr, betalning först när kunden betalat, inga fasta avgifter, ingen bindning, kliniken äger allt — + permission-CTA.
 - Namnpresentation i första pitchen, inga signaturer, inga länkar/domäner i öppnaren (IG-länkbanner-regeln gäller).
 
 **Grindar (validate() per vertikal — beauty)**
