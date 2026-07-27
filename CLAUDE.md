@@ -10,8 +10,11 @@
 >    681 annonser scrapade (SE, tattoo+beauty). Terräng: av 65 CRM-kort annonserar 1
 >    (Gothenburg Tattoo, 229 dgr på MEXPAND-mallen ordagrant); beauty har mönstervolymen
 >    (MediQ 987 dgr). Affärsbeslut (KANON, bekräftat av Joakim 2026-07-27): studion betalar
->    annonskostnad, 10 % provision — doktriner + docs uppdaterade med 10 %-noter. Nästa: steg 3 `ad-factory` (bygg på
->    content-pipeline, duplicera inte). Apify-krediterna fungerar igen.
+>    annonskostnad, 10 % provision — doktriner + docs uppdaterade med 10 %-noter.
+>    **STEG 3 KLART (se avsnitt 6b):** skill `ad-factory` i drift — fyra
+>    konceptuellt olika annonser per kund, testad skarpt mot Pistolero. Bygger på
+>    content-pipeline (importerar den) + `ad_intel.py --patterns`. Kvar: beauty
+>    otestad skarpt, koppling till produce-package obyggd. Apify-krediterna fungerar igen.
 >    **Städlista (avsnitt 4b) — MESTADELS AVKLARAD 2026-07-27 kväll:** WhatsApp
 >    OMLÄNKAD (orsaken var "not linked" efter uppgraderingen; QR via `openclaw
 >    channels login --channel whatsapp`) — healthy/connected. Webbsök: gamla
