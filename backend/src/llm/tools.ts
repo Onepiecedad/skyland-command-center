@@ -7,6 +7,7 @@ import type { ToolDefinition } from './adapter';
 import { supabase } from '../services/supabase';
 import { enrollContact } from '../services/sequenceEvents';
 import { getPackage, listPackages } from '../production/packages';
+import { createTodo, type TodoPriority } from '../services/todos';
 
 // ============================================================================
 // Tool Definitions (for LLM function calling)
@@ -335,6 +336,21 @@ export const ALEX_TOOLS: ToolDefinition[] = [
             },
             required: ['contact_id', 'sequence_id']
         }
+    },
+    {
+        name: 'schedule_followup',
+        description: 'Skapa en daterad uppföljnings-påminnelse (todo) kopplad till en kontakt/prospekt. Todon dyker upp i operatörens att-göra-lista under "Kommande" och flyttar sig själv till "Idag" när datumet infaller — så operatören slipper hålla det i huvudet. Använd när operatören säger t.ex. "påminn mig att följa upp X i februari", "sätt en uppföljning på Wolfstreet om två veckor", "ping:a Teonius när han är tillbaka". Räkna ut due_at som konkret datum utifrån operatörens formulering. Säkert att köra direkt.',
+        parameters: {
+            type: 'object',
+            properties: {
+                contact: { type: 'string', description: 'Kontaktens/studions namn (fuzzy-matchas mot CRM). Ange detta ELLER contact_id.' },
+                contact_id: { type: 'string', description: 'Kontaktens UUID om känt (alternativ till contact).' },
+                due_at: { type: 'string', description: 'När uppföljningen ska bli aktuell, ISO 8601 — datum "2027-02-01" eller full tidsstämpel "2027-02-01T09:00:00+01:00". Räkna ut från operatörens formulering ("i februari", "om två veckor", "på måndag").' },
+                note: { type: 'string', description: 'Kort anledning/kontext, t.ex. "var pappaledig till februari, bad mig höra av mig".' },
+                priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'], description: 'Prioritet (default normal).' }
+            },
+            required: ['due_at']
+        }
     }
 ];
 
@@ -389,6 +405,8 @@ export async function executeToolCall(
                 return await handleListSequences();
             case 'enroll_in_sequence':
                 return await handleEnrollInSequence(args);
+            case 'schedule_followup':
+                return await handleScheduleFollowup(args);
             case 'navigate_ui':
                 return await handleNavigateUi(args);
             case 'start_ui_tour':
@@ -1037,6 +1055,61 @@ async function handleEnrollInSequence(args: Record<string, unknown>): Promise<To
     if (!seq) return { success: false, error: `Sekvens ${sequenceId} hittades inte` };
     const r = await enrollContact(sequenceId, contactId);
     return { success: true, data: { enrolled: r.enrolled, reason: r.reason, sequence: (seq as { name: string }).name, status: (seq as { status: string }).status } };
+}
+
+/**
+ * schedule_followup — skapa en daterad uppföljnings-todo. Ligger vilande i
+ * TodoView under "Kommande" tills due_at infaller, då den flyttas till "Idag".
+ * Säkert att köra direkt (skapar bara en påminnelse, inget externt utskick).
+ */
+async function handleScheduleFollowup(args: Record<string, unknown>): Promise<ToolResult> {
+    const dueRaw = args.due_at ? String(args.due_at).trim() : '';
+    if (!dueRaw) return { success: false, error: 'due_at krävs (när uppföljningen ska bli aktuell, ISO-datum).' };
+    // Rent datum "YYYY-MM-DD" → sätt kl 09:00 lokal morgon; annars tolka som given tidsstämpel.
+    const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(dueRaw) ? `${dueRaw}T09:00:00` : dueRaw);
+    if (isNaN(d.getTime())) {
+        return { success: false, error: `Kunde inte tolka datumet "${dueRaw}". Ange ISO, t.ex. 2027-02-01.` };
+    }
+    const dueIso = d.toISOString();
+
+    // Resolvera kontakt (namn eller id) — men uppföljning utan kontakt är också ok.
+    let contact: { id: string; name: string } | null = null;
+    if (args.contact_id) {
+        const { data } = await supabase.from('contacts').select('id, name').eq('id', String(args.contact_id)).maybeSingle();
+        contact = (data as { id: string; name: string } | null) ?? null;
+    } else if (args.contact) {
+        const { data } = await supabase.from('contacts').select('id, name').ilike('name', `%${String(args.contact)}%`).limit(1);
+        contact = (data?.[0] as { id: string; name: string } | undefined) ?? null;
+    }
+    if ((args.contact || args.contact_id) && !contact) {
+        return { success: false, error: 'Hittade ingen kontakt att koppla uppföljningen till. Kontrollera namnet eller ange contact_id.' };
+    }
+
+    const who = contact ? contact.name : (args.contact ? String(args.contact) : null);
+    const title = who ? `Följ upp ${who}` : 'Uppföljning';
+    const allowed = ['low', 'normal', 'high', 'urgent'];
+    const priority = allowed.includes(String(args.priority)) ? String(args.priority) as TodoPriority : 'normal';
+
+    const todo = await createTodo({
+        title,
+        notes: args.note ? String(args.note) : null,
+        dueAt: dueIso,
+        priority,
+        contactId: contact?.id ?? null,
+        source: 'alex',
+    });
+
+    return {
+        success: true,
+        data: {
+            todo_id: (todo as { id?: string }).id,
+            title,
+            due_at: dueIso,
+            due_date: dueIso.slice(0, 10),
+            contact: who,
+            message: `Uppföljning inlagd: "${title}" den ${dueIso.slice(0, 10)}. Den ligger i att-göra-listan under "Kommande" och flyttas till "Idag" när datumet kommer.`,
+        },
+    };
 }
 
 /**

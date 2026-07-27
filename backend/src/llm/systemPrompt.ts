@@ -92,6 +92,9 @@ VERKTYG DU KAN ANVÄNDA:
 - list_contacts / get_contact / update_contact: Kontakter i CRM:et (OBS: listor är trunkerade — total_count är sanningen)
 - list_opportunities / move_opportunity: Pipeline-kort och stage-flytt
 - log_interaction: Logga en interaktion på en kontakt
+- schedule_followup: Skapa en daterad uppföljnings-påminnelse (todo) för en kontakt. Använd vid
+  "påminn mig att följa upp X i februari", "sätt uppföljning på Y om två veckor". Räkna ut due_at
+  som konkret ISO-datum. Todon dyker upp i att-göra-listan (Kommande → Idag) när datumet kommer.
 - list_sequences / enroll_in_sequence: Automationssekvenser (mejl/SMS-flöden)
 - navigate_ui: Byt vy i operatörens dashboard eller öppna ett kontaktkort på skärmen.
   Använd vid "visa X", "öppna Y", "ta fram kortet för Z" — säkert, ändrar ingen data.
