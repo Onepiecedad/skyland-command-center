@@ -15,6 +15,10 @@
 >    konceptuellt olika annonser per kund, testad skarpt mot Pistolero. Bygger på
 >    content-pipeline (importerar den) + `ad_intel.py --patterns`. Kvar: beauty
 >    otestad skarpt, koppling till produce-package obyggd. Apify-krediterna fungerar igen.
+>    **META-POLICYN ÄR KOLLAD** (`docs/META_ADS_POLICY.md`): tatuering är inte en
+>    förbjuden kategori; "du + ditt tillstånd"-tilltal och före/efter-format är
+>    kodgrindade i ad-factory. Operatörschecklista (18+, inga garantier, inga
+>    hälsofrågor i leadformuläret) följer med i varje annonspaket.
 >    **Städlista (avsnitt 4b) — MESTADELS AVKLARAD 2026-07-27 kväll:** WhatsApp
 >    OMLÄNKAD (orsaken var "not linked" efter uppgraderingen; QR via `openclaw
 >    channels login --channel whatsapp`) — healthy/connected. Webbsök: gamla
