@@ -960,7 +960,36 @@ async function handleUpdateContact(args: Record<string, unknown>): Promise<ToolR
         details: { contact_id: resolvedId, contact_name: existing.name, changed_fields: changedFields },
     });
 
-    return { success: true, data: { contact: updated, changed_fields: changedFields } };
+    const warnings = await detectPipelineDrift(resolvedId, updates.status as string | undefined);
+
+    return { success: true, data: { contact: updated, changed_fields: changedFields, warnings } };
+}
+
+/**
+ * Kontaktens status och kortets plats på brädan är två skilda saker: brädan
+ * renderar `opportunities`, inte `contacts`. Att sätta status till won/lost
+ * flyttar alltså INGENTING som operatören ser.
+ *
+ * Det gör ett halvgjort jobb omöjligt att upptäcka i kvittot, eftersom anropet
+ * faktiskt lyckades. Därför lyfts avvikelsen in i verktygsresultatet — då ser
+ * modellen den och måste rapportera den, i stället för att alla ska hoppas att
+ * den kommer ihåg sambandet.
+ */
+async function detectPipelineDrift(contactId: string, newStatus?: string): Promise<string[]> {
+    if (!newStatus || !['won', 'lost'].includes(newStatus)) return [];
+
+    const { data, error } = await supabase
+        .from('opportunities')
+        .select('id, title, status, stage:stages(name)')
+        .eq('contact_id', contactId)
+        .neq('status', newStatus);
+
+    if (error || !data || data.length === 0) return [];
+
+    return data.map(o => {
+        const stageName = (o.stage as { name?: string } | null)?.name ?? 'okänd stage';
+        return `Kontaktens status är nu "${newStatus}", men opportunityn "${o.title}" ligger kvar som "${o.status}" i stage "${stageName}". Kortet på brädan har INTE flyttats. Använd move_opportunity (opportunity_id: ${o.id}) för att flytta det, annars ser operatören ingen förändring.`;
+    });
 }
 
 async function handleListOpportunities(args: Record<string, unknown>): Promise<ToolResult> {
@@ -1364,8 +1393,12 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
             return lines.join('\n');
         }
         case 'update_contact': {
-            const r = data as { contact: Record<string, unknown>; changed_fields: string[] };
-            return `✅ Kontakt "${r.contact.name || r.contact.id}" uppdaterad.\nÄndrade fält: ${r.changed_fields.join(', ')}\nÄndringen är loggad som activity.`;
+            const r = data as { contact: Record<string, unknown>; changed_fields: string[]; warnings?: string[] };
+            const base = `✅ Kontakt "${r.contact.name || r.contact.id}" uppdaterad.\nÄndrade fält: ${r.changed_fields.join(', ')}\nÄndringen är loggad som activity.`;
+            if (!r.warnings?.length) return base;
+            // Varningarna MÅSTE med i modellens vy — annars rapporteras ett halvgjort
+            // jobb som helt klart, eftersom själva anropet lyckades.
+            return `${base}\n\n⚠️ OFULLSTÄNDIGT — detta måste du berätta för operatören:\n${r.warnings.map(w => `- ${w}`).join('\n')}`;
         }
         case 'list_opportunities': {
             const r = data as {

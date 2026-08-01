@@ -15,7 +15,7 @@ import { loadCustomersForPrompt } from './customerService';
 import { getAdapter, ChatMessage } from '../llm/adapter';
 import { logLLMCost } from './costService';
 import { buildSystemPrompt } from '../llm/systemPrompt';
-import { ALEX_TOOLS, executeToolCall } from '../llm/tools';
+import { ALEX_TOOLS, executeToolCall, formatToolResultForLLM } from '../llm/tools';
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -234,10 +234,15 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
             }
 
             // Real tool result, bound to the originating call id.
+            // `summary` lyfter fram sådant som är lätt att missa i rådatan —
+            // t.ex. varningen om att ett kort inte flyttats på brädan.
             currentMessages.push({
                 role: 'tool',
                 toolCallId: toolCall.id,
-                content: JSON.stringify(result),
+                content: JSON.stringify({
+                    ...result,
+                    summary: formatToolResultForLLM(toolCall.name, result),
+                }),
             });
         }
 
