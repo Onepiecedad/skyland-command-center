@@ -37,6 +37,7 @@ describe('OpenAIAdapter.chat', () => {
                 message: {
                     content: null,
                     tool_calls: [{
+                        id: 'call_abc123',
                         type: 'function',
                         function: { name: 'get_contact', arguments: '{"id":"c-1"}' },
                     }],
@@ -47,8 +48,52 @@ describe('OpenAIAdapter.chat', () => {
 
         const out = await new OpenAIAdapter().chat(baseInput);
 
-        expect(out.toolCalls).toEqual([{ name: 'get_contact', arguments: { id: 'c-1' } }]);
+        // id MÅSTE bevaras — utan den kan tool-resultatet inte bindas tillbaka
+        // till anropet, och modellen tappar spårningen av vad som faktiskt kördes.
+        expect(out.toolCalls).toEqual([
+            { id: 'call_abc123', name: 'get_contact', arguments: { id: 'c-1' } },
+        ]);
         expect(out.usage).toEqual({ promptTokens: 10, completionTokens: 5, totalTokens: 15 });
+    });
+
+    it('faller tillbaka på ett syntetiskt id när providern utelämnar det', async () => {
+        h.create.mockResolvedValue({
+            choices: [{
+                message: {
+                    content: null,
+                    tool_calls: [{
+                        type: 'function',
+                        function: { name: 'get_contact', arguments: '{"id":"c-1"}' },
+                    }],
+                },
+            }],
+        });
+
+        const out = await new OpenAIAdapter().chat(baseInput);
+
+        expect(out.toolCalls?.[0].id).toBe('call_0');
+    });
+
+    it('kraschar inte på trasig arguments-JSON', async () => {
+        h.create.mockResolvedValue({
+            choices: [{
+                message: {
+                    content: null,
+                    tool_calls: [{
+                        id: 'call_bad',
+                        type: 'function',
+                        function: { name: 'get_contact', arguments: '{trasig' },
+                    }],
+                },
+            }],
+        });
+
+        const out = await new OpenAIAdapter().chat(baseInput);
+
+        // Ska degradera till ett anrop som handlern avvisar, inte kasta och
+        // ta ner hela requesten.
+        expect(out.toolCalls?.[0].name).toBe('get_contact');
+        expect(out.toolCalls?.[0].arguments).toHaveProperty('__malformed_arguments');
     });
 
     it('returnerar text utan toolCalls när modellen inte kallar verktyg', async () => {

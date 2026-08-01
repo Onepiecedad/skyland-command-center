@@ -19,16 +19,24 @@ export interface ToolDefinition {
     };
 }
 
-// Tool call result from LLM
+// Tool call requested by the LLM.
+// `id` is the provider's tool_call_id and MUST be echoed back on the matching
+// tool result, otherwise the model has no way to bind result → request.
 export interface ToolCall {
+    id: string;
     name: string;
     arguments: Record<string, unknown>;
 }
 
-// Chat message format
+// Chat message format.
+// Two shapes carry the tool protocol:
+//   - assistant messages that requested tools set `toolCalls`
+//   - `role: 'tool'` messages carry one result and MUST set `toolCallId`
 export interface ChatMessage {
-    role: 'user' | 'assistant' | 'system';
+    role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
+    toolCalls?: ToolCall[];
+    toolCallId?: string;
 }
 
 // LLM chat input

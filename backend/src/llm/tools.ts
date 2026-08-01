@@ -213,11 +213,12 @@ export const ALEX_TOOLS: ToolDefinition[] = [
     },
     {
         name: 'update_contact',
-        description: 'Uppdatera fält på en kontakt: status, telefon, e-post, webb, företag, taggar samt custom-data (score, instagram, adress, dm_hook m.m.). Custom-fält MERGAS in — befintliga nycklar som inte skickas med behålls; sätt en nyckel till null för att radera den. Ändringen loggas som activity. Kräver contact_id (använd get_contact först om du bara har namnet).',
+        description: 'Uppdatera fält på en kontakt: namn, status, telefon, e-post, webb, företag, taggar samt custom-data (score, instagram, adress, dm_hook, research_notes m.m.). Custom-fält MERGAS in — befintliga nycklar som inte skickas med behålls; sätt en nyckel till null för att radera den. Ändringen loggas som activity. Kräver contact_id (använd get_contact först om du bara har namnet).',
         parameters: {
             type: 'object',
             properties: {
                 contact_id: { type: 'string', description: 'Kontaktens UUID (obligatoriskt)' },
+                name: { type: 'string', description: 'Nytt namn på kontakten/kortet (t.ex. vid namnbyte när kontaktpersonen ändras)' },
                 status: {
                     type: 'string',
                     description: 'Ny status',
@@ -866,9 +867,13 @@ async function handleUpdateContact(args: Record<string, unknown>): Promise<ToolR
         changedFields.push('status');
     }
 
-    for (const field of ['phone', 'email', 'website', 'company'] as const) {
+    for (const field of ['name', 'phone', 'email', 'website', 'company'] as const) {
         if (args[field] !== undefined) {
-            updates[field] = String(args[field]);
+            const value = String(args[field]).trim();
+            if (field === 'name' && !value) {
+                return { success: false, error: 'name får inte vara tomt' };
+            }
+            updates[field] = value;
             changedFields.push(field);
         }
     }

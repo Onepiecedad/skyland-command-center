@@ -19,7 +19,36 @@ import { ALEX_TOOLS, executeToolCall } from '../llm/tools';
 
 const MAX_TOOL_ROUNDS = 5;
 
+/**
+ * Appended to the system prompt.
+ *
+ * This used to be injected as a user message after every tool round, where it
+ * did two harmful things: it pulled the model toward wrapping up instead of
+ * continuing to work, and it forbade exactly the detail that would have exposed
+ * a partial result. Reporting rules belong in the system prompt; the tool
+ * results speak for themselves.
+ */
+const REPORTING_RULES = `
+RAPPORTERINGSREGLER (gäller alltid):
+- Påstå ALDRIG att något är utfört om det inte framgår av ett verktygsresultat.
+  Ett verktygsresultat med "success": false betyder att ändringen INTE gjordes.
+- Beskriv aldrig en plan i dåtid. Skriv inte "jag har uppdaterat" om du bara
+  tänker göra det — utför det först, läs resultatet, rapportera sedan.
+- Blev du ombedd att göra flera saker: redovisa varje sak för sig med utfall
+  (gjord / misslyckad / saknar verktyg). Utelämna ingen punkt.
+- Saknar du ett verktyg för något du ombetts göra, säg det rakt ut i stället
+  för att beskriva det som klart.
+- Skriv begripligt för en icke-tekniker, men hellre ärligt och tråkigt än
+  trevligt och osant.`;
+
 export type AlexBrainErrorCode = 'adapter' | 'llm';
+
+/** Deterministic record of what actually executed, built from tool results — not from the model. */
+export interface AlexToolExecution {
+    tool: string;
+    ok: boolean;
+    error?: string;
+}
 
 export class AlexBrainError extends Error {
     constructor(message: string, public code: AlexBrainErrorCode, public details?: string) {
@@ -48,6 +77,10 @@ export interface AlexChatResult {
     actions_taken: AlexActionTaken[];
     proposed_actions: unknown[];
     tool_calls: string[];
+    /** Ground truth per executed tool call. Use this, not the prose, to verify. */
+    tool_executions: AlexToolExecution[];
+    /** True when the loop ended on an error or ran out of rounds mid-work. */
+    incomplete: boolean;
 }
 
 /**
@@ -93,7 +126,7 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
         loadRecentMessages(conversation_id)
     ]);
 
-    const systemPrompt = buildSystemPrompt(customers);
+    const systemPrompt = buildSystemPrompt(customers) + '\n' + REPORTING_RULES;
 
     const llmMessages: ChatMessage[] = [
         ...previousMessages.slice(0, -1), // Exclude the message we just logged
@@ -115,9 +148,11 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
     // ================================================================
     // Multi-round tool calling loop
     // ================================================================
-    const currentMessages = [...llmMessages];
+    const currentMessages: ChatMessage[] = [...llmMessages];
+    const toolExecutions: AlexToolExecution[] = [];
     let responseText = '';
     let round = 0;
+    let incomplete = false;
 
     while (round < MAX_TOOL_ROUNDS) {
         round++;
@@ -146,22 +181,38 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
                     llmError instanceof Error ? llmError.message : 'Unknown error'
                 );
             }
-            break; // On later rounds, use whatever we have so far
+            // Later rounds degrade, but the answer must not pretend to be complete.
+            incomplete = true;
+            break;
         }
 
+        // No tool calls => this turn IS the final answer.
         if (!llmResponse.toolCalls || llmResponse.toolCalls.length === 0) {
             responseText = llmResponse.text;
             break;
         }
 
         logger.info('alexBrain', `Round ${round}: Processing ${llmResponse.toolCalls.length} tool calls`);
-        const roundToolResults: Array<{ name: string; result: unknown }> = [];
+
+        // Replay the assistant turn WITH its tool calls so the tool results below
+        // have something to bind to. Any text the model emitted here is a plan,
+        // not a report — it is deliberately never assigned to responseText.
+        currentMessages.push({
+            role: 'assistant',
+            content: llmResponse.text || '',
+            toolCalls: llmResponse.toolCalls,
+        });
 
         for (const toolCall of llmResponse.toolCalls) {
             logger.info('alexBrain', `Executing tool: ${toolCall.name}`);
             allToolCallNames.push(toolCall.name);
             const result = await executeToolCall(toolCall.name, toolCall.arguments);
-            roundToolResults.push({ name: toolCall.name, result });
+
+            toolExecutions.push({
+                tool: toolCall.name,
+                ok: Boolean(result.success),
+                error: result.success ? undefined : String(result.error ?? 'okänt fel'),
+            });
 
             if (toolCall.name === 'create_task_proposal' && result.success) {
                 const taskData = result.data as { task_id: string; title: string };
@@ -181,26 +232,25 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
                 });
                 actions_taken.push({ action: 'insert', table: 'activities', details: { event_type: 'task_proposed', task_id: taskData.task_id } });
             }
+
+            // Real tool result, bound to the originating call id.
+            currentMessages.push({
+                role: 'tool',
+                toolCallId: toolCall.id,
+                content: JSON.stringify(result),
+            });
         }
 
-        currentMessages.push({
-            role: 'assistant' as const,
-            content: `Jag använder verktyg: ${roundToolResults.map(t => t.name).join(', ')}`
-        });
-        currentMessages.push({
-            role: 'user' as const,
-            content: `Verktygsresultat:\n${roundToolResults.map(tr =>
-                `${tr.name}: ${JSON.stringify(tr.result, null, 2)}`
-            ).join('\n\n')}\n\nOm du behöver använda fler verktyg, gör det. Annars sammanfatta på ENKEL SVENSKA. Förklara för en person som INTE kan programmera. Inga JSON-objekt eller teknisk kod i svaret!`
-        });
-
-        if (llmResponse.text) {
-            responseText = llmResponse.text;
+        if (round === MAX_TOOL_ROUNDS) {
+            logger.warn('alexBrain', `Hit max tool rounds (${MAX_TOOL_ROUNDS}) with tool calls still pending`);
+            incomplete = true;
         }
     }
 
-    if (round >= MAX_TOOL_ROUNDS && !responseText) {
-        logger.warn('alexBrain', `Hit max tool rounds (${MAX_TOOL_ROUNDS}), generating final summary`);
+    // The loop can exit with tool results but no final text (max rounds, or an
+    // error on a later round). Force a text answer with tools disabled.
+    if (!responseText) {
+        logger.warn('alexBrain', 'No final text after tool loop — generating forced summary');
         try {
             const summaryResponse = await adapter.chat({
                 systemPrompt,
@@ -225,6 +275,10 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
         responseText = 'Jag kunde inte generera ett svar. Vänligen försök igen eller omformulera din fråga.';
     }
 
+    // Deterministic receipt. Built from tool results, so it cannot over-report
+    // no matter what the model wrote above it.
+    responseText += buildExecutionReceipt(toolExecutions, incomplete);
+
     // Log outbound assistant message
     await logMessage({
         conversation_id,
@@ -235,7 +289,9 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
         customer_id: customerId,
         metadata: {
             tool_calls: allToolCallNames,
-            tool_rounds: round
+            tool_rounds: round,
+            tool_executions: toolExecutions,
+            incomplete
         }
     });
     actions_taken.push({ action: 'insert', table: 'messages', details: { role: 'assistant', conversation_id } });
@@ -253,7 +309,9 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
             channel,
             response_length: responseText.length,
             tool_calls_count: allToolCallNames.length,
+            tool_calls_failed: toolExecutions.filter(t => !t.ok).length,
             tool_rounds: round,
+            incomplete,
             has_proposed_actions: proposed_actions.length > 0
         }
     });
@@ -265,6 +323,45 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
         customer_id: customerId,
         actions_taken,
         proposed_actions,
-        tool_calls: allToolCallNames
+        tool_calls: allToolCallNames,
+        tool_executions: toolExecutions,
+        incomplete
     };
+}
+
+/**
+ * Append a factual receipt of what ran. Derived entirely from tool results, so
+ * if the prose above claims six changes and only four executed, the mismatch is
+ * visible on screen instead of having to be discovered in the database later.
+ */
+function buildExecutionReceipt(executions: AlexToolExecution[], incomplete: boolean): string {
+    if (executions.length === 0) {
+        return incomplete
+            ? '\n\n---\n⚠️ Körningen avbröts innan något verktyg hann köras. Inget är ändrat.'
+            : '';
+    }
+
+    const ok = executions.filter(e => e.ok);
+    const failed = executions.filter(e => !e.ok);
+
+    const lines = ['\n\n---', '**Faktiskt utfört:**'];
+
+    if (ok.length > 0) {
+        const counts = new Map<string, number>();
+        for (const e of ok) counts.set(e.tool, (counts.get(e.tool) ?? 0) + 1);
+        lines.push(...[...counts].map(([tool, n]) => `- ✅ ${tool}${n > 1 ? ` ×${n}` : ''}`));
+    } else {
+        lines.push('- Inga verktyg lyckades.');
+    }
+
+    if (failed.length > 0) {
+        lines.push('**Misslyckades:**');
+        lines.push(...failed.map(e => `- ❌ ${e.tool} — ${e.error}`));
+    }
+
+    if (incomplete) {
+        lines.push('⚠️ Körningen nådde taket för verktygsrundor eller avbröts. Fler ändringar kan återstå.');
+    }
+
+    return lines.join('\n');
 }
