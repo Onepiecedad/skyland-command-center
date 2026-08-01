@@ -344,7 +344,7 @@ function buildExecutionReceipt(executions: AlexToolExecution[], incomplete: bool
     const ok = executions.filter(e => e.ok);
     const failed = executions.filter(e => !e.ok);
 
-    const lines = ['\n\n---', '**Faktiskt utfört:**'];
+    const lines = ['\n\n---', '**Faktiskt utfört:**', ''];
 
     if (ok.length > 0) {
         const counts = new Map<string, number>();
@@ -355,12 +355,13 @@ function buildExecutionReceipt(executions: AlexToolExecution[], incomplete: bool
     }
 
     if (failed.length > 0) {
-        lines.push('**Misslyckades:**');
+        // Tomrad före rubriken — annars slår markdown ihop den med sista listraden.
+        lines.push('', '**Misslyckades:**');
         lines.push(...failed.map(e => `- ❌ ${e.tool} — ${e.error}`));
     }
 
     if (incomplete) {
-        lines.push('⚠️ Körningen nådde taket för verktygsrundor eller avbröts. Fler ändringar kan återstå.');
+        lines.push('', '⚠️ Körningen nådde taket för verktygsrundor eller avbröts. Fler ändringar kan återstå.');
     }
 
     return lines.join('\n');
