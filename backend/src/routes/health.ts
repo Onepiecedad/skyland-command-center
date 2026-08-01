@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import gatewaySocket from '../services/gatewaySocket.js';
+import { BUILD_INFO } from '../buildInfo.js';
 
 const router = Router();
 
@@ -13,7 +14,10 @@ router.get('/', (_req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    version: process.env.npm_package_version || '1.0.0',
+    version: BUILD_INFO.version,
+    commit: BUILD_INFO.commitShort,
+    commitFull: BUILD_INFO.commit,
+    startedAt: BUILD_INFO.startedAt,
     environment: process.env.NODE_ENV || 'development',
     services: {
       websocket: {
@@ -48,6 +52,10 @@ router.get('/ready', (_req, res) => {
 router.get('/live', (_req, res) => {
   res.status(200).json({
     status: 'alive',
+    // commit + startedAt make this endpoint answer "is my deploy live?" —
+    // compare commit against `git log --oneline -1`.
+    commit: BUILD_INFO.commitShort,
+    startedAt: BUILD_INFO.startedAt,
     timestamp: new Date().toISOString()
   });
 });

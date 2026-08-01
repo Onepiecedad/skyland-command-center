@@ -213,12 +213,13 @@ export const ALEX_TOOLS: ToolDefinition[] = [
     },
     {
         name: 'update_contact',
-        description: 'Uppdatera fält på en kontakt: namn, status, telefon, e-post, webb, företag, taggar samt custom-data (score, instagram, adress, dm_hook, research_notes m.m.). Custom-fält MERGAS in — befintliga nycklar som inte skickas med behålls; sätt en nyckel till null för att radera den. Ändringen loggas som activity. Kräver contact_id (använd get_contact först om du bara har namnet).',
+        description: 'Uppdatera fält på en kontakt: namn, status, telefon, e-post, webb, företag, taggar samt custom-data (score, instagram, adress, dm_hook, research_notes m.m.). Custom-fält MERGAS in — befintliga nycklar som inte skickas med behålls; sätt en nyckel till null för att radera den. Ändringen loggas som activity. Identifiera kontakten med contact_id ELLER find_by_name — gissa aldrig ett UUID, och återanvänd aldrig ett id från en annan uppgift i samma konversation.',
         parameters: {
             type: 'object',
             properties: {
-                contact_id: { type: 'string', description: 'Kontaktens UUID (obligatoriskt)' },
-                name: { type: 'string', description: 'Nytt namn på kontakten/kortet (t.ex. vid namnbyte när kontaktpersonen ändras)' },
+                contact_id: { type: 'string', description: 'Kontaktens UUID. Utelämna om du bara har namnet — använd find_by_name i stället. GISSA ALDRIG ett UUID.' },
+                find_by_name: { type: 'string', description: 'Slå upp kontakten på namn i stället för UUID. Används bara när contact_id saknas. Måste träffa exakt en kontakt, annars returneras kandidaterna.' },
+                name: { type: 'string', description: 'NYTT namn att sätta på kontakten/kortet. Detta är inte en sökning — använd find_by_name för att hitta kontakten.' },
                 status: {
                     type: 'string',
                     description: 'Ny status',
@@ -843,16 +844,53 @@ async function handleGetContact(args: Record<string, unknown>): Promise<ToolResu
 }
 
 async function handleUpdateContact(args: Record<string, unknown>): Promise<ToolResult> {
-    const contactId = args.contact_id ? String(args.contact_id) : undefined;
-    if (!contactId) return { success: false, error: 'contact_id krävs — använd get_contact för att hitta id först' };
+    const contactId = args.contact_id ? String(args.contact_id).trim() : undefined;
+    const findByName = args.find_by_name ? String(args.find_by_name).trim() : undefined;
 
-    const { data: existing, error: fetchError } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('id', contactId)
-        .maybeSingle();
-    if (fetchError) return { success: false, error: fetchError.message };
+    if (!contactId && !findByName) {
+        return { success: false, error: 'Ange contact_id eller find_by_name — gissa inte ett UUID' };
+    }
+
+    let existing: Record<string, unknown> | null = null;
+
+    if (contactId) {
+        const { data, error } = await supabase
+            .from('contacts')
+            .select('*')
+            .eq('id', contactId)
+            .maybeSingle();
+        if (error) return { success: false, error: error.message };
+        if (!data) {
+            return {
+                success: false,
+                error: `Ingen kontakt med id ${contactId}. Om du inte har ett verifierat UUID: använd find_by_name med kontaktens namn i stället.`,
+            };
+        }
+        existing = data;
+    } else {
+        // Namnuppslagning. Måste vara entydig — annars riskerar vi att skriva på fel kort.
+        const { data, error } = await supabase
+            .from('contacts')
+            .select('*')
+            .ilike('name', `%${findByName}%`)
+            .limit(6);
+        if (error) return { success: false, error: error.message };
+        if (!data || data.length === 0) {
+            return { success: false, error: `Ingen kontakt matchar namnet "${findByName}"` };
+        }
+        if (data.length > 1) {
+            const candidates = data.map(c => `${c.name} (id: ${c.id})`).join('; ');
+            return {
+                success: false,
+                error: `"${findByName}" matchar ${data.length} kontakter — precisera eller skicka contact_id. Kandidater: ${candidates}`,
+            };
+        }
+        existing = data[0];
+    }
+
+    // Båda grenarna ovan sätter `existing` eller returnerar — denna vakt är för typaren.
     if (!existing) return { success: false, error: 'Kontakt hittades inte' };
+    const resolvedId = String(existing.id);
 
     const updates: Record<string, unknown> = {};
     const changedFields: string[] = [];
@@ -907,19 +945,19 @@ async function handleUpdateContact(args: Record<string, unknown>): Promise<ToolR
     const { data: updated, error: updateError } = await supabase
         .from('contacts')
         .update(updates)
-        .eq('id', contactId)
+        .eq('id', resolvedId)
         .select('*')
         .single();
     if (updateError) return { success: false, error: updateError.message };
 
     await supabase.from('activities').insert({
-        customer_id: existing.customer_id ?? null,
+        customer_id: (existing.customer_id as string | null) ?? null,
         agent: 'alex',
         action: 'contact.updated',
         event_type: 'contact',
         severity: 'info',
         autonomy_level: 'ACT',
-        details: { contact_id: contactId, contact_name: existing.name, changed_fields: changedFields },
+        details: { contact_id: resolvedId, contact_name: existing.name, changed_fields: changedFields },
     });
 
     return { success: true, data: { contact: updated, changed_fields: changedFields } };

@@ -46,6 +46,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 
+# Commit-sha bakas in så /health kan svara på VILKEN commit som kör.
+# Render exponerar env som build-args när ARG deklareras (samma mekanism som
+# VITE_GATEWAY_TOKEN ovan). Sätts den inte faller koden tillbaka på runtime-env.
+ARG RENDER_GIT_COMMIT=
+ENV GIT_COMMIT=$RENDER_GIT_COMMIT
+
 COPY backend/package*.json ./
 
 # Production deps only
