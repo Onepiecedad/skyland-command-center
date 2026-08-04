@@ -1,5 +1,26 @@
 # Felsökning: varför Alex rapporterar mer än den utför
 
+> ## ✅ ÅTGÄRDAT OCH SKARPTESTAT (2026-08-04)
+>
+> Alla fem punkterna nedan är implementerade, pushade och deployade:
+> commits `15d6415` (riktigt verktygsprotokoll — `ToolCall.id`, `role: 'tool'`
+> med `tool_call_id`, delad mappning i nya `llm/toolProtocol.ts`; avsiktstext
+> från verktygsrundor sätts aldrig som slutsvar; rapporteringsregler flyttade
+> till systemprompten; `incomplete`-flagga; deterministiskt "Faktiskt utfört"-
+> kvitto byggt från verktygsresultaten), `699cf7b` (`name` + `find_by_name` i
+> `update_contact`, commit-sha i `/health`), `274f0c7`, `442f25a`. Prod på
+> Render kör `442f25a` sedan 2026-08-01. Backend-sviten grön (189/189).
+>
+> **Skarptest 2026-08-04 mot All Gold-kortet (⌘J-chatten), två körningar:**
+> sex instruktioner varav en medvetet omöjlig (radera obefintligt kort) —
+> Alex redovisade varje punkt med korrekt utfall, flaggade den omöjliga ärligt,
+> och kvittorutan matchade exakt vad databasen visade (verifierat mot
+> ögonblicksbild i Supabase före/efter). Städrundan (namnbyte tillbaka,
+> tagg-borttagning, nyckelradering med null) likaså 100 % korrekt.
+> Symptomet "rapporterar mer än den utför" är därmed verifierat borta.
+>
+> Dokumentet nedan behålls som diagnos-referens.
+
 **Datum:** 1 augusti 2026
 **Metod:** kodgranskning av `backend/src/services/alexBrain.ts`, `backend/src/llm/tools.ts`, `backend/src/llm/adapter.ts` och `openrouterAdapter.ts`. Ingen körning, ingen logginspektion.
 
