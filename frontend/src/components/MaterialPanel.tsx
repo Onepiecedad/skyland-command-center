@@ -70,14 +70,37 @@ export default function MaterialPanel({ contactId }: MaterialPanelProps) {
 
     const openAsset = useCallback(async (a: StudioAsset) => {
         if (!a.url) return;
-        const isHtml = /\.html?$/i.test(a.storage_path) || (a.mime?.includes('html') ?? false) || a.kind === 'landing' || a.kind === 'one-pager';
-        if (!isHtml) { window.open(a.url, '_blank'); return; }
-        // Supabase serverar HTML som text/plain (säkerhet). Hämta och öppna som
-        // en text/html-blob så sidan renderas och åäö blir rätt.
+        // Avgör på FAKTISK filtyp (ändelse/mime) — aldrig på kind. En one-pager
+        // kan vara en .docx: att tvinga den genom HTML-vägen renderar rå binärtext.
+        const isHtml = /\.html?$/i.test(a.storage_path) || (a.mime?.includes('html') ?? false);
+        if (isHtml) {
+            // Supabase serverar HTML som text/plain (säkerhet). Hämta och öppna som
+            // en text/html-blob så sidan renderas och åäö blir rätt.
+            try {
+                const res = await fetch(a.url);
+                const buf = await res.arrayBuffer();
+                window.open(URL.createObjectURL(new Blob([buf], { type: 'text/html;charset=utf-8' })), '_blank');
+            } catch {
+                window.open(a.url, '_blank');
+            }
+            return;
+        }
+        // Typer webbläsaren kan visa öppnas i ny flik; allt annat (docx, xlsx,
+        // zip …) laddas ner med rätt filnamn i stället för att bli binärtext.
+        const viewable = (a.mime
+            ? /^(image|video|audio|text)\//.test(a.mime) || a.mime === 'application/pdf'
+            : /\.(pdf|png|jpe?g|gif|webp|svg|mp4|webm|txt|md)$/i.test(a.storage_path));
+        if (viewable) { window.open(a.url, '_blank'); return; }
         try {
             const res = await fetch(a.url);
-            const buf = await res.arrayBuffer();
-            window.open(URL.createObjectURL(new Blob([buf], { type: 'text/html;charset=utf-8' })), '_blank');
+            const blob = await res.blob();
+            const filename = a.storage_path.split('/').pop()?.replace(/^\d+_/, '') || a.title;
+            const href = URL.createObjectURL(new Blob([blob], { type: a.mime || 'application/octet-stream' }));
+            const dl = document.createElement('a');
+            dl.href = href;
+            dl.download = filename;
+            dl.click();
+            URL.revokeObjectURL(href);
         } catch {
             window.open(a.url, '_blank');
         }
