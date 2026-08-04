@@ -85,11 +85,25 @@ export default function MaterialPanel({ contactId }: MaterialPanelProps) {
             }
             return;
         }
+        // Text (md/txt) serveras utan charset av Storage → webbläsaren gissar
+        // Latin-1 och åäö blir mojibake. Samma blob-trick som för HTML, fast
+        // som text/plain så markdown inte tolkas som markup.
+        const isText = (a.mime?.startsWith('text/') ?? false) || /\.(md|txt)$/i.test(a.storage_path);
+        if (isText) {
+            try {
+                const res = await fetch(a.url);
+                const buf = await res.arrayBuffer();
+                window.open(URL.createObjectURL(new Blob([buf], { type: 'text/plain;charset=utf-8' })), '_blank');
+            } catch {
+                window.open(a.url, '_blank');
+            }
+            return;
+        }
         // Typer webbläsaren kan visa öppnas i ny flik; allt annat (docx, xlsx,
         // zip …) laddas ner med rätt filnamn i stället för att bli binärtext.
         const viewable = (a.mime
-            ? /^(image|video|audio|text)\//.test(a.mime) || a.mime === 'application/pdf'
-            : /\.(pdf|png|jpe?g|gif|webp|svg|mp4|webm|txt|md)$/i.test(a.storage_path));
+            ? /^(image|video|audio)\//.test(a.mime) || a.mime === 'application/pdf'
+            : /\.(pdf|png|jpe?g|gif|webp|svg|mp4|webm)$/i.test(a.storage_path));
         if (viewable) { window.open(a.url, '_blank'); return; }
         try {
             const res = await fetch(a.url);

@@ -1,11 +1,24 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-07-27
+> Senast uppdaterad: 2026-08-04
 
 > ## 🧭 BÖRJA HÄR (nuläge, läs först)
 > Ny session? Läs dessa i ordning innan du gör något:
-> 1. `docs/HANDOVER_2026-07-27.md` — SENASTE läget: **annonssystemet steg 1+2 KLARA.**
+> 1. `docs/HANDOVER_2026-08-04.md` — SENASTE läget: **(a) Alex-överrapporteringen
+>    ÅTGÄRDAD + skarptestad** (riktigt verktygsprotokoll, kvittoruta; prod kör
+>    fix-committen sedan 1/8; testfallet All Gold 2×100 %). **(b) NY KUND: GKMK**
+>    (Göteborgs Krav Maga Klubb, kampsport-vertikal, Sales-pipelinen → Won) —
+>    Meta Lead Ads-kampanj, mål live v.34; VIKTIGT: klubben ringer sina leads
+>    SJÄLVA (skillnad mot tattoo-modellen); 8 todos, paketet till Peter förfaller
+>    5/8 + affärsfrågan (pro bono/betalt?) oställd. **(c) NY SKILL `video-watch`**
+>    — Alex kan se video (bildrutor + Whisper-transkript); skarptestad. **(d)
+>    SPARLAGER:** `ad_library.video_analysis` (strukturerat schema) +
+>    `save_analysis.py` (→ ad_library eller kortets Materialflik); ad-intel +
+>    scc-crm har vidarepekare (kanon: vinnande skill pekar vidare). Kryptonite:
+>    pitch skickad, väntar tumme upp, uppföljning 7/8. Webchat-Alex kör `main`
+>    på Kimi K2.5 — svag routing, nämn skills vid namn.
+> 2. `docs/HANDOVER_2026-07-27.md` — bakgrund: **annonssystemet steg 1+2 KLARA.**
 >    Skill `ad-intel` i drift (Meta Ad Library → tabell `ad_library` i Supabase, RLS på),
 >    681 annonser scrapade (SE, tattoo+beauty). Terräng: av 65 CRM-kort annonserar 1
 >    (Gothenburg Tattoo, 229 dgr på MEXPAND-mallen ordagrant); beauty har mönstervolymen
@@ -30,21 +43,21 @@
 >    prospect-research tills den uppdaterats; övriga 13 avstängda tillägg tas vid
 >    behov. OBS: Terminalens default-`openclaw` kraschar (Homebrew-node@22 +
 >    libsimdjson) — använd nvm-binären `~/.nvm/versions/node/v24.18.0/bin/openclaw`.
-> 2. `docs/HANDOVER_2026-07-24.md` — bakgrund: **SCC→OpenClaw-dispatchen fullt driftsatt +
+> 3. `docs/HANDOVER_2026-07-24.md` — bakgrund: **SCC→OpenClaw-dispatchen fullt driftsatt +
 >    testad end-to-end** (pull-modell: `OPENCLAW_DISPATCH_MODE=pull` i Render + poller på Macen via
 >    launchd `com.skyland.scc-poller`). Sex grindar lagade (montering `/api/v1`, agent-registrering,
 >    sessionKey `hook:`, py3.9). Två-Alexar: verktygen finns på server-Alex (⌘J-docken), inte
 >    gateway-Alex. Öppna trådar: Apify-kredit slut, kundlösa produce-tasks syns ej i approval-UI.
-> 3. `docs/HANDOVER_2026-07-23.md` — bakgrund: affärsmodell-byte (annonsbudget-modellen),
+> 4. `docs/HANDOVER_2026-07-23.md` — bakgrund: affärsmodell-byte (annonsbudget-modellen),
 >    material-arkiv (Fas 2), `produce_package` (Fas 3), Borås, Scrapling-omkopplat research-flöde.
 >    **Del 2:** beauty-vertikalen byggd (Prospecting (Beauty) i prod) + ads_pipeline + sync_skills.sh.
-> 4. `docs/HANDOVER_2026-07-19.md` — bakgrund: röststyrning, mobil-UX, IG-DM-autologg,
+> 5. `docs/HANDOVER_2026-07-19.md` — bakgrund: röststyrning, mobil-UX, IG-DM-autologg,
 >    integrationsvakt + de första varma svaren från marknaden.
-> 5. `docs/HANDOVER_2026-07-18.md` — bakgrund: hela prospekteringsmaskinen komplett
+> 6. `docs/HANDOVER_2026-07-18.md` — bakgrund: hela prospekteringsmaskinen komplett
 >    (discover/prospect/dm/batch-pipelines, 52 kort över 7 orter, 47 validerade DM).
-> 6. `docs/HANDOVER-CRM-F1-och-leadlista.md` — bakgrund: F1 CRM-kärnan, affärsmodellen
+> 7. `docs/HANDOVER-CRM-F1-och-leadlista.md` — bakgrund: F1 CRM-kärnan, affärsmodellen
 >    (kursen/MEXPAND), GHL-strategin, öppna beslut.
-> 7. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
+> 8. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
 >
 > **Var vi står (2026-07-23):** Prospekteringsmaskinen är FLERVERTIKAL — tattoo (skarp drift:
 > 60+ kort, 8 öppnare kvar i kö, 4 varma dialoger) och beauty (byggd, väntar på BV-8-pilot +
