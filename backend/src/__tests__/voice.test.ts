@@ -19,9 +19,19 @@ import request from 'supertest';
 import './helpers/mockSupabase';
 import voiceRouter from '../routes/voice';
 
+const TOKEN = 'test-token-abc123'; // = SCC_API_TOKEN i testmiljön
+
 function makeApp(): Express {
     const app = express();
     app.use(express.json());
+    // SEC-02 (2026-08-10): voice-routern kräver numera delad hemlighet. De här
+    // testerna handlar om verktygskontraktet, inte om auth — själva grinden
+    // täcks av sharedSecretAuth.test.ts. Sätt därför en giltig token på varje
+    // anrop så kontrakts-assertionerna nedan står kvar oförändrade.
+    app.use((req, _res, next) => {
+        req.headers.authorization = `Bearer ${TOKEN}`;
+        next();
+    });
     app.use('/api/v1/voice', voiceRouter);
     return app;
 }

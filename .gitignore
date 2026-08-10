@@ -37,3 +37,7 @@ backend/coverage/ # täckningsrapporten ska inte in i repot
 
 frontend/test-results/
 frontend/playwright-report/
+
+# SEC-06: rotationslappar innehåller LIVE-hemligheter — får aldrig committas
+ROTATION_*.txt
+_to_delete/

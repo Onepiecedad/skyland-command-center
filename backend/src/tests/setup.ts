@@ -19,6 +19,14 @@ process.env.AUTH_SESSION_SECRET = 'test-session-secret';
 // Webhook-tokens: sätts deterministiskt så pre-auth-routrarna valideras mot ett
 // känt värde i stället för det som råkar ligga i backend/.env.
 process.env.LEADS_INTAKE_TOKEN = 'test-token-abc123';
+process.env.EMAIL_INBOUND_TOKEN = 'test-token-abc123';
+process.env.CALCOM_WEBHOOK_TOKEN = 'test-token-abc123';
+process.env.VOICE_WEBHOOK_TOKEN = 'test-token-abc123';
+process.env.OPENWORK_WEBHOOK_TOKEN = 'test-token-abc123';
+// Escape hatchen i sharedSecretAuth får aldrig vara påslagen under test — då
+// skulle 401/403-testerna tyst gå gröna utan att grinden faktiskt fungerar.
+delete process.env.VOICE_WEBHOOK_TOKEN_ENFORCED;
+delete process.env.OPENWORK_WEBHOOK_TOKEN_ENFORCED;
 
 // Global test setup
 beforeAll(() => {

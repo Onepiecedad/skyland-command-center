@@ -5,11 +5,13 @@
  * POST /logout → nollar cookien.
  *
  * Mountas EFTER globalLimiter men FÖRE authMiddleware (login måste vara öppen).
+ * SEC-05: /login har dessutom en egen strikt limiter (5 försök/15 min/IP).
  * Alla försök loggas som activities.
  */
 
 import { Router, Request, Response } from 'express';
 import { config } from '../config';
+import { loginLimiter } from '../middleware/rateLimiter';
 import { supabase } from '../services/supabase';
 import {
     COOKIE_NAME,
@@ -27,7 +29,7 @@ function cookieFlags(): string {
     return `HttpOnly; Path=/; SameSite=Lax${secure}`;
 }
 
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     if (!config.OPERATOR_PASSWORD || !config.AUTH_SESSION_SECRET) {
         return res.status(501).json({
             error: 'Login är inte konfigurerat (OPERATOR_PASSWORD + AUTH_SESSION_SECRET krävs i env)',

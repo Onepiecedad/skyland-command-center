@@ -11,8 +11,15 @@ import { Router, Request, Response } from 'express';
 import { config } from '../config';
 import { supabase } from '../services/supabase';
 import { runAlexChat } from '../services/alexBrain';
+import { sharedSecretAuth } from '../middleware/sharedSecret';
 
 const router = Router();
+
+// SEC-02: ElevenLabs anropar dessa endpoints. Fram till 2026-08-10 låg de helt
+// oautentiserade mot internet — POST /tools når ask_alex → gateway /hooks/agent
+// med full skill-access och gör direkta Supabase-frågor. Delad hemlighet nu.
+// Konfigureras i ElevenLabs som header `x-voice-token` eller Bearer.
+router.use(sharedSecretAuth({ envName: 'VOICE_WEBHOOK_TOKEN', label: 'voice' }));
 
 // ============================================================================
 // Helpers

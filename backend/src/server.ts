@@ -1,4 +1,4 @@
-import express, { Application } from 'express';
+import express, { Application, RequestHandler } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
@@ -163,11 +163,17 @@ class Server {
    */
   private initializeRoutes(): void {
     // API Documentation (Swagger UI)
+    // SEC-04: hela API-kartan låg publikt läsbar i prod. Kräver auth där, om
+    // den inte uttryckligen öppnas med ENABLE_API_DOCS=true. Öppen i dev.
     const openApiDoc = generateOpenApiDoc();
-    this.app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openApiDoc));
+    const docsPublic =
+      process.env.NODE_ENV !== 'production' || process.env.ENABLE_API_DOCS === 'true';
+    const docsGuard: RequestHandler[] = docsPublic ? [] : [authMiddleware];
+
+    this.app.use('/api-docs', ...docsGuard, swaggerUi.serve, swaggerUi.setup(openApiDoc));
 
     // Serve OpenAPI spec as JSON
-    this.app.get('/api-docs.json', (_req, res) => {
+    this.app.get('/api-docs.json', ...docsGuard, (_req, res) => {
       res.setHeader('Content-Type', 'application/json');
       res.send(openApiDoc);
     });
@@ -176,15 +182,17 @@ class Server {
     this.app.use('/health', healthRouter);
 
     // Legacy API routes (used by Alex tab via axiosConfig baseURL: '/api')
-    this.app.use('/api/skills', skillsRouter);
-    this.app.use('/api/activities', activitiesRouter);
+    // SEC-04: dessa returnerade data helt oautentiserat. Nu bakom samma
+    // authMiddleware som /api/v1 (Bearer, ?token= eller sessionscookie).
+    this.app.use('/api/skills', authMiddleware, skillsRouter);
+    this.app.use('/api/activities', authMiddleware, activitiesRouter);
 
     // ================================================================
     // Routes with their OWN auth or external callers — mounted BEFORE
     // the global auth middleware:
     //  - /leads: validates Bearer LEADS_INTAKE_TOKEN itself (n8n → SCC)
-    //  - /webhooks/openwork: external callback (TODO: add signature check)
-    //  - /voice: called by ElevenLabs tool webhooks (TODO: add shared secret)
+    //  - /webhooks/openwork: extern callback (SEC-03: OPENWORK_WEBHOOK_TOKEN)
+    //  - /voice: ElevenLabs verktygs-webhooks (SEC-02: VOICE_WEBHOOK_TOKEN)
     // ================================================================
     this.app.use('/api/v1/leads', leadsRouter);
     this.app.use('/api/v1/webhooks/openwork', openworkWebhookRouter);

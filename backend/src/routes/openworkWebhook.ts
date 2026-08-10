@@ -1,7 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import { sharedSecretAuth } from '../middleware/sharedSecret';
 
 const router = Router();
+
+// SEC-03: låg helt öppen mot internet fram till 2026-08-10 (POST + GET /events
+// + GET /status). Ingen känd trafik (events_received = 0), så hård spärr.
+router.use(sharedSecretAuth({ envName: 'OPENWORK_WEBHOOK_TOKEN', label: 'openwork' }));
 
 // ============================================================================
 // Openwork Webhook Handler
