@@ -469,6 +469,12 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
                     onSaved={onSaved}
                 />
             )}
+            {custom.dm_bump && (
+                <CopyBlock
+                    title={`Bump — tystnadsuppföljning (skickas efter 10+ dagar utan svar)${custom.dm_bump_created ? ` · ${custom.dm_bump_created}` : ''}`}
+                    text={custom.dm_bump}
+                />
+            )}
             {custom.dm_draft && <CopyBlock title="Äldre utkast (dm_draft)" text={custom.dm_draft} />}
 
             {custom.research_notes && (

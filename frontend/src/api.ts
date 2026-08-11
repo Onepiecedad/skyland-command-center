@@ -1294,6 +1294,9 @@ export interface ContactCustom {
     research_tokens?: number | null;
     dm_draft?: string | null;
     dm_followup?: string | null;
+    dm_bump?: string | null;
+    dm_bump_created?: string | null;
+    dm_bump_source?: string | null;
     rating?: string | null;
     reviews?: string | null;
     niche?: string | null;
