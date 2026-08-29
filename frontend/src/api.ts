@@ -1473,3 +1473,58 @@ export async function setSequenceStatus(id: string, status: SequenceStatus): Pro
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
+
+// ============================================================================
+// Skuggvecka (SCC-46) — granskningsvy över sekvensmotorns loggade utskick
+// ============================================================================
+
+export type ReviewVerdict = 'would_send' | 'would_not_send';
+
+export interface ShadowMessage {
+    id: string;
+    channel: string;
+    direction: string;
+    status: string | null;
+    content: string;
+    to: string | null;
+    review: { verdict: ReviewVerdict; note: string | null; at: string } | null;
+    created_at: string;
+}
+
+export interface ShadowRun {
+    step_type: string;
+    status: string;
+    detail: Record<string, unknown>;
+    ran_at: string;
+}
+
+export interface ShadowEnrollment {
+    enrollment: {
+        id: string; status: string; current_position: number; next_run_at: string | null;
+        exit_reason: string | null; enrolled_at: string; source: string | null;
+    };
+    sequence: { id: string; name: string; status: string | null };
+    contact: {
+        id: string; name: string | null; email: string | null; company: string | null;
+        tags: string[] | null; has_dm: boolean; has_bump: boolean;
+    } | null;
+    next_step: { position: number; type: string; config: Record<string, unknown> } | null;
+    messages: ShadowMessage[];
+    runs: ShadowRun[];
+}
+
+export async function fetchShadowReview(): Promise<ShadowEnrollment[]> {
+    const res = await fetchWithAuth(`${API_BASE}/sequences/shadow-review`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data.enrollments || [];
+}
+
+export async function setShadowReview(messageId: string, verdict: ReviewVerdict | null, note?: string): Promise<void> {
+    const res = await fetchWithAuth(`${API_BASE}/sequences/shadow-review/${messageId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ verdict, note: note ?? null }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}

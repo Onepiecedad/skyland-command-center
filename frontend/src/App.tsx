@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, type ReactNode } from 'react';
-import { LayoutGrid, Target, Workflow, Globe, Briefcase, Archive, Monitor, Puzzle, ScrollText, ListChecks, CalendarDays, Sunrise, LogOut } from 'lucide-react';
+import { LayoutGrid, Target, Workflow, Ghost, Globe, Briefcase, Archive, Monitor, Puzzle, ScrollText, ListChecks, CalendarDays, Sunrise, LogOut } from 'lucide-react';
 import { SegmentedControl } from './components/SegmentedControl';
 import { ParallaxBackground } from './components/ParallaxBackground';
 import { StatusBar } from './components/StatusBar';
@@ -13,6 +13,7 @@ import ArchiveView from './pages/ArchiveView';
 import LeadsView from './pages/LeadsView';
 import CrmView from './pages/CrmView';
 import SequencesView from './pages/SequencesView';
+import ShadowReviewView from './pages/ShadowReviewView';
 import LoggView from './pages/LoggView';
 import TodayView from './pages/TodayView';
 import TodoView from './pages/TodoView';
@@ -188,6 +189,7 @@ function App() {
                                         { key: 'crm', label: 'CRM', icon: <LayoutGrid size={13} strokeWidth={2} />, render: () => <CrmView /> },
                                         { key: 'leads', label: 'Leads', icon: <Target size={13} strokeWidth={2} />, render: () => <LeadsView /> },
                                         { key: 'sequences', label: 'Sekvenser', icon: <Workflow size={13} strokeWidth={2} />, render: () => <SequencesView /> },
+                                        { key: 'shadow', label: 'Skuggvecka', icon: <Ghost size={13} strokeWidth={2} />, render: () => <ShadowReviewView /> },
                                     ]}
                                 />
                             ),

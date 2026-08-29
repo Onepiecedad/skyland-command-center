@@ -22,6 +22,7 @@ const VIEW_TO_PANE: Record<string, PaneTarget> = {
     crm: { pane: 'sales', subview: 'crm' },
     leads: { pane: 'sales', subview: 'leads' },
     sequences: { pane: 'sales', subview: 'sequences' },
+    shadow: { pane: 'sales', subview: 'shadow' },
     customers: { pane: 'customers' },
     website: { pane: 'content', subview: 'website' },
     office: { pane: 'content', subview: 'office' },

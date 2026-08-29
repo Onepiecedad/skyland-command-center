@@ -54,6 +54,119 @@ router.get('/', async (_req: Request, res: Response) => {
     return res.json({ sequences: data ?? [] });
 });
 
+// ============================================================================
+// Skuggvecka (SCC-46) — samlad granskningsvy över alla enrollments:
+// vad motorn loggat (shadow/sent/skip), nästa steg, och operatörens facit
+// per meddelande (messages.metadata.review = { verdict, note, at }).
+// Ligger FÖRE /:id så 'shadow-review' inte tolkas som ett sekvens-id.
+// ============================================================================
+router.get('/shadow-review', async (_req: Request, res: Response) => {
+    try {
+        const { data: enrs, error: eErr } = await supabase
+            .from('sequence_enrollments')
+            .select('id, sequence_id, contact_id, status, current_position, next_run_at, exit_reason, enrolled_at, context')
+            .order('enrolled_at', { ascending: false })
+            .limit(200);
+        if (eErr) return res.status(500).json({ error: eErr.message });
+        const enrollments = enrs ?? [];
+        if (!enrollments.length) return res.json({ enrollments: [], sequences: [] });
+
+        const seqIds = Array.from(new Set(enrollments.map(e => e.sequence_id)));
+        const contactIds = Array.from(new Set(enrollments.map(e => e.contact_id)));
+        const enrIds = enrollments.map(e => e.id);
+
+        const [{ data: seqs }, { data: steps }, { data: contacts }, { data: msgs }, { data: runs }] = await Promise.all([
+            supabase.from('sequences').select('id, name, status').in('id', seqIds),
+            supabase.from('sequence_steps').select('sequence_id, position, type, config').in('sequence_id', seqIds),
+            supabase.from('contacts').select('id, name, email, company, tags, custom').in('id', contactIds),
+            supabase.from('messages')
+                .select('id, channel, direction, status, content, metadata, created_at')
+                .in('metadata->>enrollment_id', enrIds)
+                .order('created_at', { ascending: true }),
+            supabase.from('sequence_step_runs')
+                .select('enrollment_id, step_type, status, detail, ran_at')
+                .in('enrollment_id', enrIds)
+                .order('ran_at', { ascending: true }),
+        ]);
+
+        const seqById = new Map((seqs ?? []).map(s => [s.id, s]));
+        const contactById = new Map((contacts ?? []).map(c => [c.id, c]));
+        const stepsBySeq = new Map<string, { position: number; type: string; config: Record<string, unknown> }[]>();
+        for (const st of steps ?? []) {
+            const arr = stepsBySeq.get(st.sequence_id) ?? [];
+            arr.push(st as { position: number; type: string; config: Record<string, unknown> });
+            stepsBySeq.set(st.sequence_id, arr);
+        }
+        const msgsByEnr = new Map<string, unknown[]>();
+        for (const m of msgs ?? []) {
+            const eid = String((m.metadata as Record<string, unknown> | null)?.enrollment_id ?? '');
+            const arr = msgsByEnr.get(eid) ?? [];
+            arr.push({
+                id: m.id, channel: m.channel, direction: m.direction, status: m.status, content: m.content,
+                to: (m.metadata as Record<string, unknown>)?.to ?? null,
+                review: (m.metadata as Record<string, unknown>)?.review ?? null,
+                created_at: m.created_at,
+            });
+            msgsByEnr.set(eid, arr);
+        }
+        const runsByEnr = new Map<string, unknown[]>();
+        for (const r of runs ?? []) {
+            const arr = runsByEnr.get(r.enrollment_id) ?? [];
+            arr.push({ step_type: r.step_type, status: r.status, detail: r.detail, ran_at: r.ran_at });
+            runsByEnr.set(r.enrollment_id, arr);
+        }
+
+        const out = enrollments.map(e => {
+            const seqSteps = (stepsBySeq.get(e.sequence_id) ?? []).sort((a, b) => a.position - b.position);
+            const next = seqSteps.find(st => st.position === e.current_position) ?? null;
+            const c = contactById.get(e.contact_id);
+            const custom = (c?.custom ?? {}) as Record<string, unknown>;
+            return {
+                enrollment: {
+                    id: e.id, status: e.status, current_position: e.current_position, next_run_at: e.next_run_at,
+                    exit_reason: e.exit_reason, enrolled_at: e.enrolled_at, source: (e.context as Record<string, unknown> | null)?.source ?? null,
+                },
+                sequence: seqById.get(e.sequence_id) ?? { id: e.sequence_id, name: '(okänd)', status: null },
+                contact: c ? {
+                    id: c.id, name: c.name, email: c.email, company: c.company, tags: c.tags,
+                    has_dm: typeof custom.dm_hook === 'string' && custom.dm_hook.trim().length > 0,
+                    has_bump: typeof custom.dm_bump === 'string' && custom.dm_bump.trim().length > 0,
+                } : null,
+                next_step: next ? { position: next.position, type: next.type, config: next.config } : null,
+                messages: msgsByEnr.get(e.id) ?? [],
+                runs: runsByEnr.get(e.id) ?? [],
+            };
+        });
+        return res.json({ enrollments: out, sequences: seqs ?? [] });
+    } catch (err) {
+        logger.error('sequences', `shadow-review: ${err instanceof Error ? err.message : err}`);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+const reviewSchema = z.object({
+    verdict: z.enum(['would_send', 'would_not_send']).nullable(),
+    note: z.string().max(2000).nullish(),
+});
+
+// POST /shadow-review/:messageId — operatörens facit på ett loggat meddelande
+router.post('/shadow-review/:messageId', async (req: Request, res: Response) => {
+    const parsed = reviewSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
+    const { data: m, error: gErr } = await supabase
+        .from('messages').select('id, metadata').eq('id', req.params.messageId).maybeSingle();
+    if (gErr) return res.status(500).json({ error: gErr.message });
+    if (!m) return res.status(404).json({ error: 'Message not found' });
+    const meta = (m.metadata ?? {}) as Record<string, unknown>;
+    const review = parsed.data.verdict
+        ? { verdict: parsed.data.verdict, note: parsed.data.note ?? null, at: new Date().toISOString() }
+        : null;
+    const { error: uErr } = await supabase
+        .from('messages').update({ metadata: { ...meta, review } }).eq('id', m.id);
+    if (uErr) return res.status(500).json({ error: uErr.message });
+    return res.json({ ok: true, review });
+});
+
 // POST / — skapa sekvens (+ steg)
 router.post('/', async (req: Request, res: Response) => {
     const parsed = createSchema.safeParse(req.body);
