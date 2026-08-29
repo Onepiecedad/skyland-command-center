@@ -15,6 +15,7 @@ import { supabase } from '../services/supabase';
 import { config } from '../config';
 import { logger } from '../services/logger';
 import { onReplyReceived } from '../services/sequenceEvents';
+import { addSuppression } from '../services/outreach';
 
 const router = Router();
 
@@ -103,6 +104,48 @@ router.post('/inbound', inboundAuth, async (req: Request, res: Response) => {
     } catch (err) {
         logger.error('emailInbound', `fel: ${err instanceof Error ? err.message : err}`);
         // 200 ändå så leverantören inte spammar retries; felet är loggat
+        return res.status(200).json({ status: 'error_logged' });
+    }
+});
+
+/**
+ * Leveranshändelser (SCC-46) — Resend "email.bounced" / "email.complained".
+ * Bounce/complaint → adressen hamnar i suppression_list och det ursprungliga
+ * utskicket markeras i messages (status bounced/complained via provider_message_id).
+ * Övriga händelser (delivered, opened...) bekräftas men ignoreras.
+ * Samma token-auth som /inbound. TODO: Svix-signatur när skarp.
+ */
+router.post('/events', inboundAuth, async (req: Request, res: Response) => {
+    try {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        const type = String(body.type ?? '');
+        const data = (body.data as Record<string, unknown>) ?? {};
+        const kindMap: Record<string, { reason: string; status: string }> = {
+            'email.bounced': { reason: 'bounce', status: 'bounced' },
+            'email.complained': { reason: 'complaint', status: 'complained' },
+        };
+        const mapped = kindMap[type];
+        if (!mapped) return res.status(200).json({ status: 'ignored', type });
+
+        const toList = Array.isArray(data.to) ? data.to : [data.to];
+        const emails = toList.map(extractEmail).filter((e): e is string => !!e);
+        for (const email of emails) {
+            await addSuppression('email', email, mapped.reason, 'resend_webhook');
+        }
+        const providerId = typeof data.email_id === 'string' ? data.email_id : null;
+        if (providerId) {
+            await supabase.from('messages').update({ status: mapped.status })
+                .eq('provider_message_id', providerId);
+        }
+        await supabase.from('activities').insert({
+            customer_id: null, agent: 'system:email', event_type: 'message',
+            action: `email.${mapped.reason}`, severity: 'warn',
+            details: { emails, provider_message_id: providerId, type },
+        });
+        logger.warn('emailInbound', `${type}: ${emails.join(', ')} → suppression_list`);
+        return res.status(200).json({ status: 'suppressed', emails });
+    } catch (err) {
+        logger.error('emailInbound', `events-fel: ${err instanceof Error ? err.message : err}`);
         return res.status(200).json({ status: 'error_logged' });
     }
 });

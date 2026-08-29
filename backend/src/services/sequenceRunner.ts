@@ -8,12 +8,22 @@
  *
  * Säkerhet: send_email återanvänder samma kill switch (OUTBOUND_ENABLED) + dagliga
  * volymbudget (OUTBOUND_DAILY_LIMIT) som comms.ts.
+ *
+ * Databasreaktivering (SCC-46):
+ * - OUTBOUND_MODE=shadow loggar utskicken som messages.status='shadow' i stället
+ *   för att skicka — sekvensen avancerar som vanligt (skuggvecka).
+ * - send_email/send_sms med config.source='contact_dm' (+ part='opener'|'followup'|'bump',
+ *   valfritt append) tar texten från kortets dm_hook. Mallar kan också använda
+ *   {{dm_opener}} / {{dm_followup}}. Saknas delen → synlig skip (no_dm).
+ * - Suppressionslistan (suppression_list) kontrolleras före varje utskick, även
+ *   i skuggläge. Träff = enrollmenten avslutas med exit_reason='suppressed'.
  */
 
 import { supabase } from './supabase';
 import { config } from '../config';
 import { getEmailProvider } from './email';
 import { getSmsProvider } from './sms';
+import { outboundMode, splitDm, isSuppressed } from './outreach';
 import { logger } from './logger';
 
 const MAX_STEPS_PER_TICK = 50;      // skydd mot oändliga loopar
@@ -65,10 +75,51 @@ interface StepResult {
 
 function render(text: string, contact: ContactRow): string {
     const first = (contact.name || '').trim().split(/\s+/)[0] || '';
+    const dm = splitDm(contact.custom);
     return String(text || '')
         .replace(/\{\{\s*first_name\s*\}\}/gi, first)
         .replace(/\{\{\s*name\s*\}\}/gi, contact.name || '')
-        .replace(/\{\{\s*email\s*\}\}/gi, contact.email || '');
+        .replace(/\{\{\s*email\s*\}\}/gi, contact.email || '')
+        .replace(/\{\{\s*dm_opener\s*\}\}/gi, dm?.opener ?? '')
+        .replace(/\{\{\s*dm_followup\s*\}\}/gi, dm?.followup ?? '');
+}
+
+/** Personaliserat innehåll (databasreaktivering): source='contact_dm' hämtar
+ *  öppnare/uppföljning från kortets dm_hook (som dm_pipeline sparade den).
+ *  Returnerar null om kortet saknar den delen — då hoppas steget synligt. */
+function bodyFromConfig(cfg: Record<string, unknown>, contact: ContactRow, key: 'body' | 'text'): string | null {
+    const source = String(cfg.source ?? 'template');
+    if (source === 'contact_dm') {
+        const dm = splitDm(contact.custom);
+        const which = String(cfg.part ?? 'opener');
+        // 'bump' = tystnadsuppföljningen som bump_pipeline sparar i custom.dm_bump
+        const part = which === 'followup' ? dm?.followup
+            : which === 'bump' ? (typeof contact.custom?.dm_bump === 'string' ? contact.custom.dm_bump.trim() : '')
+            : dm?.opener;
+        if (!part) return null;
+        const suffix = typeof cfg.append === 'string' ? render(cfg.append, contact) : '';
+        return suffix ? `${part}\n\n${suffix}` : part;
+    }
+    const tpl = String(cfg[key] ?? cfg.body ?? '');
+    if (/\{\{\s*dm_(opener|followup)\s*\}\}/i.test(tpl)) {
+        const dm = splitDm(contact.custom);
+        const needsFollowup = /\{\{\s*dm_followup\s*\}\}/i.test(tpl);
+        if (!dm || (needsFollowup && !dm.followup)) return null;
+    }
+    return render(tpl, contact);
+}
+
+/** Skuggläge: logga exakt det som skulle skickats, rör ingen provider. */
+async function logShadow(
+    channel: 'email' | 'sms', enr: EnrollmentRow, contact: ContactRow, to: string, content: string, extra: Record<string, unknown> = {}
+): Promise<StepResult> {
+    await supabase.from('messages').insert({
+        customer_id: contact.customer_id ?? null,
+        role: 'assistant', channel, direction: 'outbound', status: 'shadow',
+        content,
+        metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to, shadow: true, ...extra },
+    });
+    return { status: 'success', control: 'advance', detail: { to, shadow: true } };
 }
 
 function waitMsFromConfig(cfg: Record<string, unknown>): number {
@@ -82,6 +133,7 @@ async function countOutboundToday(): Promise<number> {
         .from('messages')
         .select('id', { count: 'exact', head: true })
         .eq('direction', 'outbound')
+        .neq('status', 'shadow')
         .gte('created_at', start.toISOString());
     return count ?? 0;
 }
@@ -124,21 +176,36 @@ async function logSkip(contact: ContactRow, seqId: string, channel: string, reas
 }
 
 async function execSendEmail(step: StepRow, enr: EnrollmentRow, contact: ContactRow): Promise<StepResult> {
-    if (!config.OUTBOUND_ENABLED) {
+    const mode = outboundMode();
+    if (mode === 'off') {
         return { status: 'failed', control: 'retry', detail: { reason: 'OUTBOUND_ENABLED=false' } };
-    }
-    const sentToday = await countOutboundToday();
-    if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
-        return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
     }
     const to = contact.email || (typeof contact.custom?.email === 'string' ? (contact.custom!.email as string) : null);
     if (!to) { await logSkip(contact, enr.sequence_id, 'email', 'no_email'); return { status: 'skipped', control: 'advance', detail: { reason: 'no_email' } }; }
 
+    // Suppressionslistan gäller ÄVEN i skuggläge — spärrade adresser ska aldrig ens köas.
+    const hit = await isSuppressed('email', to);
+    if (hit) {
+        await logSkip(contact, enr.sequence_id, 'email', `suppressed:${hit.kind}:${hit.reason ?? ''}`);
+        return { status: 'skipped', control: 'exit', detail: { reason: 'suppressed', exit_reason: 'suppressed', hit } };
+    }
+
     const subject = render(String(step.config.subject ?? ''), contact);
-    const body = render(String(step.config.body ?? ''), contact);
+    const body = bodyFromConfig(step.config, contact, 'body');
+    if (body === null) {
+        await logSkip(contact, enr.sequence_id, 'email', 'no_dm');
+        return { status: 'skipped', control: 'advance', detail: { reason: 'no_dm', part: step.config.part ?? 'opener' } };
+    }
     if (!subject.trim() || !body.trim()) {
         await logSkip(contact, enr.sequence_id, 'email', 'empty_email');
         return { status: 'skipped', control: 'advance', detail: { reason: 'empty_email' } };
+    }
+
+    if (mode === 'shadow') return logShadow('email', enr, contact, to, `${subject}\n\n${body}`, { subject });
+
+    const sentToday = await countOutboundToday();
+    if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
+        return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
     }
 
     try {
@@ -161,22 +228,34 @@ async function execSendEmail(step: StepRow, enr: EnrollmentRow, contact: Contact
 }
 
 async function execSendSms(step: StepRow, enr: EnrollmentRow, contact: ContactRow): Promise<StepResult> {
-    if (!config.OUTBOUND_ENABLED) {
+    const mode = outboundMode();
+    if (mode === 'off') {
         return { status: 'failed', control: 'retry', detail: { reason: 'OUTBOUND_ENABLED=false' } };
-    }
-    const sentToday = await countOutboundToday();
-    if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
-        return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
     }
     const phone = contact.phone || (typeof contact.custom?.phone === 'string' ? (contact.custom!.phone as string) : null);
     if (!phone) {
         await logSkip(contact, enr.sequence_id, 'sms', 'no_phone');
         return { status: 'skipped', control: 'advance', detail: { reason: 'no_phone' } };
     }
-    const text = render(String(step.config.text ?? step.config.body ?? ''), contact);
+    const hit = await isSuppressed('phone', phone);
+    if (hit) {
+        await logSkip(contact, enr.sequence_id, 'sms', `suppressed:${hit.kind}:${hit.reason ?? ''}`);
+        return { status: 'skipped', control: 'exit', detail: { reason: 'suppressed', exit_reason: 'suppressed', hit } };
+    }
+    const text = bodyFromConfig(step.config, contact, 'text');
+    if (text === null) {
+        await logSkip(contact, enr.sequence_id, 'sms', 'no_dm');
+        return { status: 'skipped', control: 'advance', detail: { reason: 'no_dm', part: step.config.part ?? 'opener' } };
+    }
     if (!text.trim()) {
         await logSkip(contact, enr.sequence_id, 'sms', 'empty_sms');
         return { status: 'skipped', control: 'advance', detail: { reason: 'empty_sms' } };
+    }
+    if (mode === 'shadow') return logShadow('sms', enr, contact, phone, text);
+
+    const sentToday = await countOutboundToday();
+    if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
+        return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
     }
     try {
         const result = await getSmsProvider().send({ to: phone, text });
@@ -349,7 +428,9 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
 
         if (res.control === 'exit') {
             await supabase.from('sequence_enrollments').update({
-                status: 'exited', exit_reason: step.type === 'exit' ? 'exit_step' : 'branch',
+                status: 'exited',
+                exit_reason: typeof res.detail?.exit_reason === 'string' ? res.detail.exit_reason
+                    : step.type === 'exit' ? 'exit_step' : 'branch',
                 completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
             }).eq('id', enr.id);
             return;

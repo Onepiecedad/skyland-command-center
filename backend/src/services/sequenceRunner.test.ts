@@ -14,6 +14,8 @@ const h = vi.hoisted(() => {
         outboundCount: 0,
         inboundCount: 0,
         contactsUpdateError: null as string | null,
+        suppressed: [] as { kind: string; value: string; reason: string }[],
+        inserted: [] as { table: string; row: Record<string, unknown> }[],
     };
     const emailSend = vi.fn();
     const smsSend = vi.fn();
@@ -21,7 +23,7 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock('../config', () => ({
-    config: { OUTBOUND_ENABLED: true, OUTBOUND_DAILY_LIMIT: 5 },
+    config: { OUTBOUND_ENABLED: true, OUTBOUND_DAILY_LIMIT: 5, OUTBOUND_MODE: 'auto' },
 }));
 
 vi.mock('./email', () => ({ getEmailProvider: () => ({ send: h.emailSend }) }));
@@ -43,6 +45,7 @@ vi.mock('./supabase', () => ({
                                 return chain;
                             },
                             gte: () => chain,
+                            neq: () => chain,
                             contains: () => chain,
                             then: (resolve: (v: unknown) => void) =>
                                 resolve({
@@ -52,7 +55,24 @@ vi.mock('./supabase', () => ({
                         };
                         return chain;
                     },
-                    insert: () => Promise.resolve({ error: null }),
+                    insert: (row: Record<string, unknown>) => {
+                        h.state.inserted.push({ table, row });
+                        return Promise.resolve({ error: null });
+                    },
+                };
+            }
+            if (table === 'suppression_list') {
+                return {
+                    select: () => ({
+                        or: (expr: string) => ({
+                            limit: () => {
+                                const hit = h.state.suppressed.find(
+                                    s => expr.includes(`kind.eq.${s.kind},value.eq.${s.value}`)
+                                );
+                                return Promise.resolve({ data: hit ? [hit] : [], error: null });
+                            },
+                        }),
+                    }),
                 };
             }
             if (table === 'contacts') {
@@ -91,6 +111,9 @@ beforeEach(() => {
     h.state.outboundCount = 0;
     h.state.inboundCount = 0;
     h.state.contactsUpdateError = null;
+    h.state.suppressed = [];
+    h.state.inserted = [];
+    (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'auto';
     h.emailSend.mockReset().mockResolvedValue({ providerMessageId: 'p-1' });
     h.smsSend.mockReset().mockResolvedValue({ providerMessageId: 's-1' });
 });
@@ -211,5 +234,139 @@ describe('execStep — förgrening & avslut', () => {
         const res = await execStep(step('foo_bar'), enr, contact, ENROLLED_AT);
         expect(res.status).toBe('skipped');
         expect(res.control).toBe('advance');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// SCC-46 databasreaktivering: personaliserat innehåll, skuggläge, suppression
+// ---------------------------------------------------------------------------
+
+const DM = 'Hej Anna! Såg era healed results.\nHur ser beläggningen ut?\n---\nTjena igen! Kort version: provision per bokning.';
+const withDm = { ...contact, custom: { dm_hook: DM } };
+
+describe('execStep — source=contact_dm (kortets dm_hook)', () => {
+    it('opener från kortet, ämnesrad från config', async () => {
+        const res = await execStep(step('send_email', { source: 'contact_dm', subject: 'Snabb fråga, {{first_name}}' }), enr, withDm, ENROLLED_AT);
+        expect(res.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledWith(expect.objectContaining({
+            subject: 'Snabb fråga, Anna',
+            text: 'Hej Anna! Såg era healed results.\nHur ser beläggningen ut?',
+        }));
+    });
+
+    it('followup + append renderas efter texten', async () => {
+        const res = await execStep(
+            step('send_email', { source: 'contact_dm', part: 'followup', subject: 'Re', append: '/ Joakim' }),
+            enr, withDm, ENROLLED_AT
+        );
+        expect(res.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledWith(expect.objectContaining({
+            text: 'Tjena igen! Kort version: provision per bokning.\n\n/ Joakim',
+        }));
+    });
+
+    it('part=bump tar custom.dm_bump, saknas → no_dm', async () => {
+        const withBump = { ...contact, custom: { dm_hook: DM, dm_bump: 'Såg att kuren är fem tillfällen, hur många brukar ta alla fem?' } };
+        const ok = await execStep(step('send_email', { source: 'contact_dm', part: 'bump', subject: 'Re' }), enr, withBump, ENROLLED_AT);
+        expect(ok.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('fem tillfällen') }));
+        const miss = await execStep(step('send_email', { source: 'contact_dm', part: 'bump', subject: 'Re' }), enr, withDm, ENROLLED_AT);
+        expect(miss.detail).toMatchObject({ reason: 'no_dm', part: 'bump' });
+    });
+
+    it('kort utan dm_hook → skipped/advance no_dm, ingen provider', async () => {
+        const res = await execStep(step('send_email', { source: 'contact_dm', subject: 'x' }), enr, contact, ENROLLED_AT);
+        expect(res.status).toBe('skipped');
+        expect(res.control).toBe('advance');
+        expect(res.detail).toMatchObject({ reason: 'no_dm' });
+        expect(h.emailSend).not.toHaveBeenCalled();
+    });
+
+    it('dm_hook utan --- ger opener men ingen followup → followup-steget hoppas', async () => {
+        const onlyOpener = { ...contact, custom: { dm_hook: 'Bara öppnare' } };
+        const res = await execStep(step('send_email', { source: 'contact_dm', part: 'followup', subject: 'x' }), enr, onlyOpener, ENROLLED_AT);
+        expect(res.detail).toMatchObject({ reason: 'no_dm', part: 'followup' });
+    });
+
+    it('mall med {{dm_opener}} fungerar, saknad del hoppas', async () => {
+        const ok = await execStep(step('send_email', { subject: 'x', body: '{{dm_opener}}\n\nMvh' }), enr, withDm, ENROLLED_AT);
+        expect(ok.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('healed results') }));
+        const miss = await execStep(step('send_email', { subject: 'x', body: '{{dm_followup}}' }), enr, contact, ENROLLED_AT);
+        expect(miss.detail).toMatchObject({ reason: 'no_dm' });
+    });
+
+    it('SMS med source=contact_dm tar samma text', async () => {
+        const res = await execStep(step('send_sms', { source: 'contact_dm' }), enr, withDm, ENROLLED_AT);
+        expect(res.status).toBe('success');
+        expect(h.smsSend).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('Hej Anna!') }));
+    });
+});
+
+describe('execStep — OUTBOUND_MODE=shadow', () => {
+    beforeEach(() => { (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'shadow'; });
+
+    it('loggar messages.status=shadow, rör ingen provider, avancerar', async () => {
+        const res = await execStep(step('send_email', { subject: 'Hej {{first_name}}', body: 'Text' }), enr, contact, ENROLLED_AT);
+        expect(res).toMatchObject({ status: 'success', control: 'advance', detail: { shadow: true, to: 'anna@example.se' } });
+        expect(h.emailSend).not.toHaveBeenCalled();
+        const msg = h.state.inserted.find(i => i.table === 'messages')?.row;
+        expect(msg).toMatchObject({ status: 'shadow', direction: 'outbound', channel: 'email', content: 'Hej Anna\n\nText' });
+        expect((msg?.metadata as Record<string, unknown>).shadow).toBe(true);
+    });
+
+    it('skugga ignorerar dagsbudgeten (hela volymen ska synas)', async () => {
+        h.state.outboundCount = 99;
+        const res = await execStep(step('send_email', { subject: 'x', body: 'y' }), enr, contact, ENROLLED_AT);
+        expect(res.status).toBe('success');
+        expect(res.detail).toMatchObject({ shadow: true });
+    });
+
+    it('shadow öppnar INTE kill switchen: OUTBOUND_ENABLED=false vinner', async () => {
+        config.OUTBOUND_ENABLED = false;
+        const res = await execStep(step('send_email', { subject: 'x', body: 'y' }), enr, contact, ENROLLED_AT);
+        expect(res.status).toBe('success');
+        expect(res.detail).toMatchObject({ shadow: true });
+        expect(h.emailSend).not.toHaveBeenCalled();
+    });
+
+    it('SMS skuggas också', async () => {
+        const res = await execStep(step('send_sms', { text: 'Hej' }), enr, contact, ENROLLED_AT);
+        expect(res.detail).toMatchObject({ shadow: true, to: '070-1234567' });
+        expect(h.smsSend).not.toHaveBeenCalled();
+    });
+});
+
+describe('execStep — suppression_list', () => {
+    it('spärrad adress → skipped + exit (suppressed), även i skuggläge', async () => {
+        h.state.suppressed = [{ kind: 'email', value: 'anna@example.se', reason: 'existing_customer' }];
+        (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'shadow';
+        const res = await execStep(step('send_email', { subject: 'x', body: 'y' }), enr, contact, ENROLLED_AT);
+        expect(res.status).toBe('skipped');
+        expect(res.control).toBe('exit');
+        expect(res.detail).toMatchObject({ reason: 'suppressed', exit_reason: 'suppressed' });
+        expect(h.emailSend).not.toHaveBeenCalled();
+        expect(h.state.inserted.find(i => i.table === 'messages')).toBeUndefined();
+    });
+
+    it('domänspärr träffar alla adresser på domänen', async () => {
+        h.state.suppressed = [{ kind: 'domain', value: 'example.se', reason: 'existing_customer' }];
+        const res = await execStep(step('send_email', { subject: 'x', body: 'y' }), enr, contact, ENROLLED_AT);
+        expect(res.control).toBe('exit');
+        expect(h.emailSend).not.toHaveBeenCalled();
+    });
+
+    it('telefon normaliseras (mellanslag/bindestreck) före uppslag', async () => {
+        h.state.suppressed = [{ kind: 'phone', value: '0701234567', reason: 'opted_out' }];
+        const res = await execStep(step('send_sms', { text: 'Hej' }), enr, contact, ENROLLED_AT);
+        expect(res.control).toBe('exit');
+        expect(h.smsSend).not.toHaveBeenCalled();
+    });
+
+    it('ingen träff → skickar som vanligt', async () => {
+        h.state.suppressed = [{ kind: 'email', value: 'annan@example.org', reason: 'bounce' }];
+        const res = await execStep(step('send_email', { subject: 'x', body: 'y' }), enr, contact, ENROLLED_AT);
+        expect(res.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledTimes(1);
     });
 });

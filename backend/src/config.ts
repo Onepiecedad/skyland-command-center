@@ -80,6 +80,9 @@ const envSchema = z.object({
         .default('false')
         .transform((v) => v === 'true'),
     OUTBOUND_DAILY_LIMIT: z.coerce.number().default(5),
+    // 'shadow' = logga vad som skulle skickats (messages.status='shadow'), skicka inget.
+    // Kan bara göra systemet försiktigare: live kräver fortfarande OUTBOUND_ENABLED=true.
+    OUTBOUND_MODE: z.enum(['auto', 'shadow']).default('auto'),
 
     // --- Sekvensmotor (SCC-41/42) ---
     SEQUENCE_RUNNER_ENABLED: z
