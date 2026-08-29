@@ -69,17 +69,32 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 8 }}>
                 {messages.map((m) => {
                     const outbound = m.direction === 'outbound' || m.role === 'assistant';
+                    // Skuggläge (SCC-46): det här mejlet skickades ALDRIG — det är vad
+                    // sekvensmotorn hade skickat. Streckad ram + tydlig stämpel så det
+                    // aldrig förväxlas med ett riktigt utskick.
+                    const shadow = m.status === 'shadow';
+                    const bounced = m.status === 'bounced' || m.status === 'complained';
                     return (
                         <div key={m.id} style={{ display: 'flex', justifyContent: outbound ? 'flex-end' : 'flex-start' }}>
                             <div style={{
                                 maxWidth: '78%',
-                                background: outbound ? 'rgba(90,140,255,0.18)' : 'rgba(255,255,255,0.06)',
-                                border: '1px solid rgba(255,255,255,0.08)',
+                                background: shadow ? 'rgba(233,169,74,0.08)' : outbound ? 'rgba(90,140,255,0.18)' : 'rgba(255,255,255,0.06)',
+                                border: shadow ? '1px dashed rgba(233,169,74,0.6)' : bounced ? '1px solid rgba(255,107,107,0.6)' : '1px solid rgba(255,255,255,0.08)',
                                 borderRadius: 12,
                                 padding: '8px 12px',
                             }}>
                                 <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 3 }}>
                                     {channelIcon[m.channel] || '•'} {m.channel} · {new Date(m.created_at).toLocaleString('sv-SE')}
+                                    {shadow && (
+                                        <span style={{ marginLeft: 8, padding: '1px 6px', borderRadius: 6, background: 'rgba(233,169,74,0.25)', color: '#E9A94A', fontWeight: 600, letterSpacing: 0.5 }}>
+                                            SKUGGA · ej skickat
+                                        </span>
+                                    )}
+                                    {bounced && (
+                                        <span style={{ marginLeft: 8, padding: '1px 6px', borderRadius: 6, background: 'rgba(255,107,107,0.25)', color: '#ff6b6b', fontWeight: 600 }}>
+                                            {m.status === 'bounced' ? 'STUDSADE' : 'KLAGOMÅL'}
+                                        </span>
+                                    )}
                                 </div>
                                 <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.content}</div>
                             </div>

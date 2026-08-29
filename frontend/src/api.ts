@@ -1334,6 +1334,8 @@ export interface ConversationMessage {
     role: 'user' | 'assistant' | 'system';
     channel: 'chat' | 'voice' | 'email' | 'sms' | 'whatsapp' | 'webhook';
     direction: 'internal' | 'inbound' | 'outbound';
+    /** 'shadow' = skuggläge (SCC-46): loggat men aldrig skickat */
+    status?: 'queued' | 'sent' | 'failed' | 'delivered' | 'bounced' | 'complained' | 'shadow' | null;
     content: string;
     created_at: string;
 }
