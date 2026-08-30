@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { supabase } from '../services/supabase';
+import { ilikeOr } from '../utils/postgrest';
 
 const router = Router();
 
@@ -64,7 +65,7 @@ router.get('/', async (req: Request, res: Response) => {
         if (priority) query = query.eq('priority', priority);
         if (tag) query = query.contains('tags', [tag]);
         if (search) {
-            query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+            query = query.or(ilikeOr(['title', 'description'], search));
         }
 
         const { data, error, count } = await query;

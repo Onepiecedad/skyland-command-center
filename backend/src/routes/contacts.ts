@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase';
 import { logger } from '../services/logger';
 import { getAdapter } from '../llm/adapter';
 import { VOICE_PROFILE } from '../llm/voiceProfile';
+import { ilikeOr } from '../utils/postgrest';
 
 /**
  * Contacts API (SCC-23 / SCC-26, F1: CRM-kärnan)
@@ -36,7 +37,7 @@ router.get('/', async (req: Request, res: Response) => {
             query = query.eq('status', status);
         }
         if (search) {
-            query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`);
+            query = query.or(ilikeOr(['name', 'email', 'company'], search));
         }
 
         const { data, error } = await query;
