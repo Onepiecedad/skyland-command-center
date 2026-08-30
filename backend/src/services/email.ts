@@ -9,6 +9,8 @@ export interface OutboundEmail {
     to: string;
     subject: string;
     text: string;
+    /** Valfri HTML-version; text används som fallback för klienter utan HTML. */
+    html?: string;
     from?: string;
     replyTo?: string;
 }
@@ -30,6 +32,7 @@ export interface ResendPayload {
     to: string[];
     subject: string;
     text: string;
+    html?: string;
     reply_to?: string;
 }
 
@@ -48,6 +51,7 @@ export function buildResendPayload(email: OutboundEmail, defaults: { from: strin
     };
     const replyTo = email.replyTo || defaults.replyTo;
     if (replyTo) payload.reply_to = replyTo;
+    if (email.html && email.html.trim()) payload.html = email.html;
     return payload;
 }
 
