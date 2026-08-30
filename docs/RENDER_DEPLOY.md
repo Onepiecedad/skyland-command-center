@@ -1,5 +1,15 @@
 # Render-deploy (SCC-28) — körbok
 
+> **LÄGET I PRODUKTION (verifierat 2026-08-29):** tjänsten heter `scc` i Render-arbetsytan
+> "Joakim's workspace" (Starter, autodeploy från `main`, domän scc.skylandai.se).
+> Miljön där har `RESEND_API_KEY` satt, `SEQUENCE_RUNNER_ENABLED=true` och
+> `OUTBOUND_ENABLED=false` + `OUTBOUND_MODE=shadow` (skuggvecka, SCC-46).
+> **Varje push till main deployas inom en minut och motorn kör direkt.** Skriv ALDRIG
+> in enrollments med `next_run_at=now()` utan att först verifiera dessa tre värden i
+> Render → Environment. 2026-08-29 gick tre mejl ut skarpt av exakt det skälet.
+> Tjänsten `scc-backend` i arbetsytan "My Workspace" (Free, Oregon) är en död dubblett
+> utan miljö och kan tas bort.
+
 > Mål: backend (+ SPA) live på `https://scc.skylandai.se`, ngrok avstängd.
 > Dockerfilen i `backend/Dockerfile` bygger BÅDE frontend och backend till en container.
 
@@ -50,6 +60,9 @@ EMAIL_FROM=Joakim — Skyland AI <joakim@send.skylandai.se>
 EMAIL_REPLY_TO=joakim@skylandai.se
 OUTBOUND_ENABLED=false
 OUTBOUND_DAILY_LIMIT=5
+# Databasreaktivering (SCC-46): shadow = logga, skicka inget. auto = styrs av OUTBOUND_ENABLED.
+OUTBOUND_MODE=shadow
+SEQUENCE_RUNNER_ENABLED=true
 ```
 
 - Sätt INTE `PORT` — Render injicerar den och servern läser env.
