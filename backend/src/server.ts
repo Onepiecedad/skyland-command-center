@@ -51,6 +51,7 @@ import emailInboundRouter from './routes/emailInbound.js';
 import igDmWebhookRouter from './routes/igDmWebhook.js';
 import marinmekanikerWebhookRouter from './routes/marinmekanikerWebhook.js';
 import siteWebhooksRouter from './routes/siteWebhooks.js';
+import bookingsRouter from './routes/bookings.js';
 import calcomWebhookRouter from './routes/calcomWebhook.js';
 import { config } from './config.js';
 import { startSequenceRunner } from './services/sequenceRunner.js';
@@ -232,6 +233,7 @@ class Server {
     this.app.use('/api/v1/skills-db', skillsRouter);           // DB-backed skills (fallback)
     this.app.use('/api/v1/activities', activitiesDbRouter); // Supabase-backed (legacy mock stays at /api/activities)
     this.app.use('/api/v1/todos', todosRouter);            // Operatörens att-göra-lista
+    this.app.use('/api/v1/bookings', bookingsRouter);      // Cal.com-spegel → kalendern (SCC-45)
     this.app.use('/api/v1/customers', customersRouter);
     this.app.use('/api/v1/contacts', contactsRouter);
     this.app.use('/api/v1/studio-assets', studioAssetsRouter); // Studio-material-arkiv (Storage-backat)

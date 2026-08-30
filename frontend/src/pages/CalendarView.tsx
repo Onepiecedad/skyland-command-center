@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { fetchTodos, type Todo } from '../api';
+import { fetchTodos, fetchBookings, type Todo, type Booking } from '../api';
 
 /**
  * CalendarView — "ska ske, tidsbundet"-linsen i cockpit-trion.
  * Månadsvy som aggregerar allt med datum: todos (inkl. auto-genererade
- * möten/uppföljningar) och ops-deadlines. Ren frontend ovanpå todo-API:t.
+ * möten/uppföljningar), ops-deadlines och bokningar (Cal.com-spegeln, SCC-45).
  */
 
 const WEEKDAYS = ['Mån', 'Tis', 'Ons', 'Tor', 'Fre', 'Lör', 'Sön'];
@@ -22,15 +22,20 @@ function sameDay(iso: string, d: Date): boolean {
 
 export default function CalendarView() {
     const [todos, setTodos] = useState<Todo[]>([]);
+    const [bookings, setBookings] = useState<Booking[]>([]);
     const [cursor, setCursor] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
 
     const load = useCallback(async () => {
         try { setTodos(await fetchTodos({ done: 'all', limit: 500 })); }
         catch (err) { console.error('Failed to load calendar todos:', err); }
+        try { setBookings(await fetchBookings()); }
+        catch (err) { console.error('Failed to load calendar bookings:', err); }
     }, []);
     useEffect(() => { void load(); const iv = setInterval(() => void load(), 30000); return () => clearInterval(iv); }, [load]);
 
     const dated = useMemo(() => todos.filter(t => t.due_at), [todos]);
+    const datedBookings = useMemo(() => bookings.filter(b => b.starts_at), [bookings]);
+    const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 
     // 6 veckor (42 celler) med start på måndag
     const cells = useMemo(() => {
@@ -72,6 +77,7 @@ export default function CalendarView() {
                     const inMonth = d.getMonth() === cursor.getMonth();
                     const isToday = sameDay(d.toISOString(), today);
                     const items = dated.filter(t => sameDay(t.due_at as string, d));
+                    const dayBookings = datedBookings.filter(b => sameDay(b.starts_at as string, d));
                     return (
                         <div key={i} style={{
                             border: '1px solid #1e1e1e',
@@ -81,6 +87,20 @@ export default function CalendarView() {
                             <div style={{ fontSize: 12, fontWeight: isToday ? 700 : 400, color: isToday ? '#e0a03a' : '#c7c2b6', textAlign: 'right' }}>
                                 {d.getDate()}
                             </div>
+                            {dayBookings.map(b => {
+                                const dead = b.status === 'cancelled' || b.status === 'no_show';
+                                return (
+                                    <div key={b.id} title={`${b.title || 'Möte'} — ${b.attendee_name || ''} <${b.attendee_email || ''}> (${b.status})`} style={{
+                                        display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 600,
+                                        color: dead ? '#6a6a6a' : '#cfe3cf', textDecoration: dead ? 'line-through' : 'none',
+                                        background: dead ? 'transparent' : 'rgba(80,150,90,0.16)', borderRadius: 3, padding: '1px 4px',
+                                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                    }}>
+                                        <span style={{ fontVariantNumeric: 'tabular-nums', color: '#8fc99a' }}>{timeOf(b.starts_at as string)}</span>
+                                        {b.attendee_name || b.attendee_email || b.title || 'Möte'}
+                                    </div>
+                                );
+                            })}
                             {items.slice(0, 3).map(t => (
                                 <div key={t.id} title={t.title} style={{
                                     display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5,

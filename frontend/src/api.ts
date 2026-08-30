@@ -1536,3 +1536,20 @@ export async function sendApprovedShadow(messageId: string): Promise<{ provider_
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     return data;
 }
+
+// ---- Bokningar (Cal.com-spegel, SCC-45) ----
+export interface Booking {
+    id: string; external_id: string; title: string | null;
+    attendee_email: string | null; attendee_name: string | null;
+    starts_at: string | null; ends_at: string | null;
+    status: 'booked' | 'cancelled' | 'rescheduled' | 'no_show' | string;
+    source: string; contact_id: string | null; customer_id: string | null; created_at: string;
+}
+export async function fetchBookings(params?: { from?: string; to?: string }): Promise<Booking[]> {
+    const q = new URLSearchParams();
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const res = await fetchWithAuth(`${API_BASE}/bookings${q.toString() ? `?${q}` : ''}`);
+    const data = await res.json();
+    return data.bookings || [];
+}

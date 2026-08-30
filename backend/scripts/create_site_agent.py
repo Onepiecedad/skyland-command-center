@@ -62,39 +62,41 @@ for t in TOOLS:
         tid = api('POST', '/v1/convai/tools', t)['id']; print('skapade verktyg', name, tid)
     tool_ids.append(tid)
 
-prompt = open(os.path.join(ROOT, 'scripts', 'site_agent_prompt.md'), encoding='utf-8').read()
-FIRST = 'Välkommen till Skyland — du pratar med vår AI-assistent och samtalet sparas. Vad kan jag hjälpa dig med idag?'
-
-conversation_config = {
-    'agent': {
-        'first_message': FIRST, 'language': 'sv',
-        'prompt': {
-            'prompt': prompt, 'llm': 'gpt-4.1-mini', 'temperature': 0.3, 'tool_ids': tool_ids,
-            'built_in_tools': {
-                'end_call': {'type': 'system', 'name': 'end_call', 'description': 'Avsluta samtalet vänligt när det nått sitt naturliga slut.', 'params': {'system_tool_type': 'end_call'}},
-                'language_detection': {'type': 'system', 'name': 'language_detection', 'description': '', 'params': {'system_tool_type': 'language_detection'}},
+def agent_config(prompt_file, first, lang, voice_id):
+    prompt = open(os.path.join(ROOT, 'scripts', prompt_file), encoding='utf-8').read()
+    return {
+        'agent': {
+            'first_message': first, 'language': lang,
+            'prompt': {
+                'prompt': prompt, 'llm': 'gpt-4.1-mini', 'temperature': 0.3, 'tool_ids': tool_ids,
+                'built_in_tools': {
+                    'end_call': {'type': 'system', 'name': 'end_call', 'description': 'End the call politely when the conversation has naturally concluded.', 'params': {'system_tool_type': 'end_call'}},
+                    'language_detection': {'type': 'system', 'name': 'language_detection', 'description': '', 'params': {'system_tool_type': 'language_detection'}},
+                },
             },
         },
-    },
-    'tts': {'voice_id': '1Iztu4UHnTb9SUjJcpS1', 'model_id': 'eleven_v3_conversational', 'stability': 0.45, 'similarity_boost': 0.75},
-    # Engelska sajten kör samma agent med språk-override (voice.js skickar overrides.agent.language).
-    # TODO: egen engelsk prompt — nu översätter LLM:en den svenska instruktionen i farten.
-    'language_presets': {
-        'en': {'overrides': {'agent': {
-            'first_message': "Welcome to Skyland — you're talking to our AI assistant and this conversation is recorded. What can I help you with today?",
-            'language': 'en',
-        }}},
-    },
-}
+        'tts': {'voice_id': voice_id, 'model_id': 'eleven_v3_conversational', 'stability': 0.45, 'similarity_boost': 0.75},
+    }
+
 # Sajten skickar overrides.agent.firstMessage (konversationsstartare) + language → måste vara tillåtet.
 platform_settings = {'overrides': {'conversation_config_override': {'agent': {'first_message': True, 'language': True}}}}
-NAME = 'Alex (skylandai.se)'
+
+AGENTS = [
+    # Svenska: samma röst som gamla "Alex 4.0 svenska".
+    ('Alex (skylandai.se)', agent_config('site_agent_prompt.md',
+        'Välkommen till Skyland — du pratar med vår AI-assistent och samtalet sparas. Vad kan jag hjälpa dig med idag?', 'sv', '1Iztu4UHnTb9SUjJcpS1')),
+    # Engelska: samma röst som gamla "Alex 4.0 English" (ElevenLabs premade "Sarah", finns i alla konton).
+    ('Alex (skylandai.se, EN)', agent_config('site_agent_prompt_en.md',
+        "Welcome to Skyland — you're talking to our AI assistant and this call is recorded. What can I help you with today?", 'en', 'EXAVITQu4vr4xnSDxMaL')),
+]
+
 agents = {a['name']: a['agent_id'] for a in api('GET', '/v1/convai/agents?page_size=50').get('agents', [])}
-if NAME in agents:
-    aid = agents[NAME]
-    api('PATCH', f'/v1/convai/agents/{aid}', {'conversation_config': conversation_config, 'platform_settings': platform_settings})
-    print('uppdaterade agent', aid)
-else:
-    aid = api('POST', '/v1/convai/agents/create', {'name': NAME, 'conversation_config': conversation_config, 'platform_settings': platform_settings})['agent_id']
-    print('skapade agent', aid)
-print('AGENT_ID', aid)
+for name, cc in AGENTS:
+    if name in agents:
+        aid = agents[name]
+        api('PATCH', f'/v1/convai/agents/{aid}', {'conversation_config': cc, 'platform_settings': platform_settings})
+        print('uppdaterade agent', name, aid)
+    else:
+        aid = api('POST', '/v1/convai/agents/create', {'name': name, 'conversation_config': cc, 'platform_settings': platform_settings})['agent_id']
+        print('skapade agent', name, aid)
+    print('AGENT_ID', cc['agent']['language'], aid)
