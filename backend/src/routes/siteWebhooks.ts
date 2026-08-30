@@ -475,13 +475,16 @@ agentTools.post('/get_available_slots', async (req: Request, res: Response) => {
         const r = await fetch(u, { headers: { Authorization: `Bearer ${apiKey}`, 'cal-api-version': '2024-09-04' }, signal: AbortSignal.timeout(10_000) });
         const j = await r.json().catch(() => ({})) as { data?: Record<string, Array<{ start: string }>>; error?: unknown };
         if (!r.ok) { logger.warn('site.agent', `calcom slots ${r.status}`, { error: j.error }); return res.json({ error: 'Kunde inte hämta lediga tider', slots: [] }); }
+        // Glesa ut: en röstagent ska föreslå ett par tider per dag, inte 24 kvartar samma förmiddag.
         const slots: Array<{ start: string; label: string }> = [];
         for (const day of Object.keys(j.data || {}).sort()) {
-            for (const sl of j.data![day]) {
+            const daySlots = j.data![day];
+            const step = Math.max(1, Math.floor(daySlots.length / 4));
+            for (let i = 0; i < daySlots.length && slots.filter(x => x.start.startsWith(day)).length < 4; i += step) {
+                const sl = daySlots[i];
                 slots.push({ start: sl.start, label: new Date(sl.start).toLocaleString('sv-SE', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) });
-                if (slots.length >= 24) break;
             }
-            if (slots.length >= 24) break;
+            if (slots.length >= 20) break;
         }
         return res.json({ timezone: tz, count: slots.length, slots });
     } catch (e) {
