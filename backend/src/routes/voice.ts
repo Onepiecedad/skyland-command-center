@@ -151,7 +151,7 @@ async function askServerAlex(question: string): Promise<string> {
 // owns the booking outcome instead of it happening outside the system.
 // ============================================================================
 
-interface BookAppointmentArgs {
+export interface BookAppointmentArgs {
     name?: string;
     email?: string;
     start?: string; // ISO 8601 start time
@@ -169,7 +169,7 @@ interface BookAppointmentResult {
     error?: string;
 }
 
-async function bookCalcomAppointment(args: BookAppointmentArgs): Promise<BookAppointmentResult> {
+export async function bookCalcomAppointment(args: BookAppointmentArgs): Promise<BookAppointmentResult> {
     const apiKey = config.CALCOM_API_KEY;
     const eventTypeId = config.CALCOM_EVENT_TYPE_ID;
 

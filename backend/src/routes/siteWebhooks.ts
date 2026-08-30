@@ -18,6 +18,7 @@ import { config } from '../config';
 import { logger } from '../services/logger';
 import { ragQuery } from '../services/siteRag';
 import { ingestLead } from './leads';
+import { bookCalcomAppointment } from './voice';
 
 const router = Router();
 const db = () => websiteSupabase ?? supabase;
@@ -432,5 +433,88 @@ router.post('/voice/call-ended', voiceLimiter, async (req: Request, res: Respons
     if (r.code !== 200) return res.status(r.code).json(r.body);
     return res.json({ status: 'accepted' });
 });
+
+// ---------------------------------------------------------------------------
+// Verktyg för sajtens ElevenLabs-agent (Alex). Webhook-tools i ElevenLabs
+// pekar hit med X-Skyland-Key. Ersätter n8n rag-query + de gamla Cal.com-toolsen.
+// ---------------------------------------------------------------------------
+const agentTools = Router();
+agentTools.use(tokenAuth('SITE_RAG_KEY'));
+
+agentTools.post('/query_knowledge_base', async (req: Request, res: Response) => {
+    const query = str(req.body?.query ?? req.body?.question, 2000);
+    if (!query) return res.json({ matches: [], best_similarity: 0, fallback_reason: 'empty query' });
+    const r = await ragQuery(query);
+    return res.json({ matches: r.matches, best_similarity: r.best_similarity, ...(r.fallback_reason ? { fallback_reason: r.fallback_reason } : {}) });
+});
+
+agentTools.post('/get_current_time', (_req: Request, res: Response) => {
+    const now = new Date();
+    const tz = 'Europe/Stockholm';
+    const end = new Date(now.getTime() + 7 * 86400_000);
+    return res.json({
+        now_iso: now.toISOString(),
+        timezone: tz,
+        local: now.toLocaleString('sv-SE', { timeZone: tz, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        start: now.toISOString(),
+        end: end.toISOString(),
+    });
+});
+
+agentTools.post('/get_available_slots', async (req: Request, res: Response) => {
+    const apiKey = config.CALCOM_API_KEY; const eventTypeId = config.CALCOM_EVENT_TYPE_ID;
+    if (!apiKey || !eventTypeId) return res.json({ error: 'Cal.com är inte konfigurerat', slots: [] });
+    const tz = str(req.body?.timeZone, 60) || 'Europe/Stockholm';
+    const now = new Date();
+    const start = str(req.body?.start, 40) || now.toISOString();
+    const end = str(req.body?.end, 40) || new Date(now.getTime() + 7 * 86400_000).toISOString();
+    try {
+        const u = new URL(`${config.CALCOM_API_BASE_URL}/slots`);
+        u.searchParams.set('eventTypeId', String(eventTypeId));
+        u.searchParams.set('start', start); u.searchParams.set('end', end); u.searchParams.set('timeZone', tz);
+        const r = await fetch(u, { headers: { Authorization: `Bearer ${apiKey}`, 'cal-api-version': '2024-09-04' }, signal: AbortSignal.timeout(10_000) });
+        const j = await r.json().catch(() => ({})) as { data?: Record<string, Array<{ start: string }>>; error?: unknown };
+        if (!r.ok) { logger.warn('site.agent', `calcom slots ${r.status}`, { error: j.error }); return res.json({ error: 'Kunde inte hämta lediga tider', slots: [] }); }
+        const slots: Array<{ start: string; label: string }> = [];
+        for (const day of Object.keys(j.data || {}).sort()) {
+            for (const sl of j.data![day]) {
+                slots.push({ start: sl.start, label: new Date(sl.start).toLocaleString('sv-SE', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) });
+                if (slots.length >= 24) break;
+            }
+            if (slots.length >= 24) break;
+        }
+        return res.json({ timezone: tz, count: slots.length, slots });
+    } catch (e) {
+        logger.warn('site.agent', 'slots failed', { error: String(e) });
+        return res.json({ error: 'Kunde inte hämta lediga tider', slots: [] });
+    }
+});
+
+agentTools.post('/book_meeting', async (req: Request, res: Response) => {
+    const b = req.body || {};
+    const email = str(b.email ?? b.attendeeEmail, 200).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.json({ ok: false, error: 'Ogiltig e-postadress. Läs tillbaka adressen och bekräfta den igen.' });
+    const booking = await bookCalcomAppointment({
+        name: str(b.name ?? b.attendeeName, 120) || undefined,
+        email,
+        start: str(b.start ?? b.startTime, 40) || undefined,
+        phone: str(b.phone, 40) || undefined,
+        notes: str(b.notes, 1000) || undefined,
+        timeZone: str(b.timeZone, 60) || 'Europe/Stockholm',
+        sessionUuid: str(b.session_uuid, 64) || undefined,
+    });
+    if (booking.ok) {
+        logger.info('site.agent', 'booking created', { email, start: booking.start, session: b.session_uuid });
+        await supabase.from('activities').insert({
+            customer_id: null, agent: 'website-voice', action: 'voice.booking.created', event_type: 'booking', severity: 'info', autonomy_level: 'OBSERVE',
+            details: { source: 'site_voice_agent', calcom_booking_uid: booking.bookingUid, start: booking.start, name: b.name, email, session_uuid: b.session_uuid || null },
+        }).then(({ error }) => { if (error) logger.warn('site.agent', 'activity insert failed', { error: error.message }); });
+        const when = booking.start ? new Date(booking.start).toLocaleString('sv-SE', { timeZone: 'Europe/Stockholm', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : 'vald tid';
+        return res.json({ ok: true, message: `Bokat ${when}. Kalenderinbjudan med Google Meet-länk skickas till ${email}.`, start: booking.start });
+    }
+    return res.json({ ok: false, error: booking.error });
+});
+
+router.use('/agent-tools', agentTools);
 
 export default router;
