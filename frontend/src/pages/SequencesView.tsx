@@ -122,6 +122,12 @@ export default function SequencesView() {
                                     </div>
                                     <div style={{ color: '#8e8b7e', fontSize: 13, marginTop: 4, fontFamily: 'monospace' }}>
                                         {s.status.toUpperCase()} · trigger: {s.trigger_type}
+                                        {s.outbound_policy === 'transactional' && (
+                                            <span title="Går ut trots OUTBOUND_ENABLED=false / skuggläge (mottagaren har själv bokat)"
+                                                style={{ marginLeft: 8, padding: '1px 6px', borderRadius: 4, background: 'rgba(233,169,74,0.18)', color: '#E9A94A' }}>
+                                                TRANSAKTIONELL
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: 8 }} onClick={(e) => e.stopPropagation()}>

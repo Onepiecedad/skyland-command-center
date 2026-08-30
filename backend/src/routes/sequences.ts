@@ -37,6 +37,8 @@ const createSchema = z.object({
     trigger_config: z.record(z.string(), z.unknown()).default({}),
     exit_on: z.array(z.string()).default([]),
     allow_reenroll: z.boolean().default(false),
+    // 'transactional' = går ut trots kill switch/skugga (bokningspåminnelser). Se outreach.ts.
+    outbound_policy: z.enum(['outreach', 'transactional']).default('outreach'),
     customer_id: z.string().uuid().nullish(),
     steps: z.array(stepSchema).default([]),
 });
@@ -52,7 +54,7 @@ async function insertSteps(sequenceId: string, steps: z.infer<typeof stepSchema>
 router.get('/', async (_req: Request, res: Response) => {
     const { data, error } = await supabase
         .from('sequences')
-        .select('id, name, description, trigger_type, status, created_at')
+        .select('id, name, description, trigger_type, status, outbound_policy, created_at')
         .order('created_at', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });
     return res.json({ sequences: data ?? [] });
@@ -244,6 +246,7 @@ router.post('/', async (req: Request, res: Response) => {
             name: b.name, description: b.description ?? null,
             trigger_type: b.trigger_type, trigger_config: b.trigger_config,
             exit_on: b.exit_on, allow_reenroll: b.allow_reenroll, customer_id: b.customer_id ?? null,
+            outbound_policy: b.outbound_policy,
         }).select('id').single();
         if (error) return res.status(500).json({ error: error.message });
         await insertSteps(seq.id, b.steps);
@@ -278,6 +281,7 @@ const patchSchema = z.object({
     trigger_config: z.record(z.string(), z.unknown()).optional(),
     exit_on: z.array(z.string()).optional(),
     allow_reenroll: z.boolean().optional(),
+    outbound_policy: z.enum(['outreach', 'transactional']).optional(),
 });
 router.patch('/:id', async (req: Request, res: Response) => {
     const parsed = patchSchema.safeParse(req.body);

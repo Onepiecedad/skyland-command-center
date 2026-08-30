@@ -103,21 +103,85 @@ async function checkOpenRouter(): Promise<IntegrationHealth> {
 }
 
 /**
- * n8n-webhookarna (lead-intake + analytik). En GET mot en aktiv POST-webhook
- * svarar 404 med "not registered for GET requests" — det BEVISAR att workflowet
- * är aktivt, utan att förorena datat med test-events. Saknas GET-hintet är
- * workflowet inaktivt eller borttaget.
+ * Sajten skylandai.se (plan 2.1b, ersätter n8n-checkarna sedan n8n avvecklades
+ * 2026-08-30). Kedjan som måste hålla för att en besökare ska kunna prata med
+ * Alex och boka: Netlify svarar → lang.js pekar på RÄTT ElevenLabs-agenter →
+ * SCC:s agent-tools svarar med token över den publika adressen → agenterna
+ * finns i det ElevenLabs-konto vars nyckel ligger i Render.
+ * Agent-id:n är kanon i docs/SITE_FLOWS.md och backend/scripts/create_site_agent.py.
  */
-const N8N_WEBHOOK_BASE = 'https://onepiecedad.app.n8n.cloud/webhook';
-const N8N_WEBHOOKS = ['track-event', 'void-submission', 'voice-call-ended'];
+export const SITE_URL = 'https://skylandai.se';
+export const SITE_AGENT_IDS: Record<'sv' | 'en', string> = {
+    sv: 'agent_8301m19fffmqfcv96zgryg5ey3k5',
+    en: 'agent_4501m19h1g8zfq7v6k6hqh642p32',
+};
 
-async function checkN8nWebhook(path: string): Promise<IntegrationHealth> {
-    const name = `n8n:${path}`;
+async function checkSiteUp(): Promise<IntegrationHealth> {
+    const name = 'site:skylandai.se';
     try {
-        const res = await timedFetch(`${N8N_WEBHOOK_BASE}/${path}`, { method: 'GET' });
+        const res = await timedFetch(`${SITE_URL}/`, { method: 'GET', redirect: 'follow' });
+        return res.ok ? mk(name, true, 'up', res.status) : mk(name, true, 'down', res.status, 'sajten svarar inte 2xx');
+    } catch (err) {
+        return mk(name, true, 'down', undefined, err instanceof Error ? err.message : 'nätfel');
+    }
+}
+
+/** lang.js måste innehålla båda agent-id:na — annars ringer sajten en agent
+ *  som inte finns (eller ligger i ett konto vi inte når, se DRIFT.md). */
+async function checkSiteLangJs(): Promise<IntegrationHealth> {
+    const name = 'site:lang.js';
+    try {
+        const res = await timedFetch(`${SITE_URL}/lang.js`, { method: 'GET' });
+        if (!res.ok) return mk(name, true, 'down', res.status, 'lang.js svarar inte');
         const body = await res.text().catch(() => '');
-        if (res.ok || /not registered for GET/i.test(body)) return mk(name, true, 'up', res.status);
-        return mk(name, true, 'down', res.status, 'workflowet verkar inaktivt eller borttaget');
+        const missing = (Object.keys(SITE_AGENT_IDS) as ('sv' | 'en')[]).filter(k => !body.includes(SITE_AGENT_IDS[k]));
+        if (missing.length) return mk(name, true, 'down', res.status, `lang.js saknar agent-id för: ${missing.join(', ')}`);
+        return mk(name, true, 'up', res.status, 'sv + en pekar på rätt agenter');
+    } catch (err) {
+        return mk(name, true, 'down', undefined, err instanceof Error ? err.message : 'nätfel');
+    }
+}
+
+/** Självtest över den PUBLIKA adressen: samma väg ElevenLabs-agenten tar, med
+ *  samma token-fallback som tokenAuth i siteWebhooks.ts. Fångar DNS/TLS/proxy-
+ *  fel och token-glapp mellan Render och agentens verktygskonfig. */
+async function checkSiteAgentTools(): Promise<IntegrationHealth> {
+    const name = 'site:agent-tools';
+    const token = process.env.SITE_RAG_KEY || process.env.LEADS_INTAKE_TOKEN || config.SCC_API_TOKEN;
+    if (!token) return mk(name, false, 'not_configured');
+    const base = (config.SCC_PUBLIC_BASE_URL || 'https://scc.skylandai.se').replace(/\/$/, '');
+    try {
+        const res = await timedFetch(`${base}/api/v1/webhooks/site/agent-tools/get_current_time`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Skyland-Key': token },
+            body: '{}',
+        });
+        if (res.status === 401 || res.status === 403) return mk(name, true, 'auth_failed', res.status, 'token avvisad');
+        if (!res.ok) return mk(name, true, 'down', res.status);
+        const json = await res.json().catch(() => ({})) as { now_iso?: string };
+        return json.now_iso
+            ? mk(name, true, 'up', res.status, `get_current_time svarar via ${base}`)
+            : mk(name, true, 'down', res.status, 'svar utan now_iso');
+    } catch (err) {
+        return mk(name, true, 'down', undefined, err instanceof Error ? err.message : 'nätfel');
+    }
+}
+
+/** Båda sajtagenterna ska finnas i kontot vars nyckel Render har. Lärdom 30 aug:
+ *  de gamla agenterna låg i ett konto Joakim inte når. */
+async function checkSiteAgents(): Promise<IntegrationHealth> {
+    const name = 'elevenlabs:site-agents';
+    const apiKey = process.env.SITE_ELEVENLABS_API_KEY || config.ELEVENLABS_API_KEY;
+    if (!apiKey) return mk(name, false, 'not_configured');
+    try {
+        const problems: string[] = [];
+        for (const [lang, id] of Object.entries(SITE_AGENT_IDS)) {
+            const res = await timedFetch(`https://api.elevenlabs.io/v1/convai/agents/${id}`, { headers: { 'xi-api-key': apiKey } });
+            if (res.status === 401 || res.status === 403) return mk(name, true, 'auth_failed', res.status);
+            if (!res.ok) problems.push(`${lang} (${id}) → HTTP ${res.status}`);
+        }
+        if (problems.length) return mk(name, true, 'down', undefined, `agent saknas i kontot: ${problems.join('; ')}`);
+        return mk(name, true, 'up', 200, 'sv + en finns i SCC:s ElevenLabs-konto');
     } catch (err) {
         return mk(name, true, 'down', undefined, err instanceof Error ? err.message : 'nätfel');
     }
@@ -162,7 +226,7 @@ export async function checkAll(): Promise<IntegrationHealth[]> {
     return Promise.all([
         checkSupabase(), checkResend(), checkCalcom(), check46elks(), checkOpenRouter(),
         checkElevenLabsTools(),
-        ...N8N_WEBHOOKS.map(checkN8nWebhook),
+        checkSiteUp(), checkSiteLangJs(), checkSiteAgentTools(), checkSiteAgents(),
     ]);
 }
 

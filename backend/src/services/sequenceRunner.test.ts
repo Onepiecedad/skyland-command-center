@@ -23,7 +23,7 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock('../config', () => ({
-    config: { OUTBOUND_ENABLED: true, OUTBOUND_DAILY_LIMIT: 5, OUTBOUND_MODE: 'auto' },
+    config: { OUTBOUND_ENABLED: true, OUTBOUND_DAILY_LIMIT: 5, OUTBOUND_MODE: 'auto', TRANSACTIONAL_OUTBOUND_ENABLED: true },
 }));
 
 vi.mock('./email', () => ({ getEmailProvider: () => ({ send: h.emailSend }) }));
@@ -114,6 +114,7 @@ beforeEach(() => {
     h.state.suppressed = [];
     h.state.inserted = [];
     (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'auto';
+    (config as unknown as { TRANSACTIONAL_OUTBOUND_ENABLED: boolean }).TRANSACTIONAL_OUTBOUND_ENABLED = true;
     h.emailSend.mockReset().mockResolvedValue({ providerMessageId: 'p-1' });
     h.smsSend.mockReset().mockResolvedValue({ providerMessageId: 's-1' });
 });
@@ -161,6 +162,69 @@ describe('execStep — send_email grindar (samma som comms)', () => {
         expect(h.emailSend).toHaveBeenCalledWith(
             expect.objectContaining({ to: 'anna@example.se', subject: 'Hej Anna', text: 'Hörde av dig, Anna Berg' })
         );
+    });
+});
+
+describe('execStep — outbound_policy=transactional (bokningspåminnelser går ut trots kill switch)', () => {
+    const email = step('send_email', { subject: 'Påminnelse', body: 'Vi ses {{first_name}}' });
+
+    it('OUTBOUND_ENABLED=false stoppar INTE transaktionell post', async () => {
+        config.OUTBOUND_ENABLED = false;
+        const res = await execStep(email, enr, contact, ENROLLED_AT, 'transactional');
+        expect(res.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledTimes(1);
+        const msg = h.state.inserted.find(i => i.table === 'messages')!;
+        expect(msg.row.status).toBe('sent');
+        expect((msg.row.metadata as Record<string, unknown>).policy).toBe('transactional');
+    });
+
+    it('OUTBOUND_MODE=shadow skuggar INTE transaktionell post — den skickas skarpt', async () => {
+        config.OUTBOUND_ENABLED = false;
+        (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'shadow';
+        const res = await execStep(email, enr, contact, ENROLLED_AT, 'transactional');
+        expect(res.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledTimes(1);
+        expect(h.state.inserted.some(i => i.table === 'messages' && i.row.status === 'shadow')).toBe(false);
+    });
+
+    it('dagsbudgeten gäller inte transaktionell post', async () => {
+        h.state.outboundCount = 99;
+        const res = await execStep(step('send_sms', { text: 'Imorgon 10:00' }), enr, contact, ENROLLED_AT, 'transactional');
+        expect(res.status).toBe('success');
+        expect(h.smsSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('TRANSACTIONAL_OUTBOUND_ENABLED=false är dess egen kill switch → retry', async () => {
+        (config as unknown as { TRANSACTIONAL_OUTBOUND_ENABLED: boolean }).TRANSACTIONAL_OUTBOUND_ENABLED = false;
+        const res = await execStep(email, enr, contact, ENROLLED_AT, 'transactional');
+        expect(res.status).toBe('failed');
+        expect(res.control).toBe('retry');
+        expect(res.detail).toMatchObject({ reason: 'TRANSACTIONAL_OUTBOUND_ENABLED=false' });
+        expect(h.emailSend).not.toHaveBeenCalled();
+    });
+
+    it("suppression 'existing_customer' ignoreras för transaktionell post", async () => {
+        h.state.suppressed = [{ kind: 'email', value: 'anna@example.se', reason: 'existing_customer' }];
+        const res = await execStep(email, enr, contact, ENROLLED_AT, 'transactional');
+        expect(res.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledTimes(1);
+    });
+
+    it("suppression 'bounce' stoppar ÄVEN transaktionell post", async () => {
+        h.state.suppressed = [{ kind: 'email', value: 'anna@example.se', reason: 'bounce' }];
+        const res = await execStep(email, enr, contact, ENROLLED_AT, 'transactional');
+        expect(res.status).toBe('skipped');
+        expect(res.control).toBe('exit');
+        expect(res.detail).toMatchObject({ exit_reason: 'suppressed' });
+        expect(h.emailSend).not.toHaveBeenCalled();
+    });
+
+    it("outreach (default) stoppas fortfarande av 'existing_customer'", async () => {
+        h.state.suppressed = [{ kind: 'email', value: 'anna@example.se', reason: 'existing_customer' }];
+        const res = await execStep(email, enr, contact, ENROLLED_AT);
+        expect(res.status).toBe('skipped');
+        expect(res.control).toBe('exit');
+        expect(h.emailSend).not.toHaveBeenCalled();
     });
 });
 

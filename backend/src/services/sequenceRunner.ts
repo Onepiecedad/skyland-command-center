@@ -17,13 +17,20 @@
  *   {{dm_opener}} / {{dm_followup}}. Saknas delen → synlig skip (no_dm).
  * - Suppressionslistan (suppression_list) kontrolleras före varje utskick, även
  *   i skuggläge. Träff = enrollmenten avslutas med exit_reason='suppressed'.
+ *
+ * Outbound-policy (stabiliseringsplan fas 1, fynd 4):
+ * - sequences.outbound_policy='transactional' (bokningspåminnelser: mottagaren har
+ *   själv bokat) går ut OAVSETT OUTBOUND_ENABLED/OUTBOUND_MODE/dagsbudget. Egen
+ *   kill switch: TRANSACTIONAL_OUTBOUND_ENABLED. Suppression gäller fortfarande,
+ *   utom orsaken 'existing_customer'.
+ * - 'outreach' (default) lyder alla grindar som förut.
  */
 
 import { supabase } from './supabase';
 import { config } from '../config';
 import { getEmailProvider } from './email';
 import { getSmsProvider } from './sms';
-import { outboundMode, splitDm, isSuppressed } from './outreach';
+import { outboundMode, splitDm, isSuppressed, suppressionApplies, normalizePolicy, type OutboundPolicy } from './outreach';
 import { logger } from './logger';
 
 const MAX_STEPS_PER_TICK = 50;      // skydd mot oändliga loopar
@@ -41,6 +48,7 @@ interface SequenceRow {
     id: string;
     status: string;
     exit_on: string[];
+    outbound_policy?: string | null;
 }
 interface EnrollmentRow {
     id: string;
@@ -175,18 +183,21 @@ async function logSkip(contact: ContactRow, seqId: string, channel: string, reas
     });
 }
 
-async function execSendEmail(step: StepRow, enr: EnrollmentRow, contact: ContactRow): Promise<StepResult> {
-    const mode = outboundMode();
+async function execSendEmail(
+    step: StepRow, enr: EnrollmentRow, contact: ContactRow, policy: OutboundPolicy
+): Promise<StepResult> {
+    const mode = outboundMode(policy);
     if (mode === 'off') {
-        return { status: 'failed', control: 'retry', detail: { reason: 'OUTBOUND_ENABLED=false' } };
+        const reason = policy === 'transactional' ? 'TRANSACTIONAL_OUTBOUND_ENABLED=false' : 'OUTBOUND_ENABLED=false';
+        return { status: 'failed', control: 'retry', detail: { reason, policy } };
     }
     const to = contact.email || (typeof contact.custom?.email === 'string' ? (contact.custom!.email as string) : null);
     if (!to) { await logSkip(contact, enr.sequence_id, 'email', 'no_email'); return { status: 'skipped', control: 'advance', detail: { reason: 'no_email' } }; }
 
     // Suppressionslistan gäller ÄVEN i skuggläge — spärrade adresser ska aldrig ens köas.
     const hit = await isSuppressed('email', to);
-    if (hit) {
-        await logSkip(contact, enr.sequence_id, 'email', `suppressed:${hit.kind}:${hit.reason ?? ''}`);
+    if (suppressionApplies(hit, policy)) {
+        await logSkip(contact, enr.sequence_id, 'email', `suppressed:${hit!.kind}:${hit!.reason ?? ''}`);
         return { status: 'skipped', control: 'exit', detail: { reason: 'suppressed', exit_reason: 'suppressed', hit } };
     }
 
@@ -203,9 +214,13 @@ async function execSendEmail(step: StepRow, enr: EnrollmentRow, contact: Contact
 
     if (mode === 'shadow') return logShadow('email', enr, contact, to, `${subject}\n\n${body}`, { subject });
 
-    const sentToday = await countOutboundToday();
-    if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
-        return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
+    // Dagsbudgeten är en outreach-broms. Transaktionell post är volymbegränsad av
+    // sig själv (en påminnelse per bokning) och får inte fastna bakom kalla mejl.
+    if (policy !== 'transactional') {
+        const sentToday = await countOutboundToday();
+        if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
+            return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
+        }
     }
 
     try {
@@ -217,20 +232,23 @@ async function execSendEmail(step: StepRow, enr: EnrollmentRow, contact: Contact
             customer_id: contact.customer_id ?? null,
             role: 'assistant', channel: 'email', direction: 'outbound', status: 'sent',
             content: `${subject}\n\n${body}`,
-            metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to },
+            metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to, policy },
             provider_message_id: result.providerMessageId,
         });
-        return { status: 'success', control: 'advance', detail: { to, provider_message_id: result.providerMessageId } };
+        return { status: 'success', control: 'advance', detail: { to, provider_message_id: result.providerMessageId, policy } };
     } catch (err) {
         const message = err instanceof Error ? err.message : 'okänt utskicksfel';
         return { status: 'failed', control: 'retry', detail: { error: message } };
     }
 }
 
-async function execSendSms(step: StepRow, enr: EnrollmentRow, contact: ContactRow): Promise<StepResult> {
-    const mode = outboundMode();
+async function execSendSms(
+    step: StepRow, enr: EnrollmentRow, contact: ContactRow, policy: OutboundPolicy
+): Promise<StepResult> {
+    const mode = outboundMode(policy);
     if (mode === 'off') {
-        return { status: 'failed', control: 'retry', detail: { reason: 'OUTBOUND_ENABLED=false' } };
+        const reason = policy === 'transactional' ? 'TRANSACTIONAL_OUTBOUND_ENABLED=false' : 'OUTBOUND_ENABLED=false';
+        return { status: 'failed', control: 'retry', detail: { reason, policy } };
     }
     const phone = contact.phone || (typeof contact.custom?.phone === 'string' ? (contact.custom!.phone as string) : null);
     if (!phone) {
@@ -238,8 +256,8 @@ async function execSendSms(step: StepRow, enr: EnrollmentRow, contact: ContactRo
         return { status: 'skipped', control: 'advance', detail: { reason: 'no_phone' } };
     }
     const hit = await isSuppressed('phone', phone);
-    if (hit) {
-        await logSkip(contact, enr.sequence_id, 'sms', `suppressed:${hit.kind}:${hit.reason ?? ''}`);
+    if (suppressionApplies(hit, policy)) {
+        await logSkip(contact, enr.sequence_id, 'sms', `suppressed:${hit!.kind}:${hit!.reason ?? ''}`);
         return { status: 'skipped', control: 'exit', detail: { reason: 'suppressed', exit_reason: 'suppressed', hit } };
     }
     const text = bodyFromConfig(step.config, contact, 'text');
@@ -253,9 +271,11 @@ async function execSendSms(step: StepRow, enr: EnrollmentRow, contact: ContactRo
     }
     if (mode === 'shadow') return logShadow('sms', enr, contact, phone, text);
 
-    const sentToday = await countOutboundToday();
-    if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
-        return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
+    if (policy !== 'transactional') {
+        const sentToday = await countOutboundToday();
+        if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
+            return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
+        }
     }
     try {
         const result = await getSmsProvider().send({ to: phone, text });
@@ -263,10 +283,10 @@ async function execSendSms(step: StepRow, enr: EnrollmentRow, contact: ContactRo
             customer_id: contact.customer_id ?? null,
             role: 'assistant', channel: 'sms', direction: 'outbound',
             content: text,
-            metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to: phone },
+            metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to: phone, policy },
             provider_message_id: result.providerMessageId,
         });
-        return { status: 'success', control: 'advance', detail: { to: phone, provider_message_id: result.providerMessageId } };
+        return { status: 'success', control: 'advance', detail: { to: phone, provider_message_id: result.providerMessageId, policy } };
     } catch (err) {
         return { status: 'failed', control: 'retry', detail: { error: err instanceof Error ? err.message : 'okänt SMS-fel' } };
     }
@@ -361,11 +381,12 @@ function execWaitUntil(step: StepRow, enr: EnrollmentRow): StepResult {
 }
 
 export async function execStep(
-    step: StepRow, enr: EnrollmentRow, contact: ContactRow, enrolledAtISO: string
+    step: StepRow, enr: EnrollmentRow, contact: ContactRow, enrolledAtISO: string,
+    policy: OutboundPolicy = 'outreach'
 ): Promise<StepResult> {
     switch (step.type) {
-        case 'send_email':  return execSendEmail(step, enr, contact);
-        case 'send_sms':    return execSendSms(step, enr, contact);
+        case 'send_email':  return execSendEmail(step, enr, contact, policy);
+        case 'send_sms':    return execSendSms(step, enr, contact, policy);
         case 'move_stage':  return execMoveStage(step, enr);
         case 'add_tag':     return execTag(step, contact, true);
         case 'remove_tag':  return execTag(step, contact, false);
@@ -386,7 +407,7 @@ export async function execStep(
 async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Promise<void> {
     // Ladda sekvens + kontakt
     const { data: seq } = await supabase
-        .from('sequences').select('id, status, exit_on').eq('id', enr.sequence_id).maybeSingle();
+        .from('sequences').select('id, status, exit_on, outbound_policy').eq('id', enr.sequence_id).maybeSingle();
     const sequence = seq as SequenceRow | null;
     if (!sequence || sequence.status !== 'active') {
         // Sekvensen är pausad/borta → skjut upp, rör inte enrollment-status
@@ -406,6 +427,7 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
         return;
     }
 
+    const policy = normalizePolicy(sequence.outbound_policy);
     let position = enr.current_position;
     for (let i = 0; i < MAX_STEPS_PER_TICK; i++) {
         const { data: s } = await supabase
@@ -423,7 +445,7 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
             return;
         }
 
-        const res = await execStep(step, enr, contact, enrolledAtISO);
+        const res = await execStep(step, enr, contact, enrolledAtISO, policy);
         await logStepRun(enr.id, step, res);
 
         if (res.control === 'exit') {

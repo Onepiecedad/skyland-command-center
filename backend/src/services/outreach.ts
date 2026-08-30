@@ -17,9 +17,32 @@ import { config } from '../config';
 
 export type OutboundMode = 'off' | 'shadow' | 'live';
 
-export function outboundMode(): OutboundMode {
+/** sequences.outbound_policy. 'outreach' lyder kill switch/skugga/dagsbudget;
+ *  'transactional' (bokningspåminnelser o.dyl. — mottagaren har själv bett om
+ *  kontakten) går ut ändå, grindat bara av TRANSACTIONAL_OUTBOUND_ENABLED. */
+export type OutboundPolicy = 'outreach' | 'transactional';
+
+export function normalizePolicy(v: unknown): OutboundPolicy {
+    return v === 'transactional' ? 'transactional' : 'outreach';
+}
+
+export function outboundMode(policy: OutboundPolicy = 'outreach'): OutboundMode {
+    if (policy === 'transactional') {
+        return config.TRANSACTIONAL_OUTBOUND_ENABLED === false ? 'off' : 'live';
+    }
     if (config.OUTBOUND_MODE === 'shadow') return 'shadow';
     return config.OUTBOUND_ENABLED ? 'live' : 'off';
+}
+
+/** Suppressionsorsaker som INTE ska stoppa transaktionell post: att någon är
+ *  befintlig kund är ett skäl att slippa kallmejl, inte att slippa sin egen
+ *  bokningsbekräftelse. Studsar/klagomål/avböjda stoppar alltid. */
+const TRANSACTIONAL_IGNORED_REASONS = new Set(['existing_customer']);
+
+export function suppressionApplies(hit: { reason: string | null } | null, policy: OutboundPolicy): boolean {
+    if (!hit) return false;
+    if (policy === 'transactional' && hit.reason && TRANSACTIONAL_IGNORED_REASONS.has(hit.reason)) return false;
+    return true;
 }
 
 export interface DmParts {

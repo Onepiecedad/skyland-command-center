@@ -1436,6 +1436,8 @@ export interface SequenceSummary {
     description?: string | null;
     trigger_type: string;
     status: SequenceStatus;
+    /** 'transactional' = går ut trots kill switch/skuggläge (bokningspåminnelser). */
+    outbound_policy?: 'outreach' | 'transactional';
     created_at: string;
 }
 

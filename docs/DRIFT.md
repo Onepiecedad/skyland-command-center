@@ -3,6 +3,8 @@
 > **Den enda sanningen om driften.** Uppdateras i samma commit som ändrar något.
 > Handover-filerna under `docs/HANDOVER_*.md` är historik, inte nuläge.
 > Senast verifierad: **2026-08-30 kväll** (Claude + Joakim, live-tester mot prod).
+> Maskinell koll: `SCC_API_TOKEN=… python3 scripts/drift_check.py` jämför prod (`/health`,
+> `/api/v1/integrations/health`, `/api/v1/integrations/flags`) mot tabellen nedan. Exit 1 = drift.
 
 ## Tjänster
 
@@ -35,12 +37,14 @@
 
 | Flagga | Värde | Effekt |
 |---|---|---|
-| `OUTBOUND_ENABLED` | `false` | Motorn skickar inget på egen hand. Gäller ALLA sekvenser, även Strategisamtal-påminnelserna (fynd 4 i stabiliseringsplanen). |
+| `OUTBOUND_ENABLED` | `false` | Motorn skickar inget på egen hand. Gäller sekvenser med `outbound_policy='outreach'` (default). |
+| `TRANSACTIONAL_OUTBOUND_ENABLED` | ej satt (default `true`) | Kill switch för `outbound_policy='transactional'` (Strategisamtal-påminnelserna). Transaktionell post går ut OAVSETT `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudget; suppression gäller utom orsaken `existing_customer`. Fynd 4 åtgärdat 30 aug. |
 | `OUTBOUND_MODE` | `shadow` | Utskick loggas som `messages.status='shadow'`. Granskas i Försäljning → Skuggvecka; "Skicka nu" skickar manuellt. |
 | `SEQUENCE_RUNNER_ENABLED` | `true` | Motorn tickar varje minut. **Verifiera dessa tre innan du enrollar något med `next_run_at=now()`.** |
 | `OUTBOUND_DAILY_LIMIT` | `5` | Tak för riktiga utskick/dag, gäller även "Skicka nu". |
 | `EMAIL_FROM` / `EMAIL_REPLY_TO` / `EMAIL_FORWARD_TO` | `Skyland AI <joakim@send.skylandai.se>` / `joakim@send.skylandai.se` / `joakim@skylandai.se` | Avsändare, svar till Inbound, kopia till inkorgen. |
 | `EMAIL_INBOUND_TOKEN` | satt | Token i Resend-webhookens URL. |
+| `RESEND_API_KEY` | satt | Mejl ut + integrationshälsan. |
 | `LEADS_INTAKE_TOKEN` | satt | Används av: `/leads/intake`, MarinMekaniker-webhooken (Netlify-env), sajtens `agent-tools` och `rag-query` (X-Skyland-Key), `voice-call-ended` (server-till-server). |
 | `OPENAI_API_KEY` | satt | Embeddings (text-embedding-3-small) + gpt-4o-mini för void-svar och samtalsextraktion. |
 | `ELEVENLABS_API_KEY` / `ELEVENLABS_AGENT_ID` | satt | Nyckeln äger sajtens två agenter. `ELEVENLABS_AGENT_ID` = mäklaragenten (`/api/v1/voice/*`), inte sajtens. |
@@ -54,6 +58,7 @@ Hemligheter finns i fem källor: Render env, `backend/.env` (Mac, **ej synkad me
 
 ## Pågående i produktion
 
+- Sekvens **"MEXPAND — Strategisamtal påminnelser"** har `outbound_policy='transactional'` (migration `20260830_outbound_policy.sql`, applicerad). Övriga tre sekvenser är `outreach`. Nästa steg för den enda aktiva enrollmenten (Joakims testbokning 31/8 09:00) är ett SMS 08:00 — kontakten saknar telefon → synlig skip, inget skickas.
 - Sekvens **"Reaktivering — beauty"** aktiv med 7 enrollments (beauty-kliniker Göteborg), nästa steg **2026-09-01 17:03** i skuggläge. Döm i Skuggvecka. Autosend-beslut 7 sep.
 - Suppression-listan seedad med befintliga kunder (GKMK, Vinnie) + studsar.
 
@@ -62,5 +67,6 @@ Hemligheter finns i fem källor: Render env, `backend/.env` (Mac, **ej synkad me
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.
 - Frontendens `*.test.tsx` saknar jest-dom-typer (tsc rött bara i testfiler; `vite build` grönt).
 - Commit `b1cda98` fick med tre lokala ändringar som låg okommittade (`backend/src/index.ts` legacy, `docs/HANDOVER_2026-07-27.md`, `docs/IG_DM_AUTOMATION.md`).
-- Integrationshälsan har fortfarande tre `n8n:*`-checkar som visar rött. Ska bytas mot sajt-checkar (plan 2.1b).
+- Integrationshälsan: `n8n:*`-checkarna är borta (2.1b, 30 aug). Nya: `site:skylandai.se`, `site:lang.js` (båda agent-id:na), `site:agent-tools` (självtest över publika adressen med X-Skyland-Key), `elevenlabs:site-agents`. Agent-id:n är hårdkodade i `services/integrationHealth.ts` — byter du agent, byt där + `lang.js` + SITE_FLOWS.
+- `GET /api/v1/website/workflows` (Sajt-fliken, "n8n Workflow-hälsa") pekar fortfarande på n8n:s API. Död — visar tomt. Riv eller byt mot `activities` från sajt-webhookarna.
 - Engelska röstagenten är otestad i skarpt samtal.

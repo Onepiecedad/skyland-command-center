@@ -83,6 +83,12 @@ const envSchema = z.object({
     // 'shadow' = logga vad som skulle skickats (messages.status='shadow'), skicka inget.
     // Kan bara göra systemet försiktigare: live kräver fortfarande OUTBOUND_ENABLED=true.
     OUTBOUND_MODE: z.enum(['auto', 'shadow']).default('auto'),
+    // Transaktionell post (sequences.outbound_policy='transactional', t.ex. bokningspåminnelser)
+    // går ut oavsett OUTBOUND_ENABLED/OUTBOUND_MODE. Detta är dess egen kill switch.
+    TRANSACTIONAL_OUTBOUND_ENABLED: z
+        .string()
+        .default('true')
+        .transform((v) => v !== 'false'),
 
     // --- Sekvensmotor (SCC-41/42) ---
     SEQUENCE_RUNNER_ENABLED: z
