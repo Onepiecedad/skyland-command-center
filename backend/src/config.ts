@@ -90,6 +90,19 @@ const envSchema = z.object({
         .default('true')
         .transform((v) => v !== 'false'),
 
+    // --- Arbetstidsfönster för outreach (plan 2.5) ---
+    // Riktiga outreach-utskick går bara vardagar START–END (Europe/Stockholm) och
+    // sprids slumpat 0–JITTER minuter så en batch inte fyrar i samma sekund.
+    // Gäller INTE transactional (bokningsmejl) och INTE skuggläget (skuggrader
+    // ska synas direkt i Skuggvecka).
+    OUTREACH_WINDOW_ENABLED: z
+        .string()
+        .default('true')
+        .transform((v) => v !== 'false'),
+    OUTREACH_WINDOW_START_HOUR: z.coerce.number().min(0).max(23).default(8),
+    OUTREACH_WINDOW_END_HOUR: z.coerce.number().min(1).max(24).default(17),
+    OUTREACH_JITTER_MINUTES: z.coerce.number().min(0).default(90),
+
     // --- Sekvensmotor (SCC-41/42) ---
     SEQUENCE_RUNNER_ENABLED: z
         .string()

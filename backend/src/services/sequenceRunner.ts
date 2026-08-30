@@ -30,7 +30,7 @@ import { supabase } from './supabase';
 import { config } from '../config';
 import { getEmailProvider } from './email';
 import { getSmsProvider } from './sms';
-import { outboundMode, splitDm, isSuppressed, suppressionApplies, normalizePolicy, type OutboundPolicy } from './outreach';
+import { outboundMode, splitDm, isSuppressed, suppressionApplies, normalizePolicy, msUntilWindowOpen, outreachJitterMs, type OutboundPolicy } from './outreach';
 import { logger } from './logger';
 
 const MAX_STEPS_PER_TICK = 50;      // skydd mot oändliga loopar
@@ -69,7 +69,24 @@ interface ContactRow {
     customer_id: string | null;
 }
 
-type Control = 'advance' | 'wait' | 'exit' | 'retry';
+type Control = 'advance' | 'wait' | 'exit' | 'retry' | 'defer';
+
+/** Plan 2.5: uppskjutning av LIVE outreach till arbetstidsfönstret + slumpad
+ *  spridning. Returnerar ms att vänta, 0 = skicka nu. Skuggläge och transactional
+ *  berörs aldrig. context.spread_pos håller reda på att spridningen bara läggs
+ *  EN gång per steg (annars skjuts sändningen för evigt). */
+function outreachDeferMs(enr: EnrollmentRow, position: number, policy: OutboundPolicy, mode: string): number {
+    if (!config.OUTREACH_WINDOW_ENABLED || policy === 'transactional' || mode !== 'live') return 0;
+    const alreadySpread = enr.context?.spread_pos === position;
+    const untilOpen = msUntilWindowOpen();
+    if (untilOpen > 0) return untilOpen + (alreadySpread ? 0 : outreachJitterMs());
+    if (!alreadySpread && config.OUTREACH_JITTER_MINUTES > 0) {
+        // Inne i fönstret men ännu inte spridd: skjut 1..JITTER min (aldrig 0 — då
+        // skulle en batch ändå fyra i samma tick).
+        return Math.max(60_000, outreachJitterMs());
+    }
+    return 0;
+}
 interface StepResult {
     status: 'success' | 'skipped' | 'failed';
     control: Control;
@@ -214,6 +231,12 @@ async function execSendEmail(
 
     if (mode === 'shadow') return logShadow('email', enr, contact, to, `${subject}\n\n${body}`, { subject });
 
+    const deferEmail = outreachDeferMs(enr, step.position, policy, mode);
+    if (deferEmail > 0) {
+        return { status: 'success', control: 'defer', waitMs: deferEmail,
+                 detail: { reason: 'outreach_window', resume_at: new Date(Date.now() + deferEmail).toISOString() } };
+    }
+
     // Dagsbudgeten är en outreach-broms. Transaktionell post är volymbegränsad av
     // sig själv (en påminnelse per bokning) och får inte fastna bakom kalla mejl.
     if (policy !== 'transactional') {
@@ -270,6 +293,12 @@ async function execSendSms(
         return { status: 'skipped', control: 'advance', detail: { reason: 'empty_sms' } };
     }
     if (mode === 'shadow') return logShadow('sms', enr, contact, phone, text);
+
+    const deferSms = outreachDeferMs(enr, step.position, policy, mode);
+    if (deferSms > 0) {
+        return { status: 'success', control: 'defer', waitMs: deferSms,
+                 detail: { reason: 'outreach_window', resume_at: new Date(Date.now() + deferSms).toISOString() } };
+    }
 
     if (policy !== 'transactional') {
         const sentToday = await countOutboundToday();
@@ -454,6 +483,17 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
                 exit_reason: typeof res.detail?.exit_reason === 'string' ? res.detail.exit_reason
                     : step.type === 'exit' ? 'exit_step' : 'branch',
                 completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+            }).eq('id', enr.id);
+            return;
+        }
+
+        if (res.control === 'defer') {
+            // Plan 2.5: samma steg körs om när fönstret öppnar; spread_pos ser till
+            // att spridningen inte läggs på igen då.
+            await supabase.from('sequence_enrollments').update({
+                context: { ...enr.context, spread_pos: position },
+                next_run_at: new Date(Date.now() + (res.waitMs ?? 60_000)).toISOString(),
+                updated_at: new Date().toISOString(),
             }).eq('id', enr.id);
             return;
         }

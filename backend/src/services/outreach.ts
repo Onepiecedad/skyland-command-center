@@ -112,3 +112,46 @@ export async function addSuppression(
         { onConflict: 'kind,value', ignoreDuplicates: true }
     );
 }
+
+// ---------------------------------------------------------------------------
+// Arbetstidsfönster (plan 2.5) — bara LIVE outreach. Vardagar START–END i
+// Stockholm, plus slumpad spridning så en batch inte skickar allt i samma tick.
+// ---------------------------------------------------------------------------
+
+const STOCKHOLM = 'Europe/Stockholm';
+
+/** (veckodag 1=mån..7=sön, timme, minut) i Stockholm för en tidpunkt. */
+export function stockholmParts(d: Date): { dow: number; hour: number; minute: number } {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: STOCKHOLM, weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false,
+    }).formatToParts(d);
+    const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+    const dow = ({ Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 } as Record<string, number>)[get('weekday')] ?? 1;
+    return { dow, hour: Number(get('hour')) % 24, minute: Number(get('minute')) };
+}
+
+export function insideOutreachWindow(now: Date = new Date()): boolean {
+    const { dow, hour } = stockholmParts(now);
+    return dow <= 5 && hour >= config.OUTREACH_WINDOW_START_HOUR && hour < config.OUTREACH_WINDOW_END_HOUR;
+}
+
+/** Ms till nästa fönsteröppning (nästa vardag START:00 i Stockholm). 0 om vi är inne. */
+export function msUntilWindowOpen(now: Date = new Date()): number {
+    if (insideOutreachWindow(now)) return 0;
+    // Stega minutvis vore dyrt — stega i kvartar tills vi är innanför (max 4 dygn: fre kväll → mån morgon).
+    const step = 15 * 60_000;
+    for (let t = now.getTime() + step; t <= now.getTime() + 5 * 86_400_000; t += step) {
+        const d = new Date(t);
+        if (insideOutreachWindow(d)) {
+            // Backa till hel kvart som fortfarande är innanför — närmevärde räcker,
+            // spridningen läggs ovanpå ändå.
+            return t - now.getTime();
+        }
+    }
+    return 0; // borde aldrig hända — hellre skicka än fastna
+}
+
+/** Slumpad spridning 0..OUTREACH_JITTER_MINUTES (ms). */
+export function outreachJitterMs(rand: () => number = Math.random): number {
+    return Math.floor(rand() * config.OUTREACH_JITTER_MINUTES * 60_000);
+}

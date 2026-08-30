@@ -38,6 +38,7 @@
 | Flagga | Värde | Effekt |
 |---|---|---|
 | `OUTBOUND_ENABLED` | `false` | Motorn skickar inget på egen hand. Gäller sekvenser med `outbound_policy='outreach'` (default). |
+| `OUTREACH_WINDOW_ENABLED` | ej satt (default `true`) | Plan 2.5: LIVE outreach skickas bara vardagar 08–17 (Europe/Stockholm, `OUTREACH_WINDOW_START_HOUR`/`END_HOUR`) och sprids slumpat 1–90 min (`OUTREACH_JITTER_MINUTES`) så en batch inte fyrar i samma tick. Gäller INTE transactional och INTE skuggläget (skuggrader ska synas direkt i Skuggvecka). |
 | `TRANSACTIONAL_OUTBOUND_ENABLED` | ej satt (default `true`) | Kill switch för `outbound_policy='transactional'` (Strategisamtal-påminnelserna). Transaktionell post går ut OAVSETT `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudget; suppression gäller utom orsaken `existing_customer`. Fynd 4 åtgärdat 30 aug. |
 | `OUTBOUND_MODE` | `shadow` | Utskick loggas som `messages.status='shadow'`. Granskas i Försäljning → Skuggvecka; "Skicka nu" skickar manuellt. |
 | `SEQUENCE_RUNNER_ENABLED` | `true` | Motorn tickar varje minut. **Verifiera dessa tre innan du enrollar något med `next_run_at=now()`.** |

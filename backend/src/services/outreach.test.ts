@@ -2,9 +2,9 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('./supabase', () => ({ supabase: {} }));
-vi.mock('../config', () => ({ config: { OUTBOUND_ENABLED: false, OUTBOUND_MODE: 'auto' } }));
+vi.mock('../config', () => ({ config: { OUTBOUND_ENABLED: false, OUTBOUND_MODE: 'auto', OUTREACH_WINDOW_ENABLED: true, OUTREACH_WINDOW_START_HOUR: 8, OUTREACH_WINDOW_END_HOUR: 17, OUTREACH_JITTER_MINUTES: 90 } }));
 
-import { splitDm, normalizeSuppressionValue, domainOf, outboundMode, suppressionApplies, normalizePolicy } from './outreach';
+import { splitDm, normalizeSuppressionValue, domainOf, outboundMode, suppressionApplies, normalizePolicy, stockholmParts, insideOutreachWindow, msUntilWindowOpen, outreachJitterMs } from './outreach';
 import { config } from '../config';
 
 describe('splitDm', () => {
@@ -76,5 +76,49 @@ describe('suppressionApplies', () => {
             expect(suppressionApplies({ reason }, 'transactional')).toBe(true);
             expect(suppressionApplies({ reason }, 'outreach')).toBe(true);
         }
+    });
+});
+
+describe('arbetstidsfönster (plan 2.5) — Europe/Stockholm', () => {
+    // Fasta tidpunkter i UTC. Aug/sep 2026 = CEST (UTC+2).
+    const TUE_10 = new Date('2026-09-01T08:00:00Z');   // tis 10:00 Sthlm
+    const TUE_1730 = new Date('2026-09-01T15:30:00Z'); // tis 17:30 Sthlm — efter stängning
+    const SAT_12 = new Date('2026-09-05T10:00:00Z');   // lör 12:00 Sthlm
+    const TUE_0730 = new Date('2026-09-01T05:30:00Z'); // tis 07:30 Sthlm — före öppning
+
+    it('stockholmParts ger rätt veckodag/timme', () => {
+        expect(stockholmParts(TUE_10)).toMatchObject({ dow: 2, hour: 10 });
+        expect(stockholmParts(SAT_12)).toMatchObject({ dow: 6, hour: 12 });
+    });
+
+    it('insideOutreachWindow: vardag 10:00 ja; 17:30, 07:30 och lördag nej', () => {
+        expect(insideOutreachWindow(TUE_10)).toBe(true);
+        expect(insideOutreachWindow(TUE_1730)).toBe(false);
+        expect(insideOutreachWindow(TUE_0730)).toBe(false);
+        expect(insideOutreachWindow(SAT_12)).toBe(false);
+    });
+
+    it('msUntilWindowOpen: 0 inne i fönstret', () => {
+        expect(msUntilWindowOpen(TUE_10)).toBe(0);
+    });
+
+    it('msUntilWindowOpen: tis 07:30 → öppning inom 15–45 min', () => {
+        const ms = msUntilWindowOpen(TUE_0730);
+        expect(ms).toBeGreaterThan(0);
+        expect(ms).toBeLessThanOrEqual(45 * 60_000);
+    });
+
+    it('msUntilWindowOpen: lördag 12:00 → måndag morgon (~44 h), aldrig söndag', () => {
+        const ms = msUntilWindowOpen(SAT_12);
+        const target = new Date(SAT_12.getTime() + ms);
+        expect(insideOutreachWindow(target)).toBe(true);
+        expect(stockholmParts(target).dow).toBe(1);
+        expect(ms).toBeGreaterThan(40 * 3_600_000);
+        expect(ms).toBeLessThan(46 * 3_600_000);
+    });
+
+    it('outreachJitterMs: inom 0..JITTER minuter', () => {
+        expect(outreachJitterMs(() => 0)).toBe(0);
+        expect(outreachJitterMs(() => 0.999)).toBeLessThanOrEqual(90 * 60_000);
     });
 });

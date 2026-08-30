@@ -23,7 +23,8 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock('../config', () => ({
-    config: { OUTBOUND_ENABLED: true, OUTBOUND_DAILY_LIMIT: 5, OUTBOUND_MODE: 'auto', TRANSACTIONAL_OUTBOUND_ENABLED: true },
+    config: { OUTBOUND_ENABLED: true, OUTBOUND_DAILY_LIMIT: 5, OUTBOUND_MODE: 'auto', TRANSACTIONAL_OUTBOUND_ENABLED: true,
+        OUTREACH_WINDOW_ENABLED: false, OUTREACH_WINDOW_START_HOUR: 8, OUTREACH_WINDOW_END_HOUR: 17, OUTREACH_JITTER_MINUTES: 90 },
 }));
 
 vi.mock('./email', () => ({ getEmailProvider: () => ({ send: h.emailSend }) }));
@@ -115,6 +116,7 @@ beforeEach(() => {
     h.state.inserted = [];
     (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'auto';
     (config as unknown as { TRANSACTIONAL_OUTBOUND_ENABLED: boolean }).TRANSACTIONAL_OUTBOUND_ENABLED = true;
+    (config as unknown as { OUTREACH_WINDOW_ENABLED: boolean }).OUTREACH_WINDOW_ENABLED = false;
     h.emailSend.mockReset().mockResolvedValue({ providerMessageId: 'p-1' });
     h.smsSend.mockReset().mockResolvedValue({ providerMessageId: 's-1' });
 });
@@ -432,5 +434,58 @@ describe('execStep — suppression_list', () => {
         const res = await execStep(step('send_email', { subject: 'x', body: 'y' }), enr, contact, ENROLLED_AT);
         expect(res.status).toBe('success');
         expect(h.emailSend).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('execStep — arbetstidsfönster + spridning (plan 2.5)', () => {
+    const W = config as unknown as { OUTREACH_WINDOW_ENABLED: boolean; OUTBOUND_MODE: string };
+    const email = step('send_email', { subject: 'x', body: 'y' });
+    const SAT = new Date('2026-09-05T10:00:00Z');  // lör 12:00 Sthlm
+    const TUE = new Date('2026-09-01T08:00:00Z');  // tis 10:00 Sthlm
+
+    it('lördag, live outreach → defer till måndagsfönstret, ingen provider', async () => {
+        W.OUTREACH_WINDOW_ENABLED = true;
+        vi.useFakeTimers(); vi.setSystemTime(SAT);
+        const res = await execStep(email, enr, contact, ENROLLED_AT);
+        vi.useRealTimers();
+        expect(res.control).toBe('defer');
+        expect(res.waitMs!).toBeGreaterThan(40 * 3_600_000);
+        expect(res.detail).toMatchObject({ reason: 'outreach_window' });
+        expect(h.emailSend).not.toHaveBeenCalled();
+    });
+
+    it('vardag i fönstret, ej spridd → defer 1–90 min; spridd → skickar', async () => {
+        W.OUTREACH_WINDOW_ENABLED = true;
+        vi.useFakeTimers(); vi.setSystemTime(TUE);
+        const first = await execStep(email, enr, contact, ENROLLED_AT);
+        expect(first.control).toBe('defer');
+        expect(first.waitMs!).toBeGreaterThanOrEqual(60_000);
+        expect(first.waitMs!).toBeLessThanOrEqual(90 * 60_000);
+        const spread = { ...enr, context: { spread_pos: 0 } };
+        const second = await execStep(email, spread, contact, ENROLLED_AT);
+        vi.useRealTimers();
+        expect(second.status).toBe('success');
+        expect(second.control).toBe('advance');
+        expect(h.emailSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('transactional berörs inte av fönstret (lördag → skickar)', async () => {
+        W.OUTREACH_WINDOW_ENABLED = true;
+        vi.useFakeTimers(); vi.setSystemTime(SAT);
+        const res = await execStep(email, enr, contact, ENROLLED_AT, 'transactional');
+        vi.useRealTimers();
+        expect(res.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('skuggläge berörs inte av fönstret (lördag → skuggrad direkt)', async () => {
+        W.OUTREACH_WINDOW_ENABLED = true;
+        W.OUTBOUND_MODE = 'shadow';
+        vi.useFakeTimers(); vi.setSystemTime(SAT);
+        const res = await execStep(email, enr, contact, ENROLLED_AT);
+        vi.useRealTimers();
+        expect(res.status).toBe('success');
+        expect(h.state.inserted.some(i => i.table === 'messages' && i.row.status === 'shadow')).toBe(true);
+        expect(h.emailSend).not.toHaveBeenCalled();
     });
 });
