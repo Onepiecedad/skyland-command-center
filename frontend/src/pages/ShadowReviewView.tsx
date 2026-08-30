@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     fetchShadowReview,
     setShadowReview,
+    sendApprovedShadow,
     type ShadowEnrollment,
     type ShadowMessage,
     type ReviewVerdict,
@@ -50,12 +51,26 @@ function enrollmentChip(status: string, exitReason: string | null): { label: str
     return { label: status, color: MUTED };
 }
 
-function MessageCard({ m, onReview }: { m: ShadowMessage; onReview: (id: string, v: ReviewVerdict | null, note?: string) => Promise<void> }) {
+function MessageCard({ m, onReview, onSend }: {
+    m: ShadowMessage;
+    onReview: (id: string, v: ReviewVerdict | null, note?: string) => Promise<void>;
+    onSend: (id: string) => Promise<void>;
+}) {
     const chip = statusChip(m.status);
     const [note, setNote] = useState(m.review?.note ?? '');
     const [busy, setBusy] = useState(false);
     const [open, setOpen] = useState(false);
+    const [confirm, setConfirm] = useState(false);
+    const [sendErr, setSendErr] = useState<string | null>(null);
     const verdict = m.review?.verdict ?? null;
+    const canSend = m.status === 'shadow' && verdict === 'would_send';
+
+    const doSend = async () => {
+        setBusy(true); setSendErr(null);
+        try { await onSend(m.id); setConfirm(false); }
+        catch (e) { setSendErr(e instanceof Error ? e.message : 'Utskicket misslyckades'); }
+        finally { setBusy(false); }
+    };
 
     const submit = async (v: ReviewVerdict | null) => {
         setBusy(true);
@@ -112,7 +127,23 @@ function MessageCard({ m, onReview }: { m: ShadowMessage; onReview: (id: string,
                         Ångra
                     </button>
                 )}
+                {canSend && !confirm && (
+                    <button disabled={busy} onClick={() => setConfirm(true)} style={{ ...btn('#5a8cff'), marginLeft: 'auto', fontWeight: 600 }}>
+                        Skicka nu
+                    </button>
+                )}
             </div>
+            {canSend && confirm && (
+                <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'rgba(90,140,255,0.12)', border: '1px solid rgba(90,140,255,0.5)',
+                    display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+                    <span>Skickar <b>på riktigt</b> till <b>{m.to}</b>. Går inte att ångra.</span>
+                    <button disabled={busy} onClick={() => void doSend()} style={{ ...btn('#5a8cff'), fontWeight: 700, marginLeft: 'auto' }}>
+                        {busy ? 'Skickar…' : 'Ja, skicka'}
+                    </button>
+                    <button disabled={busy} onClick={() => setConfirm(false)} style={btn()}>Avbryt</button>
+                </div>
+            )}
+            {sendErr && <div style={{ marginTop: 8, fontSize: 12, color: RED }}>{sendErr}</div>}
         </div>
     );
 }
@@ -149,6 +180,15 @@ export default function ShadowReviewView() {
         })));
     }, []);
 
+    const onSend = useCallback(async (id: string) => {
+        const r = await sendApprovedShadow(id);
+        setRows(prev => prev.map(row => ({
+            ...row,
+            messages: row.messages.map(m => m.id === id ? { ...m, status: 'sent' } : m),
+        })));
+        void r;
+    }, []);
+
     const stats = useMemo(() => {
         const all = rows.flatMap(r => r.messages);
         const shadow = all.filter(m => m.status === 'shadow');
@@ -168,6 +208,7 @@ export default function ShadowReviewView() {
             </div>
             <p style={{ margin: '0 0 16px', fontSize: 13, color: MUTED }}>
                 Det motorn hade skickat, utan att skicka. Döm varje meddelande som om det låg i din utkorg.
+                Ett godkänt skuggmejl får knappen <b>Skicka nu</b>: ett klick, en bekräftelse, sen går det på riktigt.
                 Autosend slås på först när andelen "hade skickat" är hög nog att du litar på den.
             </p>
 
@@ -217,7 +258,7 @@ export default function ShadowReviewView() {
                         {r.messages.length === 0 && (
                             <div style={{ marginTop: 8, fontSize: 12, color: MUTED }}>Inget loggat än.</div>
                         )}
-                        {r.messages.map(m => <MessageCard key={m.id} m={m} onReview={onReview} />)}
+                        {r.messages.map(m => <MessageCard key={m.id} m={m} onReview={onReview} onSend={onSend} />)}
                     </div>
                 );
             })}

@@ -9,6 +9,10 @@ import { supabase } from '../services/supabase';
 import { logger } from '../services/logger';
 import { enrollContact } from '../services/sequenceEvents';
 import { runDueEnrollments } from '../services/sequenceRunner';
+import { getEmailProvider } from '../services/email';
+import { getSmsProvider } from '../services/sms';
+import { isSuppressed } from '../services/outreach';
+import { config } from '../config';
 
 const router = Router();
 
@@ -165,6 +169,69 @@ router.post('/shadow-review/:messageId', async (req: Request, res: Response) => 
         .from('messages').update({ metadata: { ...meta, review } }).eq('id', m.id);
     if (uErr) return res.status(500).json({ error: uErr.message });
     return res.json({ ok: true, review });
+});
+
+/**
+ * POST /shadow-review/:messageId/send — skicka ett GODKÄNT skuggmejl på riktigt.
+ *
+ * Det här är "manuell kö"-läget: motorn loggar (shadow), operatören dömer, och
+ * ett uttryckligt klick per meddelande skickar. Kräver status='shadow' och
+ * review.verdict='would_send'. Suppressionslistan och dagsbudgeten gäller.
+ * OUTBOUND_ENABLED (kill switch för maskinens EGNA utskick) gäller INTE här:
+ * varje anrop är en mänsklig handling, och den loggas som sådan
+ * (metadata.sent_from_shadow=true, approved_at).
+ */
+router.post('/shadow-review/:messageId/send', async (req: Request, res: Response) => {
+    const { data: m, error: gErr } = await supabase
+        .from('messages').select('*').eq('id', req.params.messageId).maybeSingle();
+    if (gErr) return res.status(500).json({ error: gErr.message });
+    if (!m) return res.status(404).json({ error: 'Message not found' });
+    if (m.status !== 'shadow') return res.status(409).json({ error: `Meddelandet är inte ett skuggmejl (status=${m.status})` });
+    const meta = (m.metadata ?? {}) as Record<string, unknown>;
+    const review = meta.review as { verdict?: string } | null;
+    if (review?.verdict !== 'would_send') return res.status(409).json({ error: 'Meddelandet är inte godkänt (markera "Hade skickat" först)' });
+    const to = typeof meta.to === 'string' ? meta.to : '';
+    if (!to) return res.status(409).json({ error: 'Mottagare saknas på meddelandet' });
+
+    const channel = m.channel as 'email' | 'sms';
+    const hit = await isSuppressed(channel === 'sms' ? 'phone' : 'email', to);
+    if (hit) return res.status(409).json({ error: `Mottagaren är spärrad (${hit.kind}: ${hit.reason ?? 'okänd orsak'})` });
+
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const { count } = await supabase.from('messages').select('id', { count: 'exact', head: true })
+        .eq('direction', 'outbound').eq('status', 'sent').gte('created_at', start.toISOString());
+    if ((count ?? 0) >= config.OUTBOUND_DAILY_LIMIT) {
+        return res.status(429).json({ error: `Dagsbudgeten är nådd (${count}/${config.OUTBOUND_DAILY_LIMIT}). Försök igen i morgon eller höj OUTBOUND_DAILY_LIMIT.` });
+    }
+
+    try {
+        let providerMessageId: string;
+        if (channel === 'sms') {
+            providerMessageId = (await getSmsProvider().send({ to, text: m.content })).providerMessageId;
+        } else {
+            const [subject, ...rest] = String(m.content).split('\n');
+            const text = rest.join('\n').replace(/^\n+/, '');
+            providerMessageId = (await getEmailProvider().send({ to, subject, text })).providerMessageId;
+        }
+        const now = new Date().toISOString();
+        const { error: uErr } = await supabase.from('messages').update({
+            status: 'sent',
+            provider_message_id: providerMessageId,
+            metadata: { ...meta, shadow: false, sent_from_shadow: true, approved_at: now },
+        }).eq('id', m.id);
+        if (uErr) return res.status(500).json({ error: uErr.message });
+        await supabase.from('activities').insert({
+            customer_id: m.customer_id ?? null, agent: 'operator', event_type: 'message',
+            action: 'shadow.approved_send', severity: 'info',
+            details: { message_id: m.id, to, channel, contact_id: meta.contact_id ?? null, provider_message_id: providerMessageId },
+        });
+        logger.info('sequences', `skuggmejl ${m.id} skickat på riktigt till ${to} (operatörsgodkänt)`);
+        return res.json({ ok: true, provider_message_id: providerMessageId });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'okänt utskicksfel';
+        logger.error('sequences', `approved send misslyckades: ${message}`);
+        return res.status(502).json({ error: `Utskicket misslyckades: ${message}` });
+    }
 });
 
 // POST / — skapa sekvens (+ steg)

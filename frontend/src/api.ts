@@ -1528,3 +1528,11 @@ export async function setShadowReview(messageId: string, verdict: ReviewVerdict 
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
+
+/** Skicka ett godkänt skuggmejl på riktigt (manuell kö). */
+export async function sendApprovedShadow(messageId: string): Promise<{ provider_message_id: string }> {
+    const res = await fetchWithAuth(`${API_BASE}/sequences/shadow-review/${messageId}/send`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+}
