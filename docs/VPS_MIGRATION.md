@@ -1,5 +1,9 @@
 # Alex till VPS (plan 3.4)
 
+**GENOMFÖRD 31 aug 2026 kl 01.15.** Alex bor på Hetzner CPX22 i Helsingfors
+(62.238.113.151, Ubuntu 26.04, 2 vCPU / 4 GB / 80 GB, ~25 EUR/mån inkl moms).
+Användare `alex`, gateway och poller som systemd user-units med linger påslaget.
+
 Beslut 30 aug 2026: Alex flyttar från Joakims Mac till en VPS. Skälet är att
 gatewayn och pollern bara lever medan datorn är vaken — batchen 30 aug dog mitt i
 när locket stängdes, och `caffeinate -i` täcker inte stängt lock.
@@ -109,3 +113,68 @@ som medvetet lämnades kvar på Macen. De är indexpekare, inget läser dem i dr
 - En uppgift i SCC plockas av pollern inom 30 sekunder
 - `prospect_pipeline.py "<kort>" --no-save` går igenom
 - Macen kan stängas utan att något stannar
+
+
+## Vad som faktiskt hände (31 aug, natten)
+
+Flytten tog knappt tre timmar. Planen ovan höll i stort, men fyra saker stämde inte
+och är värda att komma ihåg nästa gång något ska flytta.
+
+**Hetzner hade slut på den maskin vi ville ha.** Hela Cost-Optimized-serien (CX/CAX)
+var utsåld i alla EU-regioner, både x86 och Arm. Vi landade på CPX22 med 4 GB i
+stället för 8, plus 4 GB swap och `vm.swappiness=10`. Motiveringen: forskningsarbetet
+är API-anrop, inte lokal Chromium — den enda skillen som drar upp en browser är
+`konkurrent_intel`. Hetzner kan skala upp servertypen i efterhand mot en omstart, så
+beslutet är reversibelt. **Bevaka minnet vid nästa stora batch.**
+
+**Skriv ingen egen systemd-unit för gatewayn.** `openclaw gateway install` genererar
+den själv, korrekt. Min handskrivna unit i `openclaw-config/vps/` är borttagen.
+`sudo loginctl enable-linger alex` är däremot nödvändig — utan den dör
+användartjänsterna när SSH-sessionen stängs.
+
+**npm hoppar över openclaws installationsskript.** Första `npm i -g openclaw` gav
+`4 packages have install scripts not yet covered by allowScripts`, vilket betyder att
+de medföljande pluginen aldrig packades upp och att `tree-sitter-bash` inte
+kompilerades. Kör med flaggan:
+
+    npm install -g --allow-scripts=openclaw,@google/genai,protobufjs,tree-sitter-bash openclaw@<version>
+
+WhatsApp-pluginet ligger utanför paketet och installeras separat med
+`openclaw plugins install clawhub:@openclaw/whatsapp`. **WhatsApp-sessionen överlevde
+flytten utan omparning** — Baileys-nycklarna i `credentials/whatsapp/default/` räckte,
+telefonen behövde aldrig skanna någon QR.
+
+**Enhetsparningen låste sig i ett moment 22.** `paired.json` hade enheten registrerad
+med `platform: darwin`. När CLI:t anmälde sig som `linux` läste openclaw det som en
+metadataändring och krävde godkännande — men `openclaw devices approve` kräver
+`operator.admin`, som den väntande enheten inte har förrän ändringen godkänts. Lösningen
+var att stoppa gatewayn, sätta `platform` till `linux` direkt i
+`~/.openclaw/devices/paired.json` (samma deviceId, samma nyckel, samma token) och starta
+om. Backup ligger som `paired.json.macos`. Symptomet att känna igen:
+`Capability: pairing-pending` och `missing scope: operator.admin`.
+
+**En praktisk sak:** kör inget av det här som root. En root-session installerade en
+andra gateway på `/root/.config/systemd/user/` med tom konfiguration; den är borttagen
+och `/root/.openclaw` ligger som `.skrot`.
+
+`env.py` letar numera efter repot på både `~/Developer/openclaw-config` (Macen) och
+`~/openclaw-config` (VPS:en).
+
+### Verifierat efter flytten
+
+- `openclaw gateway status`: `Connectivity probe: ok`, `Capability: admin-capable`
+- 10 plugin laddade, inklusive whatsapp; kanalen lyssnar på +46737329083
+- `systemctl --user is-active scc-poller openclaw-gateway`: active, active
+- Pollern loggar `[poller] startad · SCC=https://scc.skylandai.se · var 15s`
+- `env.py --check`: 0 konflikter
+- SCC nåbar från servern: HTTP 200
+
+### Kvar att göra
+
+- Tailscale, så gatewayns dashboard går att nå utan SSH-tunnel. Porten är fortsatt
+  loopback-bunden och brandväggen släpper bara in SSH.
+- `plugins.allow` i openclaw.json (gatewayn varnar att den auto-laddar whatsapp utan
+  explicit tillit).
+- Köra ett prospektkort hela vägen genom pipelinen på servern som skarpt rökprov.
+- Radera `~/alex-vps/*.tgz` på Macen och `~/*.tgz` på servern — de innehåller nycklar.
+- Macens launchd-jobb ligger som `.plist.disabled`. Radera dem när flytten känns stabil.
