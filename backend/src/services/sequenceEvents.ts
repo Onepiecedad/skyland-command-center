@@ -114,7 +114,13 @@ export const onBookingCreated = (contactId: string, oppId?: string | null, booki
         fireTrigger('booking_created', contactId, {}, oppId, bookingStart ? { booking_start: bookingStart } : {}),
         fireExit('booking_created', contactId),
     ]).then(() => undefined);
+/** Avbokning: starta ev. avboknings-sekvens OCH stoppa påminnelserna för den avbokade
+ *  (Strategisamtal-påminnelserna listar booking_cancelled i exit_on). Före 30 aug 2026
+ *  saknades fireExit här — påminnelser fortsatte efter avbokning. */
 export const onBookingCancelled = (contactId: string, oppId?: string | null) =>
-    fireTrigger('booking_cancelled', contactId, {}, oppId);
+    Promise.all([
+        fireTrigger('booking_cancelled', contactId, {}, oppId),
+        fireExit('booking_cancelled', contactId),
+    ]).then(() => undefined);
 export const onBookingNoShow = (contactId: string, oppId?: string | null) =>
     fireTrigger('booking_no_show', contactId, {}, oppId);

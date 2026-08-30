@@ -50,7 +50,7 @@ vi.mock('./supabase', () => ({
     },
 }));
 
-import { enrollContact, fireTrigger, fireExit } from './sequenceEvents';
+import { enrollContact, fireTrigger, fireExit, onBookingCancelled } from './sequenceEvents';
 
 beforeEach(() => {
     h.state.sequences = [];
@@ -126,5 +126,17 @@ describe('fireExit — stoppar drips', () => {
         h.state.sequences = [{ data: [{ id: 's-2', exit_on: ['booking_created'] }], error: null }];
         await fireExit('reply_received', 'c-1');
         expect(h.calls.updates).toBe(0);
+    });
+});
+
+describe('onBookingCancelled — stoppar påminnelser', () => {
+    it('avslutar aktiva enrollments i sekvenser med booking_cancelled i exit_on', async () => {
+        // första select = fireTrigger (aktiva sekvenser med trigger), andra = fireExit
+        h.state.sequences = [
+            { data: [], error: null },
+            { data: [{ id: 's-rem', exit_on: ['booking_cancelled'] }], error: null },
+        ];
+        await onBookingCancelled('c-1');
+        expect(h.calls.updates).toBe(1);
     });
 });
