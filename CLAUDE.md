@@ -81,7 +81,8 @@
 > - Entrypoint är `backend/src/server.ts` (klassbaserad, helmet, CORS, WebSocket-gateway, statisk SPA-servering). `backend/src/index.ts` är LEGACY och körs inte (`package.json` → `dev`/`start` pekar på server.ts).
 > - Routing ligger i ~36 modulfiler under `backend/src/routes/` — inte i en stor index.ts.
 > - Global Bearer-auth (`middleware/auth.ts`, token `SCC_API_TOKEN`) + rate limiting skyddar `/api/v1/*` sedan 2026-07-09. Öppna undantag: `/health`, `/api-docs`, legacy `/api/skills` + `/api/activities`, samt `/api/v1/leads` (egen token: `LEADS_INTAKE_TOKEN`), `/api/v1/webhooks/openwork` och `/api/v1/voice` (externa anropare — TODO: egen auth).
-> - Lead-intake: hemsidan (skyland-ai-os.netlify.app) → n8n Cloud (`onepiecedad.app.n8n.cloud`, void-submission / voice-call-ended) → `POST https://scc.skylandai.se/api/v1/leads/intake`. (OBS: n8n kör på n8n CLOUD — A-posten n8n.skylandai.se pekar på en död server och används inte.)
+> - **NULÄGET FÖR DRIFT: läs `docs/DRIFT.md` först.** Den är den enda sanningen om tjänster, konton, flaggor och vad som är avvecklat. Stabiliseringsplan med nästa steg: artefakten "Skyland stabiliseringsplan" (claude.ai) + `docs/HANDOVER_2026-08-30.md`.
+> - Lead-intake (sedan 2026-08-30): hemsidan skylandai.se (Netlify `skyland-ai-os`) → **SCC direkt** `/api/v1/webhooks/site/*` (session, telemetri, The Void, röst) → `ingestLead()` in-process. **n8n är avvecklat**, alla workflows portade (`docs/SITE_FLOWS.md`, arkiv i `docs/n8n-archive/`). Röstagenterna ligger i SCC:s ElevenLabs-konto och anropar SCC `/site/agent-tools/*`.
 > - **DEPLOYAD (2026-07-14):** Backend kör i produktion på Render — tjänst `scc`, Frankfurt, Starter, Docker via `backend/Dockerfile` — på `https://scc.skylandai.se` (CNAME → scc-e8x1.onrender.com, TLS via Render). ngrok-tunneln är AVVECKLAD. Auto-deploy vid push till main. Env hanteras i Render-dashboarden. Kill switch för utgående mail: `OUTBOUND_ENABLED=false`. Se `docs/RENDER_DEPLOY.md` + `docs/HANDOVER_2026-07-14.md`.
 > - **AUTH-LÄGET (SEC-02..06, 2026-08-10) — läs innan du rör en endpoint.** Fem hål stängdes samma kväll, verifierade mot prod med curl innan fixen:
 >   - **`/api/v1/voice/*`** låg HELT oautentiserat mot internet. `POST /voice/tools` når `ask_alex` → gateway `/hooks/agent` med full skill-access + direkta Supabase-frågor. Nu: `VOICE_WEBHOOK_TOKEN` via ny `middleware/sharedSecret.ts`. ElevenLabs skickar headern `x-voice-token`. Escape hatch `VOICE_WEBHOOK_TOKEN_ENFORCED=false` (WARN-logg per anrop, tillfälligt).
@@ -119,7 +120,7 @@ Skyland Command Center (SCC) är ett internt operatörsverktyg för att styra oc
 - Task-system med approve-flöde (SUGGEST → review → approve → dispatch)
 - Dispatcher som kan köra uppgifter via:
   - `local:echo` — lokal test-executor
-  - `n8n:*` — externa n8n-workflows via webhook
+  - `n8n:*` — (legacy, n8n avvecklat 2026-08-30)
   - `claw:*` — OpenClaw sub-agenter via hook
 - LLM-adapter med stöd för **OpenAI**, **DeepSeek** och **OpenRouter** (500+ modeller via en nyckel)
 
@@ -140,7 +141,9 @@ Skyland Command Center (SCC) är ett internt operatörsverktyg för att styra oc
 ### Dokumentation
 - `SPEC.md` — fullständig v1.1-specifikation
 - `docs/AGENT_POLICY.md` — säkerhetspolicy för agenter
-- `docs/N8N_CONTRACT.md` — callback-kontrakt för n8n-workflows
+- `docs/DRIFT.md` — vad som kör just nu (enda sanningen)
+- `docs/SITE_FLOWS.md` — sajtens flöden i SCC (ersätter n8n)
+- `docs/N8N_CONTRACT.md` — (legacy) callback-kontrakt för n8n-workflows
 - `docs/OPENCLAW_HOOK_SCC_DISPATCH.md` — OpenClaw-integration
 - `logg.md` — utvecklingslogg (alla tickets)
 
@@ -155,7 +158,7 @@ Skyland Command Center (SCC) är ett internt operatörsverktyg för att styra oc
 | Backend | Express 5 + TypeScript |
 | Databas | Supabase (PostgreSQL) |
 | AI/LLM | OpenRouter (rekommenderat) → OpenAI, DeepSeek, Anthropic, 500+ modeller |
-| Workflows | n8n (extern research) |
+| Workflows | (n8n avvecklat 2026-08-30 — flöden ligger i SCC-routes) |
 | Sub-agenter | OpenClaw |
 
 ---

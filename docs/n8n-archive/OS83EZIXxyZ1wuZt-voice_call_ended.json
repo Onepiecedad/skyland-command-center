@@ -1,0 +1,562 @@
+{
+  "name": "voice-call-ended",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voice-call-ended",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "465a0fd4-058f-4d29-b0c0-a9b98fd68835",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -768,
+        112
+      ],
+      "webhookId": "voice-call-ended"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json || {};\nconst uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\nconst sessionUuid = body.session_uuid || body.metadata?.session_uuid || body.raw_payload?.session_uuid || null;\nconst conversationId = body.conversation_id || body.conversationId || body.raw_payload?.conversation_id || body.raw_payload?.conversationId || null;\nconst transcript = typeof body.transcript === 'string' ? body.transcript.trim() : '';\nconst summary = typeof body.summary === 'string' && body.summary.trim()\n  ? body.summary.trim()\n  : (transcript ? transcript.split('\\n').slice(0, 3).join(' ').slice(0, 280) : null);\nconst lines = transcript.split('\\n').map((line) => line.trim()).filter(Boolean);\nconst extractAnswerAfter = (questionRegex) => {\n  const questionIndex = lines.findIndex((line) => line.startsWith('agent:') && questionRegex.test(line.toLowerCase()));\n  if (questionIndex === -1) return null;\n  for (let i = questionIndex + 1; i < lines.length; i += 1) {\n    if (lines[i].startsWith('user:')) return lines[i].replace(/^user:\\s*/i, '').trim();\n  }\n  return null;\n};\nconst cleanField = (value) => value ? value.replace(/[.。]+$/g, '').trim() : null;\nconst splitPainPoints = (value) => {\n  if (!value) return [];\n  return value\n    .split(/,| och | samt /i)\n    .map((item) => item.replace(/^eh\\s+/i, '').trim())\n    .filter(Boolean)\n    .slice(0, 8);\n};\nconst personName = cleanField(extractAnswerAfter(/vad heter du/));\nconst companyAnswer = cleanField(extractAnswerAfter(/vad heter f[öo]retaget/));\nconst industryAnswer = cleanField(extractAnswerAfter(/vilken bransch/));\nconst painPointAnswer = cleanField(extractAnswerAfter(/vad tar mest tid|mest friktion/));\nconst currentProcessAnswer = cleanField(extractAnswerAfter(/hur hanterar ni allt det d[äa]r idag/));\nconst emailMatch = transcript.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i);\nconst extractedData = {\n  person_name: personName,\n  company_name: companyAnswer,\n  industry: industryAnswer,\n  email: emailMatch ? emailMatch[0].toLowerCase() : null,\n  pain_points: splitPainPoints(painPointAnswer),\n  pain_points_summary: painPointAnswer,\n  current_process: currentProcessAnswer,\n  meeting_requested: /bokar? gärna ett möte|boka in|kalenderinbjudan|google meet-länk/i.test(transcript),\n};\nconst errors = [];\nif (!sessionUuid) errors.push('session_uuid required');\nif (sessionUuid && !uuidRegex.test(sessionUuid)) errors.push('session_uuid must be valid UUID');\nif (!conversationId) errors.push('conversation_id required');\nif (errors.length) {\n  return [{ json: { validation_failed: true, message: errors.join('; ') } }];\n}\nreturn [{\n  json: {\n    validation_failed: false,\n    session_uuid: sessionUuid,\n    external_call_id: conversationId,\n    provider: 'elevenlabs',\n    call_source: body.source || 'voice_call_ended',\n    agent_id: body.agent_id || body.agentId || null,\n    started_at: body.started_at || body.startedAt || null,\n    ended_at: body.ended_at || body.endedAt || new Date().toISOString(),\n    duration_seconds: body.duration_seconds || body.durationSeconds || null,\n    transcript,\n    summary,\n    recording_url: body.recording_url || body.recordingUrl || null,\n    extracted_data: extractedData,\n    metadata: body.metadata || {},\n    raw_payload: body.raw_payload || body\n  }\n}];"
+      },
+      "id": "6198510b-41d9-4e93-974e-fe0e8f51e0ef",
+      "name": "Normalize Call Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -512,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-invalid-vce",
+              "leftValue": "={{ $json.validation_failed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "320b4b40-75aa-4afa-983b-24179ea85f12",
+      "name": "Is Invalid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'error', message: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "26e97a89-f850-470f-968f-fad9ac49cc3d",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/sessions?on_conflict=session_uuid",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation,resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session_uuid: $json.session_uuid }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "4c6721d1-c548-4e22-84db-68839d974156",
+      "name": "Upsert Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/prospects?session_uuid=eq.{{ encodeURIComponent($('Normalize Call Payload').first().json.session_uuid || '') }}&select=id,customer_id&order=created_at.desc&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": []
+        },
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "aa418736-b16d-40ce-8bed-4757940386d8",
+      "name": "Find Prospect by Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        256,
+        0
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const normalized = $('Normalize Call Payload').first().json;\nconst rows = $input.first().json;\nconst prospect = Array.isArray(rows) ? rows[0] : null;\nreturn [{\n  json: {\n    ...normalized,\n    prospect_id: prospect?.id || null,\n    customer_id: prospect?.customer_id || null\n  }\n}];"
+      },
+      "id": "3acdc6ed-4081-408f-8d8e-911949cea442",
+      "name": "Attach Prospect Links",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Du är en erfaren sales-assistent. Analysera säljsamtal och extrahera CRM-data som JSON. VIKTIGT: Samtalet är INBOUND — personen ringde själv in via hemsidan och AI-agenten Alex svarade. Skriv aldrig att agenten kontaktade eller att Alex ringde. Börja alltid summary med personens namn och företag. Fälten: person_name (string|null), company_name (string|null), industry (returnera exakt ett av dessa kategorinamn — kopiera stavningen exakt, inga varianter: Bygg & Fastighet [byggföretag, hantverkare, VVS, el, markarbete, mäklare, arkitekt, golvläggare, målare, snickare, fastighetsförvaltning] | Hotell & Besöksnäring [hotell, B&B, vandrarhem, camping, konferensanläggning, turism, resebyrå] | Livsmedel & Restaurang [restaurang, café, bar, catering, bageri, matproduktion, fruktleverantör, livsmedelsgrossist] | Skönhet & Välmående [frisör, salong, hudvård, spa, massage, naglar, tatuerare, yoga, träningsstudio, personlig tränare] | Tjänster & Konsult [revisor, jurist, designer, marknadsföring, rekrytering, IT-konsult, ekonom, copywriter, managementkonsult] | Handel & E-handel [detaljhandel, webshop, grossist, butik, klädhandel, elektronik, inredning, sportaffär] | Vård & Omsorg [tandläkare, naprapat, fysioterapeut, läkare, psykolog, äldreomsorg, barnvård, apotek, optiker] | Transport & Logistik [åkeri, spedition, budtjänst, flytt, taxi, lagerhantering, godstransport, courier] | Industri & Tillverkning [fabrik, verkstad, tillverkning, gjuteri, svetsning, mekanik, fordonsservice] | Utbildning [skola, förskola, kurs, utbildningsföretag, instruktör, folkhögskola] | Övrigt [ENBART om ingen av ovanstående stämmer — inte default] — eller null om branschen inte nämns), email (string|null), pain_points (string-array), pain_points_summary (string|null), current_process (string|null), meeting_requested (boolean), language_detected (sv|en), summary (3-5 meningar för en säljare: vem ringde in, från vilket företag, vilken bransch, vilket problem, nästa steg). Svara ENBART med valid JSON.' }, { role: 'user', content: '<transcript>\\n' + ($json.transcript || '') + '\\n</transcript>' }] }) }}",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi"
+      },
+      "id": "9b920c81-8be5-43f5-ad04-97f90bc07be2",
+      "name": "LLM Extract Call Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        752,
+        0
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "openAiApi": {
+          "id": "OvYdngyLNiazRLen",
+          "name": "OpenAI Skyland"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "const upstream = $('Attach Prospect Links').first().json;\nconst llmResponse = $input.first().json;\nlet llmData = null;\ntry {\n  const content = llmResponse?.choices?.[0]?.message?.content;\n  if (content) {\n    llmData = JSON.parse(content);\n  }\n} catch (e) {}\nconst fallback = upstream.extracted_data || {};\nconst extracted = {\n  person_name: llmData?.person_name ?? fallback.person_name ?? null,\n  company_name: llmData?.company_name ?? fallback.company_name ?? null,\n  industry: llmData?.industry ?? fallback.industry ?? null,\n  email: llmData?.email ?? fallback.email ?? null,\n  pain_points: llmData?.pain_points ?? fallback.pain_points ?? [],\n  pain_points_summary: llmData?.pain_points_summary ?? fallback.pain_points_summary ?? null,\n  current_process: llmData?.current_process ?? fallback.current_process ?? null,\n  meeting_requested: llmData?.meeting_requested ?? fallback.meeting_requested ?? false,\n  language_detected: llmData?.language_detected ?? null,\n};\nconst summary = llmData?.summary || upstream.summary || null;\nreturn [{ json: { ...upstream, summary, extracted_data: extracted } }];"
+      },
+      "id": "e607d995-cae9-4748-ac9f-7204731dda57",
+      "name": "Parse LLM Extraction",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/voice_calls?on_conflict=provider,external_call_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation,resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session_uuid: $json.session_uuid, prospect_id: $json.prospect_id, customer_id: $json.customer_id, provider: $json.provider, external_call_id: $json.external_call_id, call_source: $json.call_source, agent_id: $json.agent_id, started_at: $json.started_at, ended_at: $json.ended_at, duration_seconds: $json.duration_seconds, transcript: $json.transcript, summary: $json.summary, recording_url: $json.recording_url, extracted_data: $json.extracted_data, metadata: $json.metadata, raw_payload: $json.raw_payload }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "9a35cee4-f982-4bbf-9598-f3f56ef14fb0",
+      "name": "Upsert Voice Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1264,
+        0
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session_uuid: $json.session_uuid, type: 'voice', payload: { external_call_id: $json.external_call_id, prospect_id: $json.prospect_id, customer_id: $json.customer_id, source: $json.call_source, summary: $json.summary, transcript: $json.transcript, duration_seconds: $json.duration_seconds, started_at: $json.started_at, ended_at: $json.ended_at, extracted_data: $json.extracted_data } }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "e2634619-673f-4dec-ae5a-edae6c7d8607",
+      "name": "Insert Voice Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1504,
+        0
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'ok', external_call_id: $('Attach Prospect Links').first().json.external_call_id }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "c1140521-e552-4bd8-8b3d-88ef6fc55d35",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1760,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://scc.skylandai.se/api/v1/leads/intake",
+        "authentication": "none",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer <REDACTED_LEADS_INTAKE_TOKEN>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: 'voice_call', session_uuid: $('Parse LLM Extraction').first().json.session_uuid, prospect_id: $('Parse LLM Extraction').first().json.prospect_id, name: $('Parse LLM Extraction').first().json.extracted_data.person_name, email: $('Parse LLM Extraction').first().json.extracted_data.email, company: $('Parse LLM Extraction').first().json.extracted_data.company_name, summary: $('Parse LLM Extraction').first().json.summary, extracted: $('Parse LLM Extraction').first().json.extracted_data }) }}",
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "name": "Notify SCC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        160
+      ],
+      "onError": "continueRegularOutput",
+      "id": "a8c86037-9c92-4b01-add6-08c0b570ba80"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Call Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Call Payload": {
+      "main": [
+        [
+          {
+            "node": "Is Invalid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Invalid?": {
+      "main": [
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Session": {
+      "main": [
+        [
+          {
+            "node": "Find Prospect by Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Prospect by Session": {
+      "main": [
+        [
+          {
+            "node": "Attach Prospect Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Prospect Links": {
+      "main": [
+        [
+          {
+            "node": "LLM Extract Call Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Extract Call Data": {
+      "main": [
+        [
+          {
+            "node": "Parse LLM Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LLM Extraction": {
+      "main": [
+        [
+          {
+            "node": "Upsert Voice Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Voice Call": {
+      "main": [
+        [
+          {
+            "node": "Insert Voice Interaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Voice Interaction": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond OK": {
+      "main": [
+        [
+          {
+            "node": "Notify SCC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  },
+  "staticData": null,
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "onepiecedad.app.n8n.cloud",
+            "user-agent": "python-httpx/0.28.1",
+            "content-length": "2534",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "2605:4c40:146:146c:0:5a0a:5db1:1",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "SE",
+            "cf-ray": "9ffacb6f4b5d992d-ARN",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "x-forwarded-for": "2605:4c40:146:146c:0:5a0a:5db1:1, 172.68.183.46",
+            "x-forwarded-host": "onepiecedad.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-88-68dff86f78-km5rt",
+            "x-is-trusted": "yes",
+            "x-real-ip": "2605:4c40:146:146c:0:5a0a:5db1:1"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "session_uuid": "bc3b2a51-0961-46a0-8b52-0880b7219124",
+            "conversation_id": "conv_4001ks7g3978ffgvy164rba2tnx0",
+            "agent_id": "agent_8701kr69134ge7gvh3a6tcmkhq95",
+            "started_at": "2026-05-22T09:26:05.635Z",
+            "ended_at": "2026-05-22T09:29:07.482Z",
+            "duration_seconds": 182,
+            "transcript": "agent: Välkommen till Skyland. Jag förstår att du vill veta hur vår process ser ut. Är det okej om jag ställer ett par korta frågor först, så kan jag förklara utifrån just er situation?\nuser: Absolut, det går jättebra.\nagent: Jag heter Alex förresten — vad heter du?\nuser: Jag heter Joakim.\nagent: Okej, Joakim. Vad heter företaget och vilken bransch är ni i?\nuser: Vi heter, eh, Tyringe Rör & Betong.\nuser: Och vi håller på med, eh, VVS och, eh, markarbete.\nagent: Okej, Tyringe Rör & Betong, VVS och markarbete. Vad tar mest tid eller skapar mest friktion hos er idag?\nuser: Hålla på och svara på frågor från, eh, kunder via mejl, formulär, telefonsamtal, eh, skicka fakturor, göra beställningar, orderuppföljning, så.\nagent: Okej, jag förstår. Hur hanterar ni allt det där idag?\nuser: Manuellt.\nagent: Okej, så ni hanterar all kundkommunikation, fakturering och orderhantering manuellt idag.\nagent: En lösning vi kan erbjuda är ett anpassat CRM-system som samlar alla era kundärenden, offerter och kommunikation på ett ställe. Det skulle kunna logga mejl och samtal automatiskt.\n\nSkulle det kunna underlätta för er att ha allt samlat på ett ställe?\nuser: Absolut, jag bokar gärna ett möte och tar detta om det.\nagent: Toppen, Joakim. Då behöver jag bara din mejladress för att boka in det.\nuser: joakim123@gmail.com.\nagent: Okej, tack.\nagent: Ahhh... Vi har lediga tider redan idag, till exempel klockan 14:30 eller 14:45. Passar någon av dem, eller vill du titta på en annan dag?\nuser: Det fun-- Halv-halv-halv tre funkar bra.\nagent: Okej, halv tre idag.\nuser: Yes.\nagent: Bokar in mötet nu.\nagent: Ursäkta, det verkar som att bokningen inte gick igenom. Det kan hända ibland om tiden precis blivit upptagen.\n\nHar du möjlighet att ta det klockan 14:45 idag istället, eller kanske imorgon förmiddag?\nuser: Nej, idag 14:45 blir bra.\nagent: Bokar in mötet för 14:45 idag.\nagent: I hear you... Bokat. Du får en kalenderinbjudan på mejlen inom kort med Google Meet-länken.\nuser: Okej, tack så mycket.\nagent: Tack själv, Joakim! Vi hörs snart.",
+            "summary": null,
+            "recording_url": null,
+            "source": "browser_sdk_disconnect",
+            "metadata": {
+              "entry_module": "flux"
+            },
+            "raw_payload": {}
+          },
+          "webhookUrl": "https://onepiecedad.app.n8n.cloud/webhook/voice-call-ended",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "triggerCount": 1,
+  "meta": null
+}

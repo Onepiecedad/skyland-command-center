@@ -1,0 +1,97 @@
+{
+  "name": "MarinMekaniker - Ordernotifiering",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "marinmekaniker-order",
+        "options": {}
+      },
+      "id": "89eca2ff-1f6a-4c23-89c9-0f54c9053187",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        96
+      ],
+      "webhookId": "4133f001-4524-472f-b782-e118758699c8"
+    },
+    {
+      "parameters": {
+        "fromEmail": "info@marinmekaniker.nu",
+        "toEmail": "info@marinmekaniker.nu",
+        "subject": "=Ny order: {{ $json.namn }} – {{ $json.marke }} {{ $json.modell }}",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;color:#222\"><h2 style=\"color:#1a3a5c;border-bottom:2px solid #e0e8f0;padding-bottom:10px\">Ny beställning – MarinMekaniker.nu</h2><table style=\"border-collapse:collapse;width:100%;margin-top:8px\"><tr style=\"background:#f5f8ff\"><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold;width:42%\">Order-ID</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-family:monospace;font-size:13px\">{{ $json.order_id }}</td></tr><tr><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">Namn</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\">{{ $json.namn }}</td></tr><tr style=\"background:#f5f8ff\"><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">E-post</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\"><a href=\"mailto:{{ $json.email }}\">{{ $json.email }}</a></td></tr><tr><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">Telefon</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\"><a href=\"tel:{{ $json.telefon }}\">{{ $json.telefon }}</a></td></tr><tr style=\"background:#f5f8ff\"><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">Motortyp</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\">{{ $json.motor_typ }}</td></tr><tr><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">Märke</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\">{{ $json.marke }}</td></tr><tr style=\"background:#f5f8ff\"><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">Modell</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\">{{ $json.modell }}</td></tr><tr><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">Årsmodell</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\">{{ $json.arsmodell }}</td></tr><tr style=\"background:#f5f8ff\"><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">Motornummer</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\">{{ $json.motornummer }}</td></tr><tr><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">Serviceintervall</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\">Vart {{ $json.service_interval }} år</td></tr><tr style=\"background:#f5f8ff\"><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">Bild</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\">{{ $json.bild_url ? '<a href=\"' + $json.bild_url + '\">Visa bild</a>' : 'Ingen bild uppladdad' }}</td></tr><tr><td style=\"padding:10px 14px;border:1px solid #d0d8e8;font-weight:bold\">Inkommen</td><td style=\"padding:10px 14px;border:1px solid #d0d8e8\">{{ new Date($json.created_at).toLocaleString('sv-SE') }}</td></tr></table><p style=\"margin-top:20px;color:#555;font-size:14px\">Logga in på <a href=\"https://marinmekaniker.nu/admin\">admin-panelen</a> för att sätta pris och hantera ordern.</p></div>",
+        "options": {}
+      },
+      "id": "92edf12a-b50f-42ed-b467-0464c327dc1a",
+      "name": "E-post till Thomas",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        0
+      ],
+      "webhookId": "beb86a54-50bf-45a2-b7ea-466af6ebd661",
+      "credentials": {
+        "smtp": {
+          "id": "c9wOE5rLWcqQ4feQ",
+          "name": "SMTP account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "info@marinmekaniker.nu",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Tack för din beställning – MarinMekaniker.nu",
+        "html": "=<div style=\"font-family:Arial,sans-serif;max-width:600px;color:#222\"><h2 style=\"color:#1a3a5c\">Tack för din beställning!</h2><p>Hej {{ $json.namn }},</p><p>Vi har tagit emot din beställning och Thomas återkommer till dig med ett prisförslag inom kort.</p><h3 style=\"color:#1a3a5c;margin-top:24px\">Din beställning</h3><table style=\"border-collapse:collapse;width:100%;max-width:420px\"><tr style=\"background:#f5f8ff\"><td style=\"padding:9px 12px;border:1px solid #d0d8e8;font-weight:bold;width:44%\">Motor</td><td style=\"padding:9px 12px;border:1px solid #d0d8e8\">{{ $json.marke }} {{ $json.modell }}</td></tr><tr><td style=\"padding:9px 12px;border:1px solid #d0d8e8;font-weight:bold\">Årsmodell</td><td style=\"padding:9px 12px;border:1px solid #d0d8e8\">{{ $json.arsmodell }}</td></tr><tr style=\"background:#f5f8ff\"><td style=\"padding:9px 12px;border:1px solid #d0d8e8;font-weight:bold\">Motortyp</td><td style=\"padding:9px 12px;border:1px solid #d0d8e8\">{{ $json.motor_typ }}</td></tr><tr><td style=\"padding:9px 12px;border:1px solid #d0d8e8;font-weight:bold\">Serviceintervall</td><td style=\"padding:9px 12px;border:1px solid #d0d8e8\">Vart {{ $json.service_interval }} år</td></tr></table><p style=\"margin-top:24px\">Har du frågor är du välkommen att kontakta oss:</p><ul style=\"padding-left:20px;line-height:1.8\"><li><a href=\"tel:0768559931\">076-855 99 31</a></li><li><a href=\"mailto:info@marinmekaniker.nu\">info@marinmekaniker.nu</a></li></ul><p style=\"margin-top:24px\">Med vänlig hälsning,<br><strong>Thomas Guldager</strong><br>MarinMekaniker.nu</p><hr style=\"margin:32px 0;border:none;border-top:1px solid #eee\"><p style=\"font-size:12px;color:#999\">MarinMekaniker.nu · 076-855 99 31 · info@marinmekaniker.nu</p></div>",
+        "options": {}
+      },
+      "id": "951c7f06-bd60-46a5-8f3f-027e53b45825",
+      "name": "Bekräftelse till kund",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        -80,
+        192
+      ],
+      "webhookId": "3641f267-e0ef-44ca-9a0c-be1b73307577",
+      "credentials": {
+        "smtp": {
+          "id": "c9wOE5rLWcqQ4feQ",
+          "name": "SMTP account 2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "E-post till Thomas",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Bekräftelse till kund",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

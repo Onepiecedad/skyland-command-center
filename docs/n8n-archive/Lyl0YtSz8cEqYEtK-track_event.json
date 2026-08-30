@@ -1,0 +1,220 @@
+{
+  "name": "track-event",
+  "nodes": [
+    {
+      "id": "wh1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "track-event",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "track-event-webhook"
+    },
+    {
+      "id": "val1",
+      "name": "Validate & Sanitize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Anonym telemetri: validera uuid, whitelist av eventtyper, cap på batch.\n// Ingen IP, ingen user-agent, ingen fritext från besökaren lagras.\nconst ALLOWED = new Set([\n  'page_view', 'lang', 'video_play', 'video_complete', 'starter_click',\n  'voice_start', 'voice_end', 'voice_error',\n  'form_start', 'form_submit', 'form_error',\n  'roi_input', 'cta_book_click'\n]);\nconst body = $input.first().json.body || {};\nconst uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\nif (!body.session_uuid || !uuidRegex.test(body.session_uuid)) {\n  return [{ json: { invalid: true } }];\n}\nconst raw = Array.isArray(body.events) ? body.events.slice(0, 25) : [];\nconst rows = [];\nfor (const ev of raw) {\n  if (!ev || !ALLOWED.has(ev.type)) continue;\n  const d = ev.data && typeof ev.data === 'object' ? ev.data : {};\n  const clean = {};\n  // whitelist av datafält, allt annat slängs\n  if (typeof d.module === 'string') clean.module = d.module.slice(0, 20);\n  if (typeof d.lang === 'string') clean.lang = d.lang.slice(0, 5);\n  if (typeof d.starter === 'string') clean.starter = d.starter.slice(0, 80);\n  if (typeof d.video === 'string') clean.video = d.video.slice(0, 40);\n  if (Number.isFinite(d.hours)) clean.hours = Math.max(0, Math.min(200, d.hours));\n  if (Number.isFinite(d.rate)) clean.rate = Math.max(0, Math.min(10000, d.rate));\n  if (Number.isFinite(d.seconds)) clean.seconds = Math.max(0, Math.min(86400, Math.round(d.seconds)));\n  rows.push({ session_uuid: body.session_uuid.toLowerCase(), type: ev.type, data: clean });\n}\nif (rows.length === 0) return [{ json: { invalid: true } }];\nreturn [{ json: { invalid: false, rows } }];"
+      }
+    },
+    {
+      "id": "if1",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.invalid }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "ins1",
+      "name": "Insert Events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        -80
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500,
+      "parameters": {
+        "method": "POST",
+        "url": "https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/events",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.rows) }}",
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      }
+    },
+    {
+      "id": "ok1",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        -80
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "err1",
+      "name": "Respond Invalid",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false }) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate & Sanitize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Sanitize": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Insert Events",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Events": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": null
+}

@@ -9,6 +9,10 @@
 > Render → Environment. 2026-08-29 gick tre mejl ut skarpt av exakt det skälet.
 > Tjänsten `scc-backend` i arbetsytan "My Workspace" (Free, Oregon) är en död dubblett
 > utan miljö och kan tas bort.
+>
+> **Nuläge och alla flaggor: `docs/DRIFT.md`.** Sedan 2026-08-30 kör SCC även sajtens
+> flöden (`docs/SITE_FLOWS.md`); nya valfria env: `SITE_VOICE_WEBHOOK_TOKEN`, `SITE_RAG_KEY`,
+> `SITE_ELEVENLABS_API_KEY`, `EXTRA_CORS_ORIGINS`, `MM_ORDER_WEBHOOK_TOKEN` (alla har fallback, se `.env.example`).
 
 > Mål: backend (+ SPA) live på `https://scc.skylandai.se`, ngrok avstängd.
 > Dockerfilen i `backend/Dockerfile` bygger BÅDE frontend och backend till en container.

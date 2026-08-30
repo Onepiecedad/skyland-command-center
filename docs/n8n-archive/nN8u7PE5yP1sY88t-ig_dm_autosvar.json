@@ -1,0 +1,275 @@
+{
+  "name": "ig-dm-autosvar",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "ig-dm",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh_get",
+      "name": "Webhook Verify (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "3943aa13-e794-4a3c-afb7-67baa68d7cb6"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Metas webhook-verifiering: eka hub.challenge om verify_token stämmer\nconst VERIFY_TOKEN = 'skyland-ig-verify-2026';\nconst q = $input.first().json.query || {};\nconst ok = q['hub.mode'] === 'subscribe' && q['hub.verify_token'] === VERIFY_TOKEN;\nreturn [{ json: { challenge: ok ? q['hub.challenge'] : 'fel verify token' } }];\n"
+      },
+      "id": "code_verify",
+      "name": "Verifiera token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Svara med challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ig-dm",
+        "options": {}
+      },
+      "id": "wh_post",
+      "name": "Webhook DM (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        224
+      ],
+      "webhookId": "06bf2811-78d2-4f00-9f85-26532b1d0d84"
+    },
+    {
+      "parameters": {
+        "jsCode": "//, Konfiguration ,\nconst IG_ACCESS_TOKEN = 'IGAA3dA6X9qcNBZAGF1Sk5qdWtZARkc2UHh1dGtPMU5vVVphWDRfZAmlqMGdHaF9kdFdDWFVENDh6a01KRjZARYkNvb1M3RGRYNktNTWZAkaDNBWFdmZAHBFWnZAsdHJkdEJZAV2dHbnJIcjFQblZAQZAGtxM2hob01VcjBsazFVMXF5dUNXNAZDZD';\n\nconst SVAR = {\n  'stol': \"Hej! Kort om vad jag gör: fyller tomma tider åt tatuerare med bokningar. Ni lägger en liten annonsbudget, jag bygger och kör annonserna och sköter bokning + admin. Ni tatuerar bara vidare. 10% på de bokningar som faktiskt kommer in den vägen, inget fast och inget i förskott.\\n\\nVill du se ett par annonsexempel för er studio? Svara här 👇\"\n};\n\nfunction matcha(text){\n  // Exakt-matchning: bara ett meddelande som AR nyckelordet triggar autosvaret.\n  // Skyddar mot att t.ex. \"denna vecka\" i en prospekt-trad smaller igang demot.\n  const norm=String(text||'').toLowerCase().replace(/[^a-zåäö]/g,'');\n  for(const [kw,s] of Object.entries(SVAR)){ if(norm===kw) return {kw,svar:s}; }\n  return null;\n}\n\nconst out=[];\nfor(const item of $input.all()){\n  const body=item.json.body||item.json;\n  for(const entry of (body.entry||[])){\n    for(const ev of (entry.messaging||[])){\n      const msg=ev.message;\n      if(!msg||!msg.text||msg.is_echo) continue;\n      const hit=matcha(msg.text);\n      if(!hit) continue;\n      out.push({json:{typ:'dm', recipient:{id:ev.sender.id}, reply_text:hit.svar, keyword:hit.kw, token:IG_ACCESS_TOKEN}});\n    }\n    for(const ch of (entry.changes||[])){\n      if(ch.field!=='comments') continue;\n      const v=ch.value||{};\n      if(v.from && v.from.id===entry.id) continue;\n      const hit=matcha(v.text);\n      if(!hit) continue;\n      out.push({json:{typ:'comment', recipient:{comment_id:v.id}, reply_text:hit.svar, keyword:hit.kw, token:IG_ACCESS_TOKEN}});\n    }\n  }\n}\nreturn out;\n"
+      },
+      "id": "code_handle",
+      "name": "Hantera DM (nyckelord)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.instagram.com/v23.0/me/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ recipient: $json.recipient, message: { text: $json.reply_text } }) }}",
+        "options": {}
+      },
+      "id": "http_send",
+      "name": "Skicka autosvar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// SCC-loggning: ALLA meddelanden (inbound + echoes av egna skickade)\nconst IG_ACCESS_TOKEN = 'IGAA3dA6X9qcNBZAGF1Sk5qdWtZARkc2UHh1dGtPMU5vVVphWDRfZAmlqMGdHaF9kdFdDWFVENDh6a01KRjZARYkNvb1M3RGRYNktNTWZAkaDNBWFdmZAHBFWnZAsdHJkdEJZAV2dHbnJIcjFQblZAQZAGtxM2hob01VcjBsazFVMXF5dUNXNAZDZD';\nconst out = [];\nfor (const item of $input.all()) {\n  const body = item.json.body || item.json;\n  for (const entry of (body.entry || [])) {\n    for (const ev of (entry.messaging || [])) {\n      const msg = ev.message;\n      if (!msg || !msg.text) continue;\n      const echo = !!msg.is_echo;\n      const other = echo ? (ev.recipient && ev.recipient.id) : (ev.sender && ev.sender.id);\n      if (!other) continue;\n      out.push({ json: {\n        ig_id: String(other),\n        direction: echo ? 'outbound' : 'inbound',\n        text: msg.text,\n        mid: msg.mid || '',\n        timestamp: ev.timestamp || Date.now(),\n        token: IG_ACCESS_TOKEN,\n      } });\n    }\n  }\n}\nreturn out;"
+      },
+      "name": "SCC-extrakt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        624
+      ],
+      "id": "821b1d2d-c2e2-4ee6-8375-168d8c2a8f73"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.instagram.com/v23.0/{{ $json.ig_id }}?fields=username&access_token={{ $json.token }}",
+        "options": {}
+      },
+      "name": "Hämta IG-username",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        624
+      ],
+      "alwaysOutputData": true,
+      "id": "85f7d67a-6157-47cf-bbb8-f3dbe4d21a5d",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Para ihop username-svaret med ursprungsdatat (indexordning bevaras)\nconst extr = $('SCC-extrakt').all();\nconst out = [];\nconst inp = $input.all();\nfor (let i = 0; i < inp.length; i++) {\n  const resp = inp[i].json || {};\n  const src = (extr[i] || {}).json || {};\n  if (!src.text) continue;\n  out.push({ json: {\n    username: resp.username || '',\n    ig_id: src.ig_id || '',\n    direction: src.direction,\n    text: src.text,\n    mid: src.mid,\n    timestamp: src.timestamp,\n  } });\n}\nreturn out;"
+      },
+      "name": "Bygg SCC-payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        624
+      ],
+      "id": "f7f8b2d4-0f40-42a3-b539-236e47267fb2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://scc.skylandai.se/api/v1/webhooks/ig-dm",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer <REDACTED_LEADS_INTAKE_TOKEN>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({username: $json.username, direction: $json.direction, text: $json.text, mid: $json.mid, ig_id: $json.ig_id, timestamp: $json.timestamp}) }}",
+        "options": {}
+      },
+      "name": "Logga till SCC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1088,
+        624
+      ],
+      "id": "25b3d058-2207-4bdf-b74e-4696e0b5006b",
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Webhook Verify (GET)": {
+      "main": [
+        [
+          {
+            "node": "Verifiera token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verifiera token": {
+      "main": [
+        [
+          {
+            "node": "Svara med challenge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook DM (POST)": {
+      "main": [
+        [
+          {
+            "node": "Hantera DM (nyckelord)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SCC-extrakt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hantera DM (nyckelord)": {
+      "main": [
+        [
+          {
+            "node": "Skicka autosvar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SCC-extrakt": {
+      "main": [
+        [
+          {
+            "node": "Hämta IG-username",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hämta IG-username": {
+      "main": [
+        [
+          {
+            "node": "Bygg SCC-payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bygg SCC-payload": {
+      "main": [
+        [
+          {
+            "node": "Logga till SCC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 2,
+  "meta": null
+}

@@ -1,0 +1,585 @@
+{
+  "name": "void-submission",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "void-submission",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "ffdaa3bc-082f-4acd-bc99-b89e8f2ff842",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        912,
+        -80
+      ],
+      "webhookId": "void-submission"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate input fields from form submission\nconst body = $input.first().json.body || {};\nconst errors = [];\n\n// Required fields\nif (!body.session_uuid) errors.push('session_uuid required');\nif (!body.name || body.name.trim().length < 2) errors.push('name required (min 2 chars)');\nif (!body.email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(body.email)) errors.push('valid email required');\nif (!body.message || body.message.trim().length < 10) errors.push('message required (min 10 chars)');\n\n// UUID v4 format\nconst uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\nif (body.session_uuid && !uuidRegex.test(body.session_uuid)) {\n  errors.push('session_uuid must be valid v4 UUID');\n}\n\n// GDPR consent\nif (body.consent_given !== true) {\n  errors.push('consent_given must be true');\n}\n\nif (errors.length > 0) {\n  return [{\n    json: {\n      validation_failed: true,\n      error_code: body.consent_given !== true ? 'MISSING_CONSENT' : 'INVALID_INPUT',\n      message: errors.join('; ')\n    }\n  }];\n}\n\n// Pass through validated data\nreturn [{\n  json: {\n    validation_failed: false,\n    session_uuid: body.session_uuid,\n    name: body.name.trim(),\n    email: body.email.trim().toLowerCase(),\n    company: (body.company || '').trim(),\n    website: (body.website || '').trim(),\n    phone: (body.phone || '').trim(),\n    message: body.message.trim(),\n    consent_given: true\n  }\n}];"
+      },
+      "id": "22c78f46-4fd9-47b0-a53a-1369fb7bd162",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-valid",
+              "leftValue": "={{ $json.validation_failed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bda71903-3043-4794-9ea7-e9e5559af65d",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'error', error_code: $json.error_code, message: $json.message }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "a016fb4b-4b47-4704-8eeb-c2734390a1d7",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1584,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/sessions?on_conflict=session_uuid",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation,resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session_uuid: $json.session_uuid }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "dac25e4f-f06e-4fd2-8a27-fd83526409b2",
+      "name": "Upsert Session",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1584,
+        -176
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/prospects",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session_uuid: $('Validate Input').first().json.session_uuid, name: $('Validate Input').first().json.name, email: $('Validate Input').first().json.email, company: $('Validate Input').first().json.company, website: $('Validate Input').first().json.website, phone: $('Validate Input').first().json.phone, message: $('Validate Input').first().json.message, consent_given: true, score: 0 }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "6ab83f24-f684-4dc9-9131-11982bb943ab",
+      "name": "Insert Prospect",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1808,
+        -176
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Regelbaserad lead scoring — transparent och debuggbar\n// OBS: Supabase REST med Prefer: return=representation returnerar\n// varje rad som separat n8n-item. Använd .all().map() för att samla.\nconst prospects = $input.all().map(item => item.json);\nconst prospect = Array.isArray(prospects[0]) ? prospects[0][0] : prospects[0];\nconst original = $('Validate Input').first().json;\n\nlet score = 0;\n\n// Company present\nif (original.company && original.company.length > 1) score += 10;\n\n// Website present\nif (original.website && original.website.length > 4) score += 10;\n\n// Phone present\nif (original.phone && original.phone.length > 5) score += 5;\n\n// Message length signals seriousness\nconst wordCount = original.message.split(/\\s+/).length;\nif (wordCount >= 30) score += 15;\nelse if (wordCount >= 15) score += 10;\nelse if (wordCount >= 10) score += 5;\n\n// Service mentions in message (case-insensitive)\nconst msg = original.message.toLowerCase();\nconst serviceKeywords = ['crm', 'automation', 'voice', 'agent', 'chatbot', 'hemsida', 'integration', 'n8n', 'supabase'];\nconst matches = serviceKeywords.filter(k => msg.includes(k));\nscore += matches.length * 5;\n\n// Cap at 100\nscore = Math.min(score, 100);\n\nreturn [{\n  json: {\n    lead_id: prospect.id,\n    session_uuid: prospect.session_uuid,\n    name: prospect.name,\n    email: prospect.email,\n    company: prospect.company,\n    message: prospect.message,\n    score: score\n  }\n}];"
+      },
+      "id": "728812b5-ce43-44c2-a025-93b6b317fd18",
+      "name": "Calculate Lead Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/prospects?id=eq.{{ $json.lead_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ score: $json.score }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "f88a43be-1e28-485d-b922-4b763164242d",
+      "name": "Update Prospect Score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2256,
+        -176
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://onepiecedad.app.n8n.cloud/webhook/rag-query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Skyland-Key",
+              "value": "<REDACTED_KEY>"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: $('Calculate Lead Score').first().json.message }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "ebe758a1-c981-4ec4-8f08-bbbb33f0239e",
+      "name": "Query Knowledge Base",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2480,
+        -176
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('Build OpenAI Payload').first().json.payload) }}",
+        "options": {
+          "timeout": 30000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi"
+      },
+      "id": "52145e3c-7352-469c-986c-61c163285d4b",
+      "name": "Generate AI Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2928,
+        -176
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "OvYdngyLNiazRLen",
+          "name": "OpenAI Skyland"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/interactions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ session_uuid: $('Calculate Lead Score').first().json.session_uuid, type: 'form', payload: { lead_id: $('Calculate Lead Score').first().json.lead_id, score: $('Calculate Lead Score').first().json.score, best_match_similarity: $('Query Knowledge Base').first().json.best_similarity || 0, ai_response: ($('Generate AI Response').first().json.choices && $('Generate AI Response').first().json.choices[0] ? $('Generate AI Response').first().json.choices[0].message.content : 'Fallback: Joakim återkommer inom 24 timmar.') } }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "43e5fa6f-64d2-4840-9610-1e06199bfc1d",
+      "name": "Insert Interaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3152,
+        -176
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format final response to webhook caller\nconst aiResponseRaw = $('Generate AI Response').first().json;\nconst ragResult = $('Query Knowledge Base').first().json;\nconst lead = $('Calculate Lead Score').first().json;\n\n// OpenAI returnerar choices[0].message.content\nconst aiText = aiResponseRaw.choices?.[0]?.message?.content || 'Tack för ditt meddelande, ' + lead.name + '. Joakim återkommer personligen inom 24 timmar med ett konkret förslag baserat på det du beskrivit.';\n\nreturn [{\n  json: {\n    status: 'success',\n    lead_id: lead.lead_id,\n    ai_response: aiText,\n    best_match_similarity: ragResult.best_similarity || 0\n  }\n}];"
+      },
+      "id": "42765a82-236f-4180-92fa-1cd239b79b68",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3376,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "d646d31a-4431-49d8-b5ab-e6166b5d9a75",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        3600,
+        -176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build OpenAI payload — separat nod för läsbar systemprompt\n// Bevarar svenska tecken och radbrytningar utan escape-helvete\n\nconst leadData = $('Calculate Lead Score').first().json;\nconst ragData = $('Query Knowledge Base').first().json;\n\nconst systemPrompt = `**KRITISK FÖRSTA REGEL — språk:**\nDu MÅSTE svara på det språk som anges i fältet \"Svarsspråk\". Om Svarsspråk är ENGLISH, svara på engelska. Om SWEDISH, svara på svenska. Inga undantag.\n\n---\n\nDu är en pragmatisk AI-arkitekt som snabbt och konkret analyserar ett inkommande lead och föreslår lösningar. Din ton är direkt, professionell och helt utan marketing-fluff.\n\n## 1. Lyssna på det EXAKTA problemet\nLäs noga VAD kunden vill ha hjälp med.\n- Om kunden vill ha \"fler kunder\", prata om lead generation, konvertering och uppföljning.\n- Om kunden pratar om \"tidsbrist\" eller \"missade samtal\", prata om automatiska bokningssystem och kundtjänst.\nDitt svar MÅSTE matcha kundens specifika behov. Prata aldrig om admin/bokningssystem om kunden explicit ber om mer försäljning.\n\n## 2. Format: Två lösningar\nDitt svar ska alltid innehålla exakt 2 olika AI-lösningar/angreppssätt på kundens specifika problem.\n- Extremt kortfattat: Max 3-4 meningar totalt.\n- Skriv i löptext (inga punktlistor, inga rubriker).\n- Inga hälsningsfraser (\"Hej och tack\"). Gå rakt på sak.\n\n## 3. Hur du avslutar (VIKTIGT)\n- Du får INTE skriva att \"vi kommer höra av oss\", \"jag ringer dig\" eller liknande. (Systemet lägger automatiskt till detta efter din text).\n- Du får INTE ställa några frågor (\"Hur låter det?\", \"Vad tar mest tid?\").\n- Avsluta bara texten direkt efter att du presenterat den andra lösningen.\n\n## 4. Komplett exempel (Följ denna längd och struktur exakt!)\n\nINKOMMANDE MEDDELANDE:\n\"Hej, jag driver en massageklinik och behöver fler kunder.\"\n\nDITT SVAR:\n\"Att hitta nya kunder tar tid som du hellre lägger på behandlingar. Vi kan lösa detta på två sätt: antingen sätter vi upp en AI-agent som dygnet runt fångar upp och konverterar hemsidebesökare till bokade tider, eller så automatiserar vi en proaktiv uppföljning via SMS med dina tidigare kunder för att snabbt fylla luckor i din kalender.\"\n\n## Absolut förbjudet\n- Att skriva att du ska höra av dig eller ta kontakt.\n- Att ställa frågor (kunden kan inte svara i detta gränssnitt).\n- Säljiga fraser som \"Föreställ dig...\" eller \"Skräddarsydda lösningar\".\n- Att svara på ett annat problem än det kunden faktiskt tog upp!`;\n\n// Språkdetektering\nconst isEnglish = /\\b(the|and|is|are|we|our|can|you|help|with|have|this|that|from)\\b/i.test(leadData.message) && !/[åäöÅÄÖ]/.test(leadData.message);\nconst svarssprak = isEnglish ? 'ENGLISH' : 'SWEDISH';\nconst userMessage = `Svarsspråk: ${svarssprak}\n\nBesökarens meddelande:\n\"${leadData.message}\"\n\nNamn: ${leadData.name}\nFöretag: ${leadData.company || 'Ej angivet'}\n\nKunskapsbas-träffar:\n${JSON.stringify(ragData.matches || [])}\n\nGenerera de 2 lösningarna i löptext enligt instruktionerna. Max 4 meningar.`;\n\nconst payload = {\n  model: 'gpt-4o-mini',\n  max_tokens: 300,\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: userMessage }\n  ]\n};\n\nreturn [{\n  json: {\n    payload: payload,\n    // Behåll lead-data för senare noder\n    lead_id: leadData.lead_id,\n    session_uuid: leadData.session_uuid,\n    name: leadData.name,\n    email: leadData.email,\n    company: leadData.company,\n    message: leadData.message,\n    score: leadData.score\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2704,
+        -176
+      ],
+      "id": "04e8aff6-7caf-49bb-8b2e-1e6e038a2af4",
+      "name": "Build OpenAI Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://scc.skylandai.se/api/v1/leads/intake",
+        "authentication": "none",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer <REDACTED_LEADS_INTAKE_TOKEN>"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: 'void_form', session_uuid: $('Calculate Lead Score').first().json.session_uuid, prospect_id: $('Calculate Lead Score').first().json.lead_id, name: $('Calculate Lead Score').first().json.name, email: $('Calculate Lead Score').first().json.email, company: $('Calculate Lead Score').first().json.company, message: $('Calculate Lead Score').first().json.message, score: $('Calculate Lead Score').first().json.score }) }}",
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "name": "Notify SCC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3820,
+        -16
+      ],
+      "onError": "continueRegularOutput",
+      "id": "3f7bdee7-5148-4f9c-86e8-9319558033da"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Upsert Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Session": {
+      "main": [
+        [
+          {
+            "node": "Insert Prospect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Prospect": {
+      "main": [
+        [
+          {
+            "node": "Calculate Lead Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Lead Score": {
+      "main": [
+        [
+          {
+            "node": "Update Prospect Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Prospect Score": {
+      "main": [
+        [
+          {
+            "node": "Query Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Build OpenAI Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate AI Response": {
+      "main": [
+        [
+          {
+            "node": "Insert Interaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Interaction": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build OpenAI Payload": {
+      "main": [
+        [
+          {
+            "node": "Generate AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond Success": {
+      "main": [
+        [
+          {
+            "node": "Notify SCC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": null
+}

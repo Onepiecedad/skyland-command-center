@@ -1,0 +1,293 @@
+{
+  "name": "rag-query",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rag-query",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d718ffe7-99b6-438d-9675-7f0a4c5011d5",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -592,
+        -64
+      ],
+      "webhookId": "rag-query"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Shared-secret guard - requests must carry X-Skyland-Key\nconst _hdrs = $input.first().json.headers || {};\nconst _key = _hdrs['x-skyland-key'] || _hdrs['X-Skyland-Key'];\nif (_key !== '<REDACTED_KEY>') {\n  return [{ json: { validation_failed: true, error_code: 'UNAUTHORIZED', message: 'missing or invalid X-Skyland-Key' } }];\n}\n\n// Validate input and extract fields\nconst body = $input.first().json.body || {};\nconst query = (body.query || '').trim();\nconst language = body.language || 'sv';\n\nif (!query) {\n  return [{ json: { valid: false, error: 'query is required', statusCode: 400 } }];\n}\n\nreturn [{ json: { valid: true, query, language } }];"
+      },
+      "id": "1ec5e2b1-5c92-4e2b-85f9-e4dfe17852f4",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -336,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-valid",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1abd6de5-9cea-438a-aaa1-626e7904ce4a",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'text-embedding-3-small', input: $json.query }) }}",
+        "options": {
+          "timeout": 10000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi"
+      },
+      "id": "4190ff6e-4083-46a9-80f3-47f1c28154d5",
+      "name": "Embed Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        160,
+        -160
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "OvYdngyLNiazRLen",
+          "name": "OpenAI Skyland"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/rpc/match_knowledge_base",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query_embedding: $json.data[0].embedding, match_threshold: 0.35, match_count: 3 }) }}",
+        "options": {
+          "timeout": 5000
+        },
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi"
+      },
+      "id": "2fc4637c-8ff7-47b5-ad6e-29952b0d7649",
+      "name": "Similarity Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        416,
+        -160
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format RAG response per Joakim's spec:\n// 1. threshold 0.35 (enforced in search node)\n// 2. top 3 with similarity visible\n// 3. empty array if top sim < 0.35\n\nconst rawChunks = $input.all().map(item => item.json);\nconst query = $('Validate Input').first().json.query;\n\n// Supabase RPC returns an array directly\nconst chunks = Array.isArray(rawChunks) ? rawChunks : [];\n\n// Design decision #3: if top similarity < 0.35, return empty\nconst bestSimilarity = chunks.length > 0\n  ? Math.round(chunks[0].similarity * 10000) / 10000\n  : 0;\n\nif (bestSimilarity < 0.35) {\n  return [{\n    json: {\n      matches: [],\n      query,\n      best_similarity: bestSimilarity,\n      fallback_reason: 'below threshold'\n    }\n  }];\n}\n\n// Shape matches: top 3 with scores\nconst matches = chunks.slice(0, 3).map(c => ({\n  title: c.title,\n  content: c.content,\n  category: c.category,\n  similarity: Math.round(c.similarity * 10000) / 10000\n}));\n\nreturn [{\n  json: {\n    matches,\n    query,\n    best_similarity: matches[0]?.similarity || 0\n  }\n}];"
+      },
+      "id": "ee0f3053-6e47-4837-a0c7-0736946c64ad",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "471adcc0-6e5e-47b4-88c7-4b989989b496",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        912,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: $json.message || $json.error || 'invalid request', error_code: $json.error_code || 'INVALID_INPUT', matches: [], query: '', best_similarity: 0 }) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "e06259dd-4e57-4430-bde8-efa92f6452cf",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        160,
+        96
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Embed Query",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed Query": {
+      "main": [
+        [
+          {
+            "node": "Similarity Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Similarity Search": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": null
+}

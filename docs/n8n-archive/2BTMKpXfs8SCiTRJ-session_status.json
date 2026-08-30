@@ -1,0 +1,269 @@
+{
+  "name": "session-status",
+  "nodes": [
+    {
+      "id": "wh1",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "session-status",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "session-status-webhook"
+    },
+    {
+      "id": "val1",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Validate session_uuid (v4). Public endpoint - the UUID itself is the access key.\nconst body = $input.first().json.body || {};\nconst uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\nif (!body.session_uuid || !uuidRegex.test(body.session_uuid)) {\n  return [{ json: { validation_failed: true } }];\n}\nreturn [{ json: { validation_failed: false, session_uuid: body.session_uuid } }];"
+      }
+    },
+    {
+      "id": "if1",
+      "name": "Is Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.validation_failed }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "p1",
+      "name": "Get Prospect",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        620,
+        -80
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500,
+      "parameters": {
+        "method": "GET",
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/prospects?session_uuid=eq.{{ $json.session_uuid }}&select=name,company,email,score,created_at&order=created_at.desc&limit=1",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      }
+    },
+    {
+      "id": "i1",
+      "name": "Get Interactions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        840,
+        -80
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500,
+      "parameters": {
+        "method": "GET",
+        "url": "=https://wfwqjxsuvbacvcmpiesl.supabase.co/rest/v1/interactions?session_uuid=eq.{{ $('Validate Input').first().json.session_uuid }}&select=type,payload,created_at&order=created_at.asc&limit=20",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "7kdnrkoZo776CtE8",
+          "name": "Supabase SCC"
+        }
+      }
+    },
+    {
+      "id": "fmt1",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        -80
+      ],
+      "parameters": {
+        "jsCode": "// Build a sanitized status object for the visitor's own session\nconst sessionUuid = $('Validate Input').first().json.session_uuid;\n\nconst prospectRows = $('Get Prospect').all().map(i => i.json).filter(r => r && r.name !== undefined);\nconst prospect = prospectRows.length ? prospectRows[0] : null;\n\nconst rows = $('Get Interactions').all().map(i => i.json).filter(r => r && r.type);\nconst events = rows.map(r => {\n  const p = r.payload || {};\n  return {\n    type: r.type,\n    created_at: r.created_at,\n    ai_response: r.type === 'form' ? (p.ai_response || null) : null,\n    summary: r.type === 'voice' ? (p.summary || null) : null,\n    duration_seconds: r.type === 'voice' ? (p.duration_seconds || null) : null,\n    score: p.score !== undefined ? p.score : null\n  };\n});\n\nreturn [{ json: { session_uuid: sessionUuid, prospect, events } }];"
+      }
+    },
+    {
+      "id": "ok1",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1280,
+        -80
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "err1",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        620,
+        120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'invalid session_uuid' }) }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Is Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Valid?": {
+      "main": [
+        [
+          {
+            "node": "Get Prospect",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Prospect": {
+      "main": [
+        [
+          {
+            "node": "Get Interactions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Interactions": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": null
+}
