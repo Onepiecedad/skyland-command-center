@@ -73,7 +73,8 @@ def parse_drift_md(path: Path) -> dict[str, str]:
         else:
             vals = [raw_vals.strip("`")] * len(names)
         for n, v in zip(names, vals):
-            expected[n] = v
+            # "ej satt (default `true`)" → "ej satt"; programmet fyller i zod-defaulten själv.
+            expected[n] = "ej satt" if v.lower().startswith("ej satt") else v
     return expected
 
 
