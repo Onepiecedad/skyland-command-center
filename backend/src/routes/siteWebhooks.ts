@@ -332,9 +332,10 @@ export function normalizeVoicePayload(body: Record<string, any>) {
     };
 }
 
-router.post('/voice-call-ended', tokenAuth('SITE_VOICE_WEBHOOK_TOKEN'), async (req: Request, res: Response) => {
-    const n = normalizeVoicePayload(req.body || {});
-    if (!n.ok) return res.status(400).json({ status: 'error', message: n.message });
+/** Kör hela voice-call-ended-kedjan: session → prospect → LLM-extraktion → voice_calls → interactions → lead. */
+export async function handleVoiceCallEnded(raw: Record<string, any>): Promise<{ code: number; body: Record<string, unknown> }> {
+    const n = normalizeVoicePayload(raw || {});
+    if (!n.ok) return { code: 400, body: { status: 'error', message: n.message } };
     try {
         await upsertSession({ session_uuid: n.session_uuid });
         const { data: prospects } = await db().from('prospects').select('id,customer_id').eq('session_uuid', n.session_uuid).order('created_at', { ascending: false }).limit(1);
@@ -377,11 +378,56 @@ router.post('/voice-call-ended', tokenAuth('SITE_VOICE_WEBHOOK_TOKEN'), async (r
         ingestLead({ source: 'voice_call', session_uuid: n.session_uuid, prospect_id, name: extracted.person_name, email: extracted.email, company: extracted.company_name, summary, extracted })
             .catch(e => logger.error('site.voice', 'ingestLead failed', { error: String(e) }));
 
-        return res.json({ status: 'ok', external_call_id: n.external_call_id });
+        return { code: 200, body: { status: 'ok', external_call_id: n.external_call_id } };
     } catch (e) {
         logger.error('site.voice', 'voice-call-ended failed', { error: String(e) });
-        return res.status(500).json({ status: 'error', message: 'internal error' });
+        return { code: 500, body: { status: 'error', message: 'internal error' } };
     }
+}
+
+// Server-till-server (token). Behålls för ev. extern proxy.
+router.post('/voice-call-ended', tokenAuth('SITE_VOICE_WEBHOOK_TOKEN'), async (req: Request, res: Response) => {
+    const r = await handleVoiceCallEnded(req.body);
+    return res.status(r.code).json(r.body);
+});
+
+// ---------------------------------------------------------------------------
+// Röst-proxy (ersätter skyland-voice-proxy på Fly). Anropas direkt från
+// webbläsaren på skylandai.se. API-nyckeln lämnar aldrig servern.
+// ---------------------------------------------------------------------------
+const voiceLimiter = rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false, message: { detail: 'rate limited' } });
+
+// POST /voice/signed-url  { session_uuid, agent_id? } → { signed_url }
+router.post('/voice/signed-url', voiceLimiter, async (req: Request, res: Response) => {
+    const sid = str(req.body?.session_uuid, 64);
+    if (!UUID_V4.test(sid)) return res.status(400).json({ detail: 'invalid session uuid' });
+    if (!config.ELEVENLABS_API_KEY) { logger.error('site.voice', 'ELEVENLABS_API_KEY saknas'); return res.status(503).json({ detail: 'voice service not configured' }); }
+    const agentId = str(req.body?.agent_id, 80) || config.ELEVENLABS_AGENT_ID || '';
+    if (!agentId) return res.status(400).json({ detail: 'no agent configured' });
+    try {
+        const r = await fetch(`https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentId)}`, {
+            headers: { 'xi-api-key': config.ELEVENLABS_API_KEY },
+            signal: AbortSignal.timeout(10_000),
+        });
+        if (!r.ok) { logger.error('site.voice', `ElevenLabs signed-url ${r.status}`, { text: (await r.text()).slice(0, 200) }); return res.status(502).json({ detail: 'voice service unavailable' }); }
+        const j = await r.json() as { signed_url?: string };
+        if (!j.signed_url) return res.status(502).json({ detail: 'voice service unavailable' });
+        logger.info('site.voice', 'signed url issued', { session: sid, agent: agentId });
+        return res.json({ signed_url: j.signed_url });
+    } catch (e) {
+        logger.error('site.voice', 'signed-url failed', { error: String(e) });
+        return res.status(502).json({ detail: 'voice service unavailable' });
+    }
+});
+
+// POST /voice/call-ended — från webbläsaren efter avslutat samtal (samma payload som Fly-proxyn tog emot).
+router.post('/voice/call-ended', voiceLimiter, async (req: Request, res: Response) => {
+    const b = req.body || {};
+    const sid = b.session_uuid || b.metadata?.session_uuid || b.metadata?.sessionId || b.raw_payload?.session_uuid || b.raw_payload?.sessionId || null;
+    if (sid && !UUID_V4.test(String(sid))) return res.status(400).json({ detail: 'invalid session uuid' });
+    const r = await handleVoiceCallEnded({ ...b, session_uuid: sid, source: b.source || 'voice_call_ended' });
+    if (r.code !== 200) return res.status(r.code).json(r.body);
+    return res.json({ status: 'accepted' });
 });
 
 export default router;
