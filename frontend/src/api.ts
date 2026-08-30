@@ -1553,3 +1553,19 @@ export async function fetchBookings(params?: { from?: string; to?: string }): Pr
     const data = await res.json();
     return data.bookings || [];
 }
+
+export interface BookingDetail {
+    booking: Booking & {
+        attendee_phone: string | null; attendee_timezone: string | null; event_title: string | null;
+        description: string | null; notes: string | null; length_minutes: number | null;
+        meet_url: string | null; cancel_url: string | null; reschedule_url: string | null; calcom_url: string | null;
+        cancellation_reason: string | null;
+    };
+    contact: { id: string; name: string | null; email: string | null; phone: string | null; company: string | null; website: string | null; status: string | null; source: string | null; custom: Record<string, unknown> | null } | null;
+    voice_call: { id: string; session_uuid: string; summary: string | null; duration_seconds: number | null; ended_at: string | null; extracted_data: Record<string, unknown> | null } | null;
+    form: { id: string; name: string | null; company: string | null; message: string | null; score: number | null; created_at: string } | null;
+}
+export async function fetchBookingDetail(id: string): Promise<BookingDetail> {
+    const res = await fetchWithAuth(`${API_BASE}/bookings/${id}/detail`);
+    return res.json();
+}

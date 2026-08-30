@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchTodos, fetchBookings, type Todo, type Booking } from '../api';
+import BookingCard from '../components/BookingCard';
 
 /**
  * CalendarView — "ska ske, tidsbundet"-linsen i cockpit-trion.
@@ -23,6 +24,7 @@ function sameDay(iso: string, d: Date): boolean {
 export default function CalendarView() {
     const [todos, setTodos] = useState<Todo[]>([]);
     const [bookings, setBookings] = useState<Booking[]>([]);
+    const [openBooking, setOpenBooking] = useState<string | null>(null);
     const [cursor, setCursor] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
 
     const load = useCallback(async () => {
@@ -90,8 +92,9 @@ export default function CalendarView() {
                             {dayBookings.map(b => {
                                 const dead = b.status === 'cancelled' || b.status === 'no_show';
                                 return (
-                                    <div key={b.id} title={`${b.title || 'Möte'} — ${b.attendee_name || ''} <${b.attendee_email || ''}> (${b.status})`} style={{
-                                        display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 600,
+                                    <div key={b.id} role="button" tabIndex={0} onClick={() => setOpenBooking(b.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setOpenBooking(b.id); }}
+                                        title={`${b.title || 'Möte'} — ${b.attendee_name || ''} <${b.attendee_email || ''}> (${b.status}) — klicka för detaljer`} style={{
+                                        display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 600, cursor: 'pointer',
                                         color: dead ? '#6a6a6a' : '#cfe3cf', textDecoration: dead ? 'line-through' : 'none',
                                         background: dead ? 'transparent' : 'rgba(80,150,90,0.16)', borderRadius: 3, padding: '1px 4px',
                                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -116,6 +119,7 @@ export default function CalendarView() {
                     );
                 })}
             </div>
+            {openBooking && <BookingCard bookingId={openBooking} onClose={() => setOpenBooking(null)} />}
         </div>
     );
 }
