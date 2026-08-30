@@ -13,5 +13,7 @@ export const costEntrySchema = z.object({
     tokens_out: z.number().int().min(0).default(0),
     cost_usd: z.number().min(0),
     call_count: z.number().int().min(1).default(1),
-    task_id: z.string().uuid().optional()
+    task_id: z.string().uuid().optional(),
+    // Plan 2.4: sammanhang per körning (kort, vertikal, försök, väggtid, utfall).
+    meta: z.record(z.string(), z.unknown()).optional()
 });
