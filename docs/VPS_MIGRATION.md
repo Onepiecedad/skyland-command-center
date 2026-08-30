@@ -153,6 +153,24 @@ var att stoppa gatewayn, sätta `platform` till `linux` direkt i
 om. Backup ligger som `paired.json.macos`. Symptomet att känna igen:
 `Capability: pairing-pending` och `missing scope: operator.admin`.
 
+**Alex vaknade utan identitet.** Första WhatsApp-meddelandet efter flytten fick svaret
+"jag vet inte riktigt vem jag är än — vem är du?". Orsaken: agenterna `main` och
+`skyland` har `~/clawd` som workspace, alltså katalogens ROT, där `IDENTITY.md`,
+`SOUL.md`, `MEMORY.md`, `AGENTS.md`, `USER.md` och `memory/` ligger. Flyttpaketet tog
+bara `~/clawd/_agents` (underagenternas kataloger) eftersom `~/clawd` var 1,2 GB — men
+det som gjorde den stor var `projects/`, inte identiteten. Utan workspace skapar
+openclaw en tom bootstrap med mall-`IDENTITY.md` och `BOOTSTRAP.md`, och agenten börjar
+fråga vem den ska vara.
+
+Rätt paket är `~/clawd` **utan** `projects/` och `out/`: 10 MB i stället för 1,2 GB.
+Kontroll efter uppackning: `IDENTITY.md` ska vara ~7,6 kB, inte mallens 1,3 kB, och
+`memory/` ska ha ett trettiotal filer. Bootstrap-katalogen sparades som
+`~/clawd.bootstrap`.
+
+Regeln att ta med sig: **kontrollera agenternas `workspace`-sökvägar i openclaw.json
+innan du bestämmer vad som ska flytta.** Att kopiera `_agents` är inte samma sak som att
+kopiera arbetsytan.
+
 **En praktisk sak:** kör inget av det här som root. En root-session installerade en
 andra gateway på `/root/.config/systemd/user/` med tom konfiguration; den är borttagen
 och `/root/.openclaw` ligger som `.skrot`.
@@ -164,6 +182,7 @@ och `/root/.openclaw` ligger som `.skrot`.
 
 - `openclaw gateway status`: `Connectivity probe: ok`, `Capability: admin-capable`
 - 10 plugin laddade, inklusive whatsapp; kanalen lyssnar på +46737329083
+- Alex svarar på WhatsApp från telefonen med Macen avstängd, med rätt identitet laddad
 - `systemctl --user is-active scc-poller openclaw-gateway`: active, active
 - Pollern loggar `[poller] startad · SCC=https://scc.skylandai.se · var 15s`
 - `env.py --check`: 0 konflikter
