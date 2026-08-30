@@ -39,6 +39,11 @@ import openworkWebhookRouter from './routes/openworkWebhook';
 import archiveRouter from './routes/archive';
 import ideasRouter from './routes/ideas';
 import voiceRouter from './routes/voice';
+import contactsRouter from './routes/contacts';
+import pipelinesRouter from './routes/pipelines';
+import sequencesRouter from './routes/sequences';
+import mergeRouter from './routes/merge';
+import attributionRouter from './routes/attribution';
 
 // --- Middleware ---
 import { authMiddleware } from './middleware/auth';
@@ -100,6 +105,11 @@ app.use('/api/v1/webhook', openworkWebhookRouter);
 app.use('/api/v1/archive', archiveRouter);
 app.use('/api/v1/ideas', ideasRouter);           // Project ideas management
 app.use('/api/v1/voice', voiceRouter);
+app.use('/api/v1/contacts', contactsRouter);
+app.use('/api/v1/pipelines', pipelinesRouter);  // GET /pipelines, GET /pipelines/:id/board
+app.use('/api/v1/sequences', sequencesRouter);   // GET /sequences
+app.use('/api/v1', mergeRouter);                  // POST /contacts merge
+app.use('/api/v1', attributionRouter);           // GET /contacts/:id/timeline
 
 // ============================================================================
 // Reaper Timer — timeouts stuck running task_runs

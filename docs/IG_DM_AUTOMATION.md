@@ -29,11 +29,16 @@ Graph API. Statiska, förhandsgodkända svar (ingen AI i utskicket → policy-s�
 
 ## Nyckelord → svar (per karusell)
 
-- `stol` → "missade DM"-vinkeln (karusell 1)
-- `vecka` → "tomma vardagar"-vinkeln (karusell 2)
+- `stol` → "missade DM"-vinkeln. **Meddelandet uppdaterat 2026-07-25** till
+  annonsbudget-modellen (studion lägger liten annonsbudget, Joakim kör annonser + sköter
+  bokning/admin, 10% per bokning, inget fast/förskott).
+- ~~`vecka`~~ → **BORTTAGET 2026-07-19** (exakt-match-fixen — nyckelordet krockade med
+  prospekterings-trådar där folk skrev "vecka" i vanliga svar). Bara `stol` är live nu.
+
 Svaren ligger i Code-noden `Hantera DM (nyckelord)`, skrivna i Joakims röstprofil
-(`docs/VOICE_JOAKIM.md`) och namnger draget högt ("det här är ett autosvar").
-Lägg till fler nyckelord där när nya karuseller släpps.
+(`docs/VOICE_JOAKIM.md`) och namnger draget högt ("det här är ett autosvar"). Matchningen är
+EXAKT (`norm===kw`), inte substring. Lägg till fler nyckelord där när nya karuseller släpps —
+och håll svaren i linje med annonsbudget-modellen.
 
 ## Drift / att veta
 
@@ -41,9 +46,10 @@ Lägg till fler nyckelord där när nya karuseller släpps.
   Code-noden. Förnya: generera ny i Meta-appen (API setup → Generate token) → klistra in
   i noden. TODO: bygg auto-refresh-nod.
 - Token är en hemlighet — finns bara i n8n-noden, inte i repot.
-- **Ännu INTE kopplat till SCC-CRM.** Nästa steg: lägg en HTTP-nod efter "Skicka autosvar"
-  som POST:ar till `https://scc.skylandai.se/api/v1/leads/intake` (källa `ig_dm`) så varje
-  "stol"/"vecka" blir en contact i unified inbox + Alex-flagga. Kräver att intake-schemat
-  får en `ig_dm`-källa (litet backend-jobb).
+- **Kopplat till SCC-CRM (klart).** Efter autosvaret går en gren
+  `SCC-extrakt → Hämta IG-username → Bygg SCC-payload → Logga till SCC` som POST:ar till
+  `https://scc.skylandai.se/api/v1/webhooks/ig-dm`. Varje träff loggas alltså in i CRM:et
+  (samma webhook som IG-DM-autologgen, härdad 2026-07-19: matchar på numeriskt IG-id först,
+  self-heal, `ig_dm_unmatched`-aktivitet vid no-match).
 - Manuell personlig uppföljning måste följa autosvaret inom timmar — systemet öppnar dörren,
   Joakim stänger affären.
