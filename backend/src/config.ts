@@ -91,8 +91,10 @@ const envSchema = z.object({
         .transform((v) => v === 'true'),
     SEQUENCE_RUNNER_INTERVAL_MS: z.coerce.number().default(60000),
 
-    // --- Inkommande mejl (SCC-43) ---
+    // --- Inkommande mejl (SCC-43 / SCC-46 Resend Inbound) ---
     EMAIL_INBOUND_TOKEN: z.string().optional(),
+    // Kopia av varje inkommande svar skickas hit (operatörens vanliga inkorg). Tom = ingen kopia.
+    EMAIL_FORWARD_TO: z.string().optional(),
 
     // --- SMS via 46elks (F2 SCC-31 / SEQ-5) ---
     ELKS_API_USERNAME: z.string().optional(),
