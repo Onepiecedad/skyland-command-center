@@ -401,12 +401,15 @@ const voiceLimiter = rateLimit({ windowMs: 60_000, limit: 10, standardHeaders: '
 router.post('/voice/signed-url', voiceLimiter, async (req: Request, res: Response) => {
     const sid = str(req.body?.session_uuid, 64);
     if (!UUID_V4.test(sid)) return res.status(400).json({ detail: 'invalid session uuid' });
-    if (!config.ELEVENLABS_API_KEY) { logger.error('site.voice', 'ELEVENLABS_API_KEY saknas'); return res.status(503).json({ detail: 'voice service not configured' }); }
+    // Sajtens agent ("Alex 4.0 svenska") ligger i ett annat ElevenLabs-konto än SCC:s
+    // ordinarie nyckel. SITE_ELEVENLABS_API_KEY pekar på det kontot; fallback till ELEVENLABS_API_KEY.
+    const apiKey = process.env.SITE_ELEVENLABS_API_KEY || config.ELEVENLABS_API_KEY;
+    if (!apiKey) { logger.error('site.voice', 'SITE_ELEVENLABS_API_KEY/ELEVENLABS_API_KEY saknas'); return res.status(503).json({ detail: 'voice service not configured' }); }
     const agentId = str(req.body?.agent_id, 80) || config.ELEVENLABS_AGENT_ID || '';
     if (!agentId) return res.status(400).json({ detail: 'no agent configured' });
     try {
         const r = await fetch(`https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentId)}`, {
-            headers: { 'xi-api-key': config.ELEVENLABS_API_KEY },
+            headers: { 'xi-api-key': apiKey },
             signal: AbortSignal.timeout(10_000),
         });
         if (!r.ok) { logger.error('site.voice', `ElevenLabs signed-url ${r.status}`, { text: (await r.text()).slice(0, 200) }); return res.status(502).json({ detail: 'voice service unavailable' }); }
