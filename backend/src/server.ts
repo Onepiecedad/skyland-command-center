@@ -50,6 +50,7 @@ import sequencesRouter from './routes/sequences.js';
 import emailInboundRouter from './routes/emailInbound.js';
 import igDmWebhookRouter from './routes/igDmWebhook.js';
 import marinmekanikerWebhookRouter from './routes/marinmekanikerWebhook.js';
+import siteWebhooksRouter from './routes/siteWebhooks.js';
 import calcomWebhookRouter from './routes/calcomWebhook.js';
 import { config } from './config.js';
 import { startSequenceRunner } from './services/sequenceRunner.js';
@@ -125,8 +126,16 @@ class Server {
     const baseOrigins = process.env.FRONTEND_URL
       ? [process.env.FRONTEND_URL]
       : ['http://localhost:5173', 'https://scc.skylandai.se'];
-    // Landningssidorna postar leads till /api/v1/leads/web från sina egna domäner.
-    const allowedOrigins = [...baseOrigins, 'https://studios.skylandai.se'];
+    // Landningssidorna postar leads till /api/v1/leads/web från sina egna domäner,
+    // och skylandai.se (skyland-ai-os) anropar /api/v1/webhooks/site/* direkt från webbläsaren (SCC-48).
+    const allowedOrigins = [
+        ...baseOrigins,
+        'https://studios.skylandai.se',
+        'https://skylandai.se',
+        'https://www.skylandai.se',
+        'https://skyland-ai-os.netlify.app',
+        ...(process.env.EXTRA_CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
+    ];
     this.app.use(cors({
       origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         if (!origin) return callback(null, true); // non-browser clients (curl, server-to-server)
@@ -201,6 +210,7 @@ class Server {
     this.app.use('/api/v1/webhooks/email', emailInboundRouter);  // inkommande mejl (egen token)
     this.app.use('/api/v1/webhooks/ig-dm', igDmWebhookRouter);   // IG-DM-autologg via n8n (egen token)
     this.app.use('/api/v1/webhooks/marinmekaniker', marinmekanikerWebhookRouter); // ordernotis, ersätter n8n (egen token)
+    this.app.use('/api/v1/webhooks/site', siteWebhooksRouter);       // skylandai.se: session/telemetri/void/voice (SCC-48, ersätter n8n)
     this.app.use('/api/v1/webhooks/calcom', calcomWebhookRouter); // Cal.com-bokningar (egen token)
 
     // ================================================================

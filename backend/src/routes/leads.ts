@@ -51,7 +51,7 @@ function intakeAuth(req: Request, res: Response, next: NextFunction): void {
 // Schema — unified lead payload from both website paths
 // ============================================================================
 
-const leadIntakeSchema = z.object({
+export const leadIntakeSchema = z.object({
     source: z.enum(['void_form', 'voice_call']),
     // Website-side identifiers (website Supabase project).
     // session_uuid is optional: a voice-call-ended callback that omits it must
@@ -77,6 +77,61 @@ const leadIntakeSchema = z.object({
 // POST /intake — receive a lead from the website n8n workflows
 // ============================================================================
 
+export type LeadIntake = z.infer<typeof leadIntakeSchema>;
+export type LeadIntakeResult =
+    | { status: 'duplicate'; activity_id: string }
+    | { status: 'accepted'; activity_id: string; contact_id: string | null };
+
+/**
+ * Tar emot ett lead (void-formulär eller röstsamtal), loggar det som
+ * activity (event_type 'lead') och upsertar en kontakt. Idempotent på
+ * prospect_id/session_uuid + källa. Anropas av POST /intake och direkt
+ * (in-process) av sajt-webhookarna i siteWebhooks.ts (SCC-48).
+ */
+export async function ingestLead(lead: LeadIntake): Promise<LeadIntakeResult> {
+    // Idempotency: skip if we already logged this prospect/session+source.
+    // Fall back to a generated id when neither identifier is present so a
+    // callback missing both is still logged (with a non-null dedupe key)
+    // instead of being dropped or collapsing all such leads into one.
+    const dedupeKey = lead.prospect_id || lead.session_uuid || `gen-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const { data: existing } = await supabase
+        .from('activities')
+        .select('id')
+        .eq('event_type', 'lead')
+        .eq('action', `lead.${lead.source}`)
+        .contains('details', { dedupe_key: dedupeKey })
+        .limit(1);
+
+    if (existing && existing.length > 0) {
+        return { status: 'duplicate', activity_id: existing[0].id };
+    }
+
+    const { data, error } = await supabase
+        .from('activities')
+        .insert({
+            customer_id: null,
+            agent: 'website',
+            action: `lead.${lead.source}`,
+            event_type: 'lead',
+            severity: 'info',
+            autonomy_level: 'OBSERVE',
+            details: { ...lead, dedupe_key: dedupeKey },
+        })
+        .select()
+        .single();
+
+    if (error) throw new Error(error.message);
+
+    logger.info('leads', `New ${lead.source} lead: ${lead.name || lead.session_uuid}`, { email: lead.email, activity_id: data.id });
+
+    // SCC-23: upsert a normalized contact on top of the activity log. The
+    // activity stays as the audit event; the contact is the queryable CRM
+    // entity. Non-blocking: a CRM hiccup must not fail lead intake.
+    const contact = await upsertContactFromLead(lead, dedupeKey);
+
+    return { status: 'accepted', activity_id: data.id, contact_id: contact?.id ?? null };
+}
+
 router.post('/intake', intakeAuth, async (req: Request, res: Response) => {
     try {
         const parsed = leadIntakeSchema.safeParse(req.body);
@@ -88,56 +143,8 @@ router.post('/intake', intakeAuth, async (req: Request, res: Response) => {
             });
         }
 
-        const lead = parsed.data;
-
-        // Idempotency: skip if we already logged this prospect/session+source.
-        // Fall back to a generated id when neither identifier is present so a
-        // callback missing both is still logged (with a non-null dedupe key)
-        // instead of being dropped or collapsing all such leads into one.
-        const dedupeKey = lead.prospect_id || lead.session_uuid || `gen-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-        const { data: existing } = await supabase
-            .from('activities')
-            .select('id')
-            .eq('event_type', 'lead')
-            .eq('action', `lead.${lead.source}`)
-            .contains('details', { dedupe_key: dedupeKey })
-            .limit(1);
-
-        if (existing && existing.length > 0) {
-            return res.status(200).json({ status: 'duplicate', activity_id: existing[0].id });
-        }
-
-        const { data, error } = await supabase
-            .from('activities')
-            .insert({
-                customer_id: null,
-                agent: 'website',
-                action: `lead.${lead.source}`,
-                event_type: 'lead',
-                severity: 'info',
-                autonomy_level: 'OBSERVE',
-                details: { ...lead, dedupe_key: dedupeKey },
-            })
-            .select()
-            .single();
-
-        if (error) {
-            console.error('[Leads Intake] Insert failed:', error);
-            return res.status(500).json({ error: error.message });
-        }
-
-        logger.info('leads', `New ${lead.source} lead: ${lead.name || lead.session_uuid}`, { email: lead.email, activity_id: data.id });
-
-        // SCC-23: upsert a normalized contact on top of the activity log. The
-        // activity stays as the audit event; the contact is the queryable CRM
-        // entity. Non-blocking: a CRM hiccup must not fail lead intake.
-        const contact = await upsertContactFromLead(lead, dedupeKey);
-
-        return res.status(201).json({
-            status: 'accepted',
-            activity_id: data.id,
-            contact_id: contact?.id ?? null,
-        });
+        const result = await ingestLead(parsed.data);
+        return res.status(result.status === 'duplicate' ? 200 : 201).json(result);
     } catch (err) {
         console.error('[Leads Intake] Unexpected error:', err);
         return res.status(500).json({ error: 'Internal server error' });
