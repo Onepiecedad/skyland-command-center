@@ -62,6 +62,27 @@ Hårdkodade `/Users/onepiecedad`-sökvägar i riktig källkod: tre filer (`scrap
    korten ticka. Efter flytten sker det över SSH — kör i `tmux` på VPS:en så
    överlever en batch att kopplingen bryts. Det är faktiskt poängen med flytten.
 
+## Flyttpaketet (byggt 31 aug 00:03 på Macen)
+
+Ligger i `~/alex-vps/` på Joakims Mac:
+
+- `openclaw-core.tgz` (241 MB) — `.openclaw` med config, `.env`, WhatsApp-nycklarna,
+  minnet, alla 19 agentkataloger, cron och skills. Utan browsercache, venv:ar,
+  `__pycache__`, `node_modules`, loggar och de 437 MB trajektoriefiler som bara är
+  uppspelningsdata. Verifierat innehåll: 10 930 poster, noll venv- eller cacheskräp.
+- `clawd-agents.tgz` (41 KB) — `~/clawd/_agents`.
+
+**Paketet innehåller nycklar i klartext.** Det ska scp:as direkt till VPS:en och
+raderas från båda maskinerna efteråt. Lägg det aldrig i moln eller repo.
+
+Utöver paketet behövs `openclaw-config` klonad på VPS:en till
+`/home/alex/openclaw-config` — pollern bor där. Repot är privat
+(`github.com/Onepiecedad/openclaw-config`), så VPS:en behöver en deploy-nyckel
+eller en klon över HTTPS med token.
+
+Känd kosmetisk detalj: 1 156 `*.trajectory-path.json` pekar på trajektoriefiler
+som medvetet lämnades kvar på Macen. De är indexpekare, inget läser dem i drift.
+
 ## Ordning
 
 1. Skapa VPS, EU-region. Node 24 via nvm eller nodesource, python 3.12+, tmux,
@@ -73,7 +94,9 @@ Hårdkodade `/Users/onepiecedad`-sökvägar i riktig källkod: tre filer (`scrap
 5. Byt `apple-calendar` mot `gog-calendar` i `evening-summary`. Lägg Linux-sökvägar
    i `konkurrent_intel.py`. Rätta de tre hårdkodade sökvägarna.
 6. systemd-units för gateway och poller, båda `Restart=always`. logrotate på
-   gateway-loggen.
+   gateway-loggen. Färdiga filer ligger i `openclaw-config/vps/` — kontrollera
+   node-sökvägen i unit-filen mot `which openclaw` innan start, systemd läser
+   inte `.zshrc` och hittar därför inte nvm.
 7. Växla: stoppa Macens gateway och poller, starta VPS:ens, verifiera att ett
    WhatsApp-meddelande når fram och att pollern plockar en uppgift ur SCC.
 8. Kör ett prospektkort hela vägen genom pipelinen som rökprov.
