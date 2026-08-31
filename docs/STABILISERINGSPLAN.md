@@ -72,8 +72,11 @@ laptopen gör det.
       loggas klassen men inget händer. Nio enhetstester *(31 aug)*.
       **Kvar:** push till WhatsApp vid intresse — Render når inte tailnetet, så
       den vägen går via en uppgift som pollern hämtar från `/claw/pending`
-- [ ] **3.2** Daglig digest från Alex — skickat, skuggat, svar per klass,
-      bedömningsandel i Skuggvecka, integrationshälsa, kostnad
+- [x] **3.2** Daglig digest — ett mejl kl 07 svensk tid med dygnets siffror:
+      skickat och misslyckat, skuggrader loggade och kön som väntar på dom, svar
+      per klass med hur många som agerades på, nya kontakter, pollerns hjärtslag,
+      integrationer och LLM-kostnad. Tom dag mejlas ändå, spärren mot dubbelutskick
+      ligger i databasen så en omstart inte skickar två. Nio enhetstester *(31 aug)*
 - [x] **3.3** Poller-watchdog — SCC larmar via Resend om `/claw/pending` inte anropats
       på 15 minuter. Hjärtslag i minnet, larm bara vid tillståndsövergång, ingen
       falsklarm vid omstart. Sju enhetstester *(31 aug)*

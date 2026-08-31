@@ -56,6 +56,7 @@ import calcomWebhookRouter from './routes/calcomWebhook.js';
 import { config } from './config.js';
 import { startSequenceRunner } from './services/sequenceRunner.js';
 import { startPollerWatchdog } from './services/pollerWatchdog.js';
+import { startDailyDigest } from './services/dailyDigest.js';
 import integrationsRouter from './routes/integrations.js';
 import attributionRouter from './routes/attribution.js';
 import mergeRouter from './routes/merge.js';
@@ -329,6 +330,11 @@ class Server {
     // Poller-vakt (plan 3.3) — larmar när Alex slutar hämta köade körningar.
     if (config.POLLER_WATCHDOG_ENABLED) {
       startPollerWatchdog(config.POLLER_WATCHDOG_INTERVAL_MS);
+    }
+
+    // Daglig digest (plan 3.2) — ett mejl på morgonen med dygnets siffror.
+    if (config.DAILY_DIGEST_ENABLED) {
+      startDailyDigest(config.DAILY_DIGEST_INTERVAL_MS);
     }
 
     // Start listening

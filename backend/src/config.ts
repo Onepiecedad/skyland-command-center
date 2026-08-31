@@ -148,6 +148,20 @@ const envSchema = z.object({
         .transform((v) => v === 'true'),
     REPLY_CLASSIFIER_MIN_CONFIDENCE: z.coerce.number().default(0.8),
 
+    // --- Daglig digest (plan 3.2) ---
+    // Ett mejl på morgonen med gårdagens siffror: utskick, skuggrader som väntar
+    // på dom, svar per klass, poller, integrationer och kostnad. Skickas till
+    // EMAIL_FORWARD_TO. Vakten mejlar när något är sönder; digesten svarar på
+    // frågan "vad gjorde maskinen medan jag sov" även när allt fungerar.
+    DAILY_DIGEST_ENABLED: z
+        .string()
+        .default('true')
+        .transform((v) => v === 'true'),
+    /** Timme i svensk tid då digesten går. */
+    DAILY_DIGEST_HOUR: z.coerce.number().min(0).max(23).default(7),
+    /** Hur ofta klockan kollas. Digesten går första kontrollen efter timslaget. */
+    DAILY_DIGEST_INTERVAL_MS: z.coerce.number().default(900000),  // 15 min
+
     // --- Rate limiting ---
     CLAW_MAX_CONCURRENT_PER_CUSTOMER: z.coerce.number().default(3),
     CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER: z.coerce.number().default(20),
