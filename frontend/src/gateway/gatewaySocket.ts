@@ -310,7 +310,7 @@ export class GatewaySocket {
     async searchMemory(query: string, limit = 20): Promise<MemoryEntry[]> {
         // Use SCC backend API instead of gateway RPC
         try {
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
+            const apiUrl = import.meta.env.VITE_API_URL ?? '';  // tom = samma origin i prod; 127.0.0.1:3001 fungerade bara i lokal dev
             const res = await fetch(`${apiUrl}/api/v1/alex-memory/search`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -337,7 +337,7 @@ export class GatewaySocket {
     async getMemoryEntries(limit = 50): Promise<MemoryEntry[]> {
         // Use SCC backend API instead of gateway RPC
         try {
-            const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:3001';
+            const apiUrl = import.meta.env.VITE_API_URL ?? '';  // tom = samma origin i prod; 127.0.0.1:3001 fungerade bara i lokal dev
             const res = await fetch(`${apiUrl}/api/v1/alex-memory/list?limit=${limit}`);
             if (!res.ok) {
                 console.warn('[GW] alex/list failed:', res.status);

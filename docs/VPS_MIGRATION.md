@@ -233,3 +233,47 @@ från VPS:en: `bland.sh list` svarar 200.
 **En fråga Alex duckade:** "vilken maskin kör du på" besvarades med programversion och
 modellnamn, inte med värdnamn. Den gissade inte fel, men den kollade inte heller. Värt
 att hålla ögonen på när den ska börja agera självständigt.
+
+## Kontoret genom gatewayn över Tailscale (31 aug, förmiddag)
+
+Efter flytten föll Kontoret tillbaka till server-läge: webbläsaren pratade med
+`ws://127.0.0.1:18789`, och gatewayn bor inte längre på samma maskin som webbläsaren.
+
+**Så här ser vägen ut nu.** Tailscale på VPS:en (`alex`, 100.97.160.13) och på Joakims
+Mac och telefon. `gateway.tailscale.mode = "serve"` gör att openclaw exponerar gatewayn
+som `https://alex.tail8a8e79.ts.net` — bara inom tailnätet, med TLS, utan att en enda
+port öppnas mot internet. Gatewayn binder fortsatt loopback. `sudo tailscale set
+--operator=alex` krävs för att gatewayn ska få styra `tailscale serve` utan root.
+
+**Två fällor på vägen dit.**
+
+1. **Renders miljövariabler nådde aldrig vite-bygget.** `VITE_GATEWAY_TOKEN` var
+   deklarerad som `ARG` i `backend/Dockerfile`, de nya adresserna inte — och Render
+   skickar bara in env som build-args om de deklarerats. Bundlen fortsatte peka på
+   localhost hur rätt värdena än stod i dashboarden. **Varje ny `VITE_`-variabel måste
+   få en `ARG`-rad i Dockerfilen.**
+
+2. **Gatewayn avvisade kontrollgränssnittet** med `control ui requires device identity`
+   och WS-kod 1008. Logiken i `evaluateMissingDeviceIdentity` släpper in ett
+   kontrollgränssnitt utan parad enhetsnyckel bara om klienten har enhetsidentitet,
+   kommer via trusted-proxy-auth, har enhetsauth avstängd, eller **är lokal**. Över
+   tailnätet är den inte lokal — tidigare släpptes den in som `localhost`.
+
+   Trusted-proxy testades och fungerar inte här: den är ömsesidigt uteslutande med
+   delad token, och token behövs av pipelinen, pollern och alla skills. Gatewayn
+   vägrade starta med båda satta.
+
+   Vald lösning: `gateway.controlUi.dangerouslyDisableDeviceAuth = true`.
+   **Vad det faktiskt innebär:** gatewayn kräver fortfarande bearer-token och är bara
+   nåbar inifrån tailnätet. Det som faller bort är kravet att webbläsaren har en parad
+   enhetsnyckel. Perimetern är alltså tailnät plus token i stället för enhetsnyckel.
+   Med tre enheter i tailnätet, alla Joakims, är det en rimlig avvägning — men det är
+   en medveten sänkning och ska byggas bort, se nedan.
+
+**Att bygga bort det:** SCC-frontenden behöver egen enhetsidentitet — generera nyckelpar,
+para mot gatewayn, spara i webbläsaren. Då kan `dangerouslyDisableDeviceAuth` slås av
+igen. Ligger som ärende i handovern.
+
+**Sidofynd:** minnespanelen (`getMemoryEntries`, `searchMemory`) hade
+`http://127.0.0.1:3001` hårdkodat och har därför aldrig fungerat i produktion, bara i
+lokal dev. Rättat till samma origin.
