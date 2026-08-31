@@ -83,8 +83,12 @@ laptopen gör det.
 - [x] **3.4** Alex flyttad till VPS: Hetzner CPX22 i Helsingfors, Ubuntu 26.04, gateway
       och poller som systemd-tjänster med linger. WhatsApp-sessionen överlevde utan
       omparning. Macen kan stängas *(31 aug natt)*
-- [ ] **3.5** Inventera `openclaw-config`: live, arkiv eller död per fil. Ett ställe för
-      agentkonfiguration *(Joakim godkänner listan)*
+- [~] **3.5** Inventering gjord: `docs/OPENCLAW_CONFIG_INVENTERING.md` — live, arkiv
+      eller död per katalog, med fyra fynd som inte kan vänta (repots master-config
+      är Mac-formad och skulle stänga av Tailscale vid deploy; två cronjobb kraschar
+      varje körning; inget schemalagt jobb har kört sedan flytten; Macen kör
+      fortfarande daily-ops varje morgon) *(31 aug)*.
+      **Kvar:** Joakim godkänner listan, sedan flytt och gitignore
 - [ ] **3.6** **Autosend-beslut efter skuggveckan** — över 90 procent "hade skickat" och
       underkända med kodbara skäl ⇒ validatormodell som scorar utkast, över tröskel
       autosend, under tröskel manuell kö *(Joakim beslutar, 7 sep)*
