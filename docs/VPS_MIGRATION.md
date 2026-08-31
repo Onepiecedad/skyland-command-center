@@ -197,3 +197,39 @@ och `/root/.openclaw` ligger som `.skrot`.
 - Köra ett prospektkort hela vägen genom pipelinen på servern som skarpt rökprov.
 - Radera `~/alex-vps/*.tgz` på Macen och `~/*.tgz` på servern — de innehåller nycklar.
 - Macens launchd-jobb ligger som `.plist.disabled`. Radera dem när flytten känns stabil.
+
+## Vad första skarpa WhatsApp-testet avslöjade (31 aug 02.00)
+
+Joakim testade Alex från telefonen med ett meddelande som frågade om minne, en
+SCC-siffra och vilken maskin den kör på. Fyra saker föll ut.
+
+**Identiteten fungerar.** Alex svarar som sig själv, känner igen Joakim och håller tonen.
+
+**Minnet har ett hål, och Alex var ärlig om det.** "Hittar inga minnesfiler för 29–30
+augusti." Korrekt — de två kvällarnas arbete gjordes genom Claude, inte genom Alex, så
+ingenting hamnade i Alex dagsloggar. Värt att veta: Alex vet inte vad vi gjorde med
+systemet den här helgen om ingen berättar det.
+
+**Alex reparerade sig själv, vilket är bra och ett problem.** `scc.sh` kraschade på att
+`jq` saknades på Ubuntu. Alex skrev om skriptet till Python (`scc.py`, 9,4 kB) och fick
+fram rätt siffra: 25 beauty-kort i New Prospect, plus 7 som flyttats till Contacted i
+Skuggveckan — alltså kvällens 32. Omskrivningen var bra och ligger nu i repot. Men den
+skrevs direkt på servern och fanns ingenstans annars, vilket är precis den drift fas 1
+handlade om. **Nu när Alex är alltid-på kommer det här att hända igen.** Vi behöver en
+rutin som fångar skillnaden mellan live-skills på VPS:en och repot.
+`jq` är också installerat, eftersom `dm_pipeline.sh` fortfarande använder det.
+
+**403:an mot Bland AI var varken nyckeln eller IP:n.** Cloudflare svarar med felkod 1010
+på urllibs standard-User-Agent. Verifierat från VPS:en: samma anrop, samma nyckel —
+`python-urllib` utan UA ger 403, med en satt UA ger 200, och `curl` ger 200 hela vägen.
+Alex hade skrivit egna Python-versioner av samtalsskripten som gick i den fällan; de
+ligger nu i `_alex-python-403/` och shell-versionerna gäller. `prospect_pipeline.http()`
+sätter numera alltid en egen User-Agent.
+
+De tre bland-skripten läste dessutom bara `BLAND_API_KEY` ur skalets miljö, vilket inte
+finns under systemd. De laddar nu nyckeln via `env.py` som resten sedan fas 1. Rökprov
+från VPS:en: `bland.sh list` svarar 200.
+
+**En fråga Alex duckade:** "vilken maskin kör du på" besvarades med programversion och
+modellnamn, inte med värdnamn. Den gissade inte fel, men den kollade inte heller. Värt
+att hålla ögonen på när den ska börja agera självständigt.
