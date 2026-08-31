@@ -277,3 +277,15 @@ igen. Ligger som ärende i handovern.
 **Sidofynd:** minnespanelen (`getMemoryEntries`, `searchMemory`) hade
 `http://127.0.0.1:3001` hårdkodat och har därför aldrig fungerat i produktion, bara i
 lokal dev. Rättat till samma origin.
+
+
+## Omstartstest 31 aug — godkänt
+
+`sudo systemctl reboot` på VPS:en. Uppe igen på under en minut. Gateway (nytt pid),
+poller (ny worker), Tailscale och `tailscale serve` startade av sig själva tack vare
+linger plus `enabled`. WhatsApp anslöt utan omparning, alla tio plugin laddade, swappen
+orörd. Ingen manuell åtgärd.
+
+Detaljen att känna till: gatewayns loggar skriver openclaw till `/tmp`, som töms vid
+omstart. Vill man ha dem kvar över omstarter behöver logsökvägen flyttas — pollerns
+loggar ligger redan i `~/.openclaw/logs` och roteras av logrotate-filen i `vps/`.
