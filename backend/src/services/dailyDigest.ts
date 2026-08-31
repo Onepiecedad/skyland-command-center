@@ -40,6 +40,8 @@ export interface DigestData {
         suppressed: number;
     };
     newContacts: number;
+    /** Bokningar som ligger framåt i tiden, närmast först. Kvällssammanfattningen läser dem. */
+    upcoming: { when: string; title: string; who: string }[];
     poller: { stale: boolean; secondsSince: number | null; lastWorker: string | null };
     health: { down: string[]; checked: number };
     cost: { usd: number; calls: number };
@@ -75,6 +77,7 @@ export async function collectDigest(now: Date = new Date(), windowMs = 86_400_00
         shadow: { created: 0, pendingTotal: 0, judged: 0, verdicts: {} },
         replies: { inbound: 0, acted: 0, lowConfidence: 0, byIntent: {}, moved: 0, suppressed: 0 },
         newContacts: 0,
+        upcoming: [],
         poller: { stale: false, secondsSince: null, lastWorker: null },
         health: { down: [], checked: 0 },
         cost: { usd: 0, calls: 0 },
@@ -148,6 +151,24 @@ export async function collectDigest(now: Date = new Date(), windowMs = 86_400_00
 
     try {
         const { data } = await supabase
+            .from('bookings')
+            .select('title, attendee_name, attendee_email, starts_at, status')
+            .eq('status', 'booked')
+            .gte('starts_at', end)
+            .lte('starts_at', new Date(now.getTime() + 7 * 86_400_000).toISOString())
+            .order('starts_at', { ascending: true })
+            .limit(10);
+        d.upcoming = (data ?? []).map(b => ({
+            when: String(b.starts_at ?? ''),
+            title: String(b.title ?? 'Möte'),
+            who: String(b.attendee_name || b.attendee_email || ''),
+        }));
+    } catch (err) {
+        logger.warn('dailyDigest', `bokningar: ${err instanceof Error ? err.message : err}`);
+    }
+
+    try {
+        const { data } = await supabase
             .from('costs')
             .select('cost_usd, call_count, created_at')
             .gte('created_at', start).lte('created_at', end);
@@ -207,6 +228,9 @@ export function renderDigest(d: DigestData): { subject: string; text: string } {
         '',
         'PIPELINE',
         `  Nya kontakter: ${d.newContacts}`,
+        d.upcoming.length
+            ? `  Kommande möten: ${d.upcoming.slice(0, 5).map(b => `${sv(b.when)} ${b.who || b.title}`).join(' · ')}`
+            : '  Kommande möten: inga bokade',
         '',
         'DRIFT',
         `  Poller: ${d.poller.stale ? 'TYST — kolla VPS:en' : 'hämtar'}` +

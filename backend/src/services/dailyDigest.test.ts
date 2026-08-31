@@ -98,6 +98,7 @@ describe('daglig digest', () => {
                 { channel: 'email', direction: 'inbound', status: null, metadata: {}, created_at: '' },
             ],
             contacts: [{ id: 'a' }, { id: 'b' }],
+            bookings: [{ title: 'Intro', attendee_name: 'Alma Laserkliniken', attendee_email: '', starts_at: '2026-09-01T08:00:00Z', status: 'booked' }],
             costs: [{ cost_usd: '0.25', call_count: 3, created_at: '' }, { cost_usd: 0.5, call_count: 2, created_at: '' }],
         };
         mod = await import('./dailyDigest');
@@ -159,6 +160,7 @@ describe('daglig digest', () => {
             shadow: { created: 2, pendingTotal: 7, judged: 0, verdicts: {} },
             replies: { inbound: 1, acted: 1, lowConfidence: 0, byIntent: { interested: 1 }, moved: 1, suppressed: 0 },
             newContacts: 0,
+            upcoming: [],
             poller: { stale: false, secondsSince: 4, lastWorker: 'alex-vps' },
             health: { down: [], checked: 6 },
             cost: { usd: 1.2, calls: 40 },
@@ -174,6 +176,12 @@ describe('daglig digest', () => {
         const d = await mod.collectDigest(MORGON);
         expect(d.health.down).toEqual(['apify (down)']);
         expect(d.health.checked).toBe(3);
+    });
+
+    it('tar med kommande bokningar — kvällssammanfattningen läser samma siffror', async () => {
+        const d = await mod.collectDigest(MORGON);
+        expect(d.upcoming).toHaveLength(1);
+        expect(mod.renderDigest(d).text).toContain('Alma Laserkliniken');
     });
 
     it('säger ifrån i stället för att mejla i tomma luften utan mottagare', async () => {

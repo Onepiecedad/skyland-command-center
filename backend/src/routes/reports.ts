@@ -3,8 +3,30 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import { supabase } from '../services/supabase';
+import { collectDigest, renderDigest } from '../services/dailyDigest';
+import { logger } from '../services/logger';
 
 const router = Router();
+
+/**
+ * GET /reports/digest?hours=24
+ *
+ * Samma siffror som morgonmejlet (plan 3.2), som JSON plus färdig text.
+ * Alex kvällssammanfattning läser den här i stället för att peta i himalaya
+ * och Apple Kalender — verktyg som bara fanns på Macen och som därför kraschade
+ * varje kväll efter flytten till VPS:en.
+ */
+router.get('/digest', async (req: Request, res: Response) => {
+    try {
+        const hours = Math.min(Math.max(Number(req.query.hours ?? 24) || 24, 1), 168);
+        const data = await collectDigest(new Date(), hours * 3600_000);
+        const { subject, text } = renderDigest(data);
+        return res.json({ hours, subject, text, data });
+    } catch (err) {
+        logger.error('reports', `digest: ${err instanceof Error ? err.message : err}`);
+        return res.status(500).json({ error: 'Kunde inte bygga rapporten' });
+    }
+});
 
 // GET /reports/:task_id - download report PDF for a task
 router.get('/reports/:task_id', async (req: Request, res: Response) => {
