@@ -66,9 +66,12 @@ tidpunkter inom fönstret. ✓ *(85 procent uppnått)*
 **Mål:** Svar hanteras, Alex vet vad som händer, och maskinen står inte stilla när
 laptopen gör det.
 
-- [ ] **3.1** Svarsklassificering — modell klassar varje inkommande mejl (intresserad,
-      nej, autosvar, fråga), sparar intent, flyttar kortet, spärrar vid nej.
-      Intresserade svar pushas till WhatsApp med research och tråd bifogad
+- [~] **3.1** Svarsklassificering — regler fångar autosvar utan LLM-anrop, resten
+      klassas av modellen (intresserad, nej, autosvar, fråga, övrigt). Över
+      konfidenströskeln flyttas kortet och ett nej spärrar adressen; under den
+      loggas klassen men inget händer. Nio enhetstester *(31 aug)*.
+      **Kvar:** push till WhatsApp vid intresse — Render når inte tailnetet, så
+      den vägen går via en uppgift som pollern hämtar från `/claw/pending`
 - [ ] **3.2** Daglig digest från Alex — skickat, skuggat, svar per klass,
       bedömningsandel i Skuggvecka, integrationshälsa, kostnad
 - [x] **3.3** Poller-watchdog — SCC larmar via Resend om `/claw/pending` inte anropats

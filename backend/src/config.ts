@@ -138,6 +138,16 @@ const envSchema = z.object({
     POLLER_STALE_MINUTES: z.coerce.number().default(15),
     POLLER_WATCHDOG_INTERVAL_MS: z.coerce.number().default(60000),  // 1 min
 
+    // --- Svarsklassificering (plan 3.1) ---
+    // Under tröskeln sparas klassen men inget kort flyttas och ingen spärras.
+    // Ett felklassat "nej" spärrar en kund som ville köpa — det felet får inte
+    // gå automatiskt.
+    REPLY_CLASSIFIER_ENABLED: z
+        .string()
+        .default('true')
+        .transform((v) => v === 'true'),
+    REPLY_CLASSIFIER_MIN_CONFIDENCE: z.coerce.number().default(0.8),
+
     // --- Rate limiting ---
     CLAW_MAX_CONCURRENT_PER_CUSTOMER: z.coerce.number().default(3),
     CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER: z.coerce.number().default(20),

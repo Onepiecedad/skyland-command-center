@@ -2,7 +2,7 @@
 
 > **Den enda sanningen om driften.** Uppdateras i samma commit som ändrar något.
 > Handover-filerna under `docs/HANDOVER_*.md` är historik, inte nuläge.
-> Senast verifierad: **2026-08-30 kväll** (Claude + Joakim, live-tester mot prod).
+> Senast verifierad: **2026-08-31** (Claude + Joakim, live-tester mot prod).
 > Maskinell koll: `SCC_API_TOKEN=… python3 scripts/drift_check.py` jämför prod (`/health`,
 > `/api/v1/integrations/health`, `/api/v1/integrations/flags`) mot tabellen nedan. Exit 1 = drift.
 
@@ -16,7 +16,7 @@
 | Sajtens backend | Allt som förr gick via n8n går nu till SCC: `/api/v1/webhooks/site/*`. Se `docs/SITE_FLOWS.md`. | SCC | uppe, testat |
 | Röst på sajten | ElevenLabs Conversational AI, **två agenter i SCC:s ElevenLabs-konto**: `Alex (skylandai.se)` sv `agent_8301m19fffmqfcv96zgryg5ey3k5`, `Alex (skylandai.se, EN)` en `agent_4501m19h1g8zfq7v6k6hqh642p32`. Signerad URL + call-ended via SCC. Verktyg mot SCC `/site/agent-tools/*`. Återskapas med `backend/scripts/create_site_agent.py`. | ElevenLabs (nyckel = `ELEVENLABS_API_KEY` i Render) | uppe |
 | Mejl ut | Resend, `Skyland AI <joakim@send.skylandai.se>`, DKIM/SPF/DMARC på send.skylandai.se. | Resend (joakim123), eu-west-1 | uppe |
-| Mejl in | Resend Inbound (MX på One.com) → `POST /api/v1/webhooks/email/inbound?token=EMAIL_INBOUND_TOKEN`. received → inbox + sekvensstopp + kopia till `EMAIL_FORWARD_TO`; bounced/complained → suppression. | Resend-webhook | uppe, testat 30 aug |
+| Mejl in | Resend Inbound (MX på One.com) → `POST /api/v1/webhooks/email/inbound?token=EMAIL_INBOUND_TOKEN`. received → inbox + sekvensstopp + kopia till `EMAIL_FORWARD_TO`; bounced/complained → suppression. **Sedan 31 aug klassas varje matchat svar** (plan 3.1): regler fångar autosvar utan LLM-anrop, resten går till orkestrerarmodellen, och över `REPLY_CLASSIFIER_MIN_CONFIDENCE` flyttas kortet (intresse/fråga → Replied, nej → No Fit) och ett nej spärrar adressen. Klassificeringen är best-effort och kan aldrig fälla inmatningen. | Resend-webhook | uppe, testat 30 aug |
 | Bokningar | Cal.com äger bokningen (event type 15 min, `CALCOM_EVENT_TYPE_ID`). Webhook → `/api/v1/webhooks/calcom?token=` → speglas i `bookings`. Kalenderfliken visar dem med detaljkort. | Cal.com + SCC | uppe |
 | MarinMekaniker ordernotis | marinmekaniker.nu (Netlify `marin-mekaniker`) → `POST /api/v1/webhooks/marinmekaniker/order?token=` → två mejl via Resend. | SCC | uppe, testat |
 | Alex / OpenClaw | **Gateway på VPS sedan 31 aug** (Hetzner CPX22, Helsingfors, 62.238.113.151, användare `alex`, systemd user-units med linger). Poller `~/openclaw-config/scripts/scc_poller.py`. Gatewayn nås över Tailscale på `https://alex.tail8a8e79.ts.net` (tailnet-only, loopback-bunden, inga öppna portar) — Kontoret i SCC pratar med den därifrån. Macens launchd-jobb ligger som `.plist.disabled` — starta dem aldrig igen, två pollers gör dubbelt arbete. Kimi K2.5 orkestrerare (fallback gemini-2.5-flash; claude-sonnet-4-20250514 rensad 31 aug, leverantören avvisar den). Researchern kör Kimi K2.5 sedan 30 aug (fallback DeepSeek V4 Flash) — se 2.3-jämförelsen i HANDOVER_2026-08-30: 10/10 mot 5/10 godkända på första försöket. Övriga underagenter DeepSeek V4 Flash. **WhatsApp** som kanal. | Hetzner CPX22 hel1 | uppe dygnet runt |
@@ -54,6 +54,8 @@
 | `POLLER_WATCHDOG_ENABLED` | ej satt (default `true`) | Larmar via Resend när Alex poller inte hämtat från `/claw/pending` på `POLLER_STALE_MINUTES`. Ett mejl när hjärtslaget dör, ett när det kommer tillbaka — aldrig en påminnelse i minuten. Byggd 31 aug (plan 3.3). |
 | `POLLER_STALE_MINUTES` | ej satt (default `15`) | Hur länge pollern får vara tyst innan det räknas som fel. |
 | `POLLER_WATCHDOG_INTERVAL_MS` | ej satt (default `60000`) | Hur ofta vakten kontrollerar. |
+| `REPLY_CLASSIFIER_ENABLED` | ej satt (default `true`) | Klassar inkommande svar och agerar på dem. `false` stänger av allt: inget anrop, ingen flytt, ingen spärr — inmatningen fortsätter som förr. Byggd 31 aug (plan 3.1). |
+| `REPLY_CLASSIFIER_MIN_CONFIDENCE` | ej satt (default `0.8`) | Under tröskeln loggas klassen men kortet står kvar och ingen spärras. Ett felklassat nej spärrar en kund som ville köpa — det felet får inte gå automatiskt. |
 | Valfria, ej satta | `SITE_VOICE_WEBHOOK_TOKEN`, `SITE_RAG_KEY`, `SITE_ELEVENLABS_API_KEY`, `EXTRA_CORS_ORIGINS`, `MM_ORDER_WEBHOOK_TOKEN` | Faller tillbaka på `LEADS_INTAKE_TOKEN` resp. `ELEVENLABS_API_KEY`. |
 
 ## Konfiguration (fynd 3, åtgärdat 30 aug)

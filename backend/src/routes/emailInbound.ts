@@ -15,6 +15,7 @@ import { supabase } from '../services/supabase';
 import { config } from '../config';
 import { logger } from '../services/logger';
 import { onReplyReceived } from '../services/sequenceEvents';
+import { classifyAndApply } from '../services/replyClassifier';
 import { addSuppression } from '../services/outreach';
 import { getEmailProvider } from '../services/email';
 
@@ -114,6 +115,14 @@ async function ingestInbound(mail: InboundMail): Promise<{ matched: boolean; con
         action: 'email.inbound.received', severity: 'info',
         details: { contact_id: contact.id, from: fromEmail, subject, provider },
     });
+    // Klassa svaret och agera (plan 3.1). Best-effort: en klassificering som
+    // misslyckas får aldrig göra att mejlet inte räknas som mottaget.
+    await classifyAndApply({
+        contactId: contact.id,
+        customerId: contact.customer_id ?? null,
+        fromEmail, subject, text,
+    });
+
     logger.info('emailInbound', `svar från ${fromEmail} → kontakt ${contact.id}, drips avslutade`);
     return { matched: true, contact_id: contact.id };
 }
