@@ -78,6 +78,25 @@
 - Sekvens **"Reaktivering — beauty"** aktiv med 7 enrollments (beauty-kliniker Göteborg), nästa steg **2026-09-01 17:03** i skuggläge. Döm i Skuggvecka. Autosend-beslut 7 sep.
 - Suppression-listan seedad med befintliga kunder (GKMK, Vinnie) + studsar.
 
+## Schemalagda jobb på Alex (kollat 31 aug)
+
+Cron ligger **inte** i `openclaw-config/cron/jobs.json` längre — OpenClaw flyttade
+det till `~/.openclaw/state/openclaw.sqlite` (tabellen `cron_jobs`). Repo-filen är
+en gammal kopia som ingen läser.
+
+| Jobb | Schema | Läge |
+|---|---|---|
+| Skyland morgonbrief | 07:00 | på — senaste körning 30 aug 11:19, har inte fyrat sedan flytten |
+| Morning check-in | 07:00 | på — samma sak |
+| Skyland nattliga leads | 02:00 | på — samma sak |
+| Kvällssammanfattning | 21:00 | på men **kraschar varje gång**: `himalaya`/`apple-calendar` finns bara på Macen. 7 fel i rad |
+| Kundvakt — veckorapport | fre 15:00 | på men **kraschar**: alla modeller timeout. 6 fel i rad |
+| Daily Skill Update, Skyland LinkedIn-jobben, morning_brief_calendar | — | av |
+
+Att inget morgonjobb kört sedan flytten är oklart om det beror på jobben eller
+schemaläggaren. **Verifiera 1 sep på morgonen.** Full genomgång i
+`docs/OPENCLAW_CONFIG_INVENTERING.md`.
+
 ## Kända skavanker
 
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.
@@ -86,4 +105,6 @@
 - Integrationshälsan: `n8n:*`-checkarna är borta (2.1b, 30 aug). Nya: `site:skylandai.se`, `site:lang.js` (båda agent-id:na), `site:agent-tools` (självtest över publika adressen med X-Skyland-Key), `elevenlabs:site-agents`. Agent-id:n är hårdkodade i `services/integrationHealth.ts` — byter du agent, byt där + `lang.js` + SITE_FLOWS.
 - `GET /api/v1/website/workflows` (Sajt-fliken, "n8n Workflow-hälsa") pekar fortfarande på n8n:s API. Död — visar tomt. Riv eller byt mot `activities` från sajt-webhookarna.
 - Engelska röstagenten är otestad i skarpt samtal.
+- **Macen kör fortfarande `com.skyland.daily-ops`** i launchd (senast 31 aug 05:05) och skriver in i `openclaw-config/runs/inbox/`. Pollerns plist är avstängd, men inte den här. Två maskiner skriver in i samma katalog.
+- **Repots `openclaw.json` är Mac-formad.** En körning av `deploy_openclaw_config.sh` skulle sätta `gateway.tailscale.mode=off` och peka arbetsytan på `/Users/onepiecedad/clawd`. Kör det inte förrän configen är VPS-formad.
 - **Hemsidans boka-knapp länkar till Calendly** (`calendly.com/joakim-skylandai/30min`), inte Cal.com. Calendly-bokningar når aldrig SCC (ingen webhook, inga påminnelser, inget kort) och Calendly var 30 aug trasigt ("calendar unavailable", Google Calendar-kopplingen). Endast röstagenten bokar via Cal.com. **Åtgärd:** peka knappen på `https://cal.com/joakim-landqvist-yrcioq/15min` i repot Skyland_AI_System, eller lägg ned Calendly.
