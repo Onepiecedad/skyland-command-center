@@ -71,8 +71,9 @@ laptopen gör det.
       Intresserade svar pushas till WhatsApp med research och tråd bifogad
 - [ ] **3.2** Daglig digest från Alex — skickat, skuggat, svar per klass,
       bedömningsandel i Skuggvecka, integrationshälsa, kostnad
-- [ ] **3.3** Poller-watchdog — SCC larmar via Resend om `/claw/pending` inte anropats
-      på 15 minuter. `caffeinate` behövs inte längre, pollern kör på VPS:en
+- [x] **3.3** Poller-watchdog — SCC larmar via Resend om `/claw/pending` inte anropats
+      på 15 minuter. Hjärtslag i minnet, larm bara vid tillståndsövergång, ingen
+      falsklarm vid omstart. Sju enhetstester *(31 aug)*
 - [x] **3.4** Alex flyttad till VPS: Hetzner CPX22 i Helsingfors, Ubuntu 26.04, gateway
       och poller som systemd-tjänster med linger. WhatsApp-sessionen överlevde utan
       omparning. Macen kan stängas *(31 aug natt)*

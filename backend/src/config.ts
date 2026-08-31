@@ -127,6 +127,17 @@ const envSchema = z.object({
         .transform((v) => v === 'true'),
     INTEGRATION_HEALTH_INTERVAL_MS: z.coerce.number().default(600000),  // 10 min
 
+    // --- Poller-vakt (plan 3.3) ---
+    // Alex poller hämtar köade körningar var 15:e sekund. Slutar den — VPS:en nere,
+    // gatewayn död, token utgången — står maskinen stilla helt tyst. Vakten mejlar
+    // när hjärtslaget uteblivit, och mejlar igen när det kommer tillbaka.
+    POLLER_WATCHDOG_ENABLED: z
+        .string()
+        .default('true')
+        .transform((v) => v === 'true'),
+    POLLER_STALE_MINUTES: z.coerce.number().default(15),
+    POLLER_WATCHDOG_INTERVAL_MS: z.coerce.number().default(60000),  // 1 min
+
     // --- Rate limiting ---
     CLAW_MAX_CONCURRENT_PER_CUSTOMER: z.coerce.number().default(3),
     CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER: z.coerce.number().default(20),

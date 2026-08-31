@@ -51,6 +51,9 @@
 | `ELEVENLABS_API_KEY` / `ELEVENLABS_AGENT_ID` | satt | Nyckeln äger sajtens två agenter. `ELEVENLABS_AGENT_ID` = mäklaragenten (`/api/v1/voice/*`), inte sajtens. |
 | `CALCOM_API_KEY` / `CALCOM_EVENT_TYPE_ID` / `CALCOM_WEBHOOK_TOKEN` | satt | Lediga tider, bokning, spegling. |
 | `INTEGRATION_HEALTH_ENABLED` | `true` | Vakten probar alla integrationer var 10:e minut och loggar `integration.health.degraded` i activities när något är nere. Satt 30 aug. |
+| `POLLER_WATCHDOG_ENABLED` | ej satt (default `true`) | Larmar via Resend när Alex poller inte hämtat från `/claw/pending` på `POLLER_STALE_MINUTES`. Ett mejl när hjärtslaget dör, ett när det kommer tillbaka — aldrig en påminnelse i minuten. Byggd 31 aug (plan 3.3). |
+| `POLLER_STALE_MINUTES` | ej satt (default `15`) | Hur länge pollern får vara tyst innan det räknas som fel. |
+| `POLLER_WATCHDOG_INTERVAL_MS` | ej satt (default `60000`) | Hur ofta vakten kontrollerar. |
 | Valfria, ej satta | `SITE_VOICE_WEBHOOK_TOKEN`, `SITE_RAG_KEY`, `SITE_ELEVENLABS_API_KEY`, `EXTRA_CORS_ORIGINS`, `MM_ORDER_WEBHOOK_TOKEN` | Faller tillbaka på `LEADS_INTAKE_TOKEN` resp. `ELEVENLABS_API_KEY`. |
 
 ## Konfiguration (fynd 3, åtgärdat 30 aug)

@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { supabase } from '../services/supabase';
 import { dispatchSchema, n8nCallbackSchema, clawCallbackSchema, clawResearchOutputSchema } from '../schemas/dispatch';
 import { dispatchTask, logTaskRunActivity } from '../services/taskService';
+import { notePollerSeen } from '../services/pollerWatchdog';
 
 const router = Router();
 
@@ -255,6 +256,11 @@ router.get('/claw/pending', async (req: Request, res: Response) => {
         const worker = typeof req.query.worker === 'string' && req.query.worker
             ? req.query.worker
             : `mac-${Date.now()}`;
+
+        // Hjärtslag till poller-vakten (plan 3.3). Måste ligga före allt som kan
+        // kasta — pollern hörs av även när kön är tom eller Supabase strular, och
+        // det är just "hörs av" vi vaktar på.
+        notePollerSeen(worker);
         const limit = Math.min(parseInt(String(req.query.limit ?? '5'), 10) || 5, 25);
 
         const { data: runs, error } = await supabase

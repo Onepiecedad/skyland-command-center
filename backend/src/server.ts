@@ -55,6 +55,7 @@ import bookingsRouter from './routes/bookings.js';
 import calcomWebhookRouter from './routes/calcomWebhook.js';
 import { config } from './config.js';
 import { startSequenceRunner } from './services/sequenceRunner.js';
+import { startPollerWatchdog } from './services/pollerWatchdog.js';
 import integrationsRouter from './routes/integrations.js';
 import attributionRouter from './routes/attribution.js';
 import mergeRouter from './routes/merge.js';
@@ -323,6 +324,11 @@ class Server {
     // Integrations-hälsa (SCC-37) — periodisk vakt, opt-in via env.
     if (config.INTEGRATION_HEALTH_ENABLED) {
       startHealthMonitor(config.INTEGRATION_HEALTH_INTERVAL_MS);
+    }
+
+    // Poller-vakt (plan 3.3) — larmar när Alex slutar hämta köade körningar.
+    if (config.POLLER_WATCHDOG_ENABLED) {
+      startPollerWatchdog(config.POLLER_WATCHDOG_INTERVAL_MS);
     }
 
     // Start listening
