@@ -12,10 +12,19 @@ RUN npm ci --legacy-peer-deps
 COPY frontend/ ./
 
 # Gateway-token bakas in i bundlen (Render exponerar env som build-args när ARG deklareras).
-# OBS: värdet blir publikt i JS-bundlen — acceptabelt eftersom gatewayen är loopback-only
-# på operatörens egen maskin; token är värdelös utan lokal åtkomst till den maskinen.
+# OBS: värdet blir publikt i JS-bundlen — acceptabelt eftersom gatewayen inte är nåbar
+# från internet: den binder loopback på VPS:en och exponeras bara över Tailscale, så
+# token är värdelös utan en enhet i tailnätet.
 ARG VITE_GATEWAY_TOKEN=
 ENV VITE_GATEWAY_TOKEN=$VITE_GATEWAY_TOKEN
+
+# Gatewayns adress. VARJE VITE_-variabel måste deklareras som ARG här — annars når
+# den aldrig vite-bygget, oavsett vad som står i Renders Environment. Det var därför
+# bundlen fortsatte peka på localhost efter Tailscale-flytten 31 aug.
+ARG VITE_GATEWAY_URL=
+ENV VITE_GATEWAY_URL=$VITE_GATEWAY_URL
+ARG VITE_GATEWAY_HTTP=
+ENV VITE_GATEWAY_HTTP=$VITE_GATEWAY_HTTP
 
 # Build the Vite React app → dist/
 RUN npm run build
