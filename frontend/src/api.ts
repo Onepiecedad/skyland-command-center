@@ -470,7 +470,8 @@ export async function sendAlexMessage(message: string, conversationId?: string):
     response: string;
     conversation_id?: string;
 }> {
-    const GATEWAY = 'http://localhost:18789';
+    // Gatewayn bor på VPS:en sedan 31 aug och nås över Tailscale — aldrig localhost i prod.
+    const GATEWAY = import.meta.env.VITE_GATEWAY_HTTP || 'http://localhost:18789';
     const res = await fetch(`${GATEWAY}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

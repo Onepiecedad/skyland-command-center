@@ -76,7 +76,7 @@ export function BackendAlexChat() {
                 }}
             >
                 Server-läge — Alex kör i molnet med full CRM-åtkomst. Sub-agenter och skills
-                kräver gatewayen (din dator) och är inte tillgängliga här.
+                kräver gatewayen på VPS:en — anslut till Tailscale för full åtkomst.
             </div>
 
             {/* Meddelanden */}
