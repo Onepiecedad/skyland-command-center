@@ -83,12 +83,20 @@ laptopen gör det.
 - [x] **3.4** Alex flyttad till VPS: Hetzner CPX22 i Helsingfors, Ubuntu 26.04, gateway
       och poller som systemd-tjänster med linger. WhatsApp-sessionen överlevde utan
       omparning. Macen kan stängas *(31 aug natt)*
-- [~] **3.5** Inventering gjord: `docs/OPENCLAW_CONFIG_INVENTERING.md` — live, arkiv
-      eller död per katalog, med fyra fynd som inte kan vänta (repots master-config
-      är Mac-formad och skulle stänga av Tailscale vid deploy; två cronjobb kraschar
-      varje körning; inget schemalagt jobb har kört sedan flytten; Macen kör
-      fortfarande daily-ops varje morgon) *(31 aug)*.
-      **Kvar:** Joakim godkänner listan, sedan flytt och gitignore
+- [~] **3.5** Inventering och städning utförda: `docs/OPENCLAW_CONFIG_INVENTERING.md`.
+      Roten visar det som lever, spec-eran ligger i `_arkiv/`, Macens daily-ops
+      avstängd, kvällssammanfattningen och morgonbriefen läser SCC:s
+      `/reports/digest` i stället för Mac-verktyg, morgonjobben hopslagna till ett
+      (*Skyland morgon* 07:00), kundvakten lagad (tre Mac-rester, inte modellen),
+      schemaläggarens store_key-bugg fixad, alla jobb larmar på WhatsApp efter två
+      fel *(31 aug–1 sep)*.
+      **Kvar:** Joakim tar ställning till de nio VPS-verktygen (lista med
+      rekommendation i inventeringen, avsnitt 5)
+- [x] **3.7** *(tillagd 1 sep)* Skyddsnät mot tysta flyttfel: preflight som eget
+      cronjobb 06:30 med WhatsApp-larm efter ETT fel (sex kontroller, larmvägen
+      skarptestad), och schemakontroll överst i morgonbriefen. Bakgrund: fem
+      separata fel hade samma rot — en absolut sökväg till den gamla maskinen —
+      och alla fem misslyckades tyst. Se DRIFT.md, "Skyddsnäten" *(1 sep)*
 - [ ] **3.6** **Autosend-beslut efter skuggveckan** — över 90 procent "hade skickat" och
       underkända med kodbara skäl ⇒ validatormodell som scorar utkast, över tröskel
       autosend, under tröskel manuell kö *(Joakim beslutar, 7 sep)*
