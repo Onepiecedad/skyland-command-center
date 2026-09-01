@@ -149,6 +149,19 @@ Samma dag städades sju agent-instruktionsfiler (`IDENTITY.md`, `HEARTBEAT.md`) 
 flytt: en absolut sökväg till den gamla maskinen.** Det har nu förklarat fem separata
 fel — pollern, mejlsignalen, kalendern, schemaläggarens `store_key` och kundvakten.
 
+## Namnbekräftelse i röstagenten (1 sep)
+
+Skuggveckan avslöjade att en kontakt hette **"Joachim" på "Joachim Auto"** i CRM
+— skapad 9 juli av röstagenten (`source: voice_call`) när Joakim testade henne.
+Mallen skrev alltså ut rätt namn ur databasen; felet var transkriberingen. Två av
+tre underkännanden i skuggveckan gick tillbaka på just den kontakten.
+
+Åtgärdat: båda `scripts/site_agent_prompt*.md` kräver nu att agenten läser
+tillbaka NAMN och företag och får dem bekräftade (stavning vid osäkerhet) innan
+`book_meeting`, på samma sätt som mejladressen redan hanterades. Deployat till
+`agent_8301…` (sv) och `agent_4501…` (en) med `create_site_agent.py`.
+Testkontakten är omdöpt, taggad `test` + `stt-felstavning` och satt till `lost`.
+
 ## Kända skavanker
 
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.
