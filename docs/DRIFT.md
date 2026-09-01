@@ -105,6 +105,27 @@ omstartad. **Kolla `store_key` först om jobb slutar fyra efter en flytt.**
 rad, levererat på WhatsApp. Det var frånvaron av det som lät kvällssammanfattningen
 krascha sju gånger i tystnad.
 
+### Skyddsnäten (byggda 1 sep, efter femte Mac-sökvägsfelet)
+
+Två vakter mot hela felklassen "gick sönder vid flytten, tyst":
+
+1. **Morgonbriefen granskar schemat självt.** `check_cron.sh` i
+   `proactive-checkin`-skillen listar jobb med fel i rad och jobb vars nästa
+   körning ligger i det förflutna — VARNING-rader går överst i briefen.
+   Store_key-buggen hade sett ut exakt så första morgonen.
+2. **Preflight** (`openclaw-config/scripts/preflight.py`) — eget cronjobb 06:30,
+   larm på WhatsApp efter ETT fel, larmvägen testad skarpt 1 sep. Hävdar: inga
+   främmande maskinsökvägar i det agenterna läser och kör, `store_key` hör till
+   maskinen, aktiva jobb har nästa körning i framtiden, nycklarna hämtbara via
+   env.py, SCC svarar, morgonbriefens wrappar körbara. Kör den för hand efter
+   varje flytt: `python3 ~/openclaw-config/scripts/preflight.py`.
+   Föregångaren `preflight_tool_runtime.sh` hade själv en Mac-sökväg hårdkodad
+   och letade efter himalaya — arkiverad.
+
+Regeln de upprätthåller: **absoluta sökvägar utanför hemkatalogen får inte finnas
+i något som Alex läser.** Skript hittar grannar relativt sig själva, wrappar bor i
+skill-mappen, nycklar går via env.py.
+
 ### Kundvakten: tre Mac-rester i rad, inte modellen
 
 Den hade sex fel i rad och gissningen var modelltimeout. Det var fel. Tre saker:
