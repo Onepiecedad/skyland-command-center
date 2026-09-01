@@ -146,6 +146,19 @@ samtal.
 **Vad som ska hända med dem du behåller:** speglas in i repot, annars försvinner
 de vid en ominstallation.
 
+### Beslut 1 sep 2026 (Joakim)
+
+Åtta av nio bort: de fyra självklara (competitive-intelligence, nano-banana-pro,
+voice-call-verify, news-aggregator) plus reddit-scraper, lyra-prompt-optimizer,
+seo-competitor-analysis och social-card-gen — de fyra sista arkiveras, inte
+raderas, eftersom de kan bli aktuella framöver. **walkie-talkie-mode behålls**
+(kräver TTS-motor på VPS:en innan den fungerar).
+
+Utfört på Macen 1 sep: alla åtta flyttade till `~/.openclaw/skills/_archived/`
+med README som listar vad som ligger där och varför (sex fanns redan där som
+exakta dubbletter — diff-verifierade, lagda i `_to_delete_dubbletter_2026-09-01/`).
+VPS-körningen: se kommandoblock i `docs/HANDOVER_2026-09-01.md`.
+
 ## 6. Förslaget: ett ställe för agentkonfiguration
 
 Ordningen som gör de här fynden omöjliga att upprepa:

@@ -90,8 +90,11 @@ laptopen gör det.
       (*Skyland morgon* 07:00), kundvakten lagad (tre Mac-rester, inte modellen),
       schemaläggarens store_key-bugg fixad, alla jobb larmar på WhatsApp efter två
       fel *(31 aug–1 sep)*.
-      **Kvar:** Joakim tar ställning till de nio VPS-verktygen (lista med
-      rekommendation i inventeringen, avsnitt 5)
+      Beslut om de nio VPS-verktygen fattat 1 sep: åtta arkiverade (fyra
+      självklara + fyra "kan behövas framöver"), walkie-talkie-mode behålls.
+      Macens spegel arkiverad 1 sep.
+      **Kvar:** kör arkiveringsblocket på VPS:en (HANDOVER_2026-09-01) och
+      installera TTS om walkie-talkie ska fungera
 - [x] **3.7** *(tillagd 1 sep)* Skyddsnät mot tysta flyttfel: preflight som eget
       cronjobb 06:30 med WhatsApp-larm efter ETT fel (sex kontroller, larmvägen
       skarptestad), och schemakontroll överst i morgonbriefen. Bakgrund: fem
