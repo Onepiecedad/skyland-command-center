@@ -7,8 +7,9 @@
  * 3. Clawdbot Gateway /tools/invoke (gateway_tool — direct tool execution)
  */
 
-import { Router, Request, Response } from 'express';
+import express, { Router, Request, Response } from 'express';
 import { config } from '../config';
+import { authMiddleware } from '../middleware/auth';
 import { supabase } from '../services/supabase';
 import { runAlexChat } from '../services/alexBrain';
 import { sharedSecretAuth } from '../middleware/sharedSecret';
@@ -19,6 +20,65 @@ const router = Router();
 // oautentiserade mot internet — POST /tools når ask_alex → gateway /hooks/agent
 // med full skill-access och gör direkta Supabase-frågor. Delad hemlighet nu.
 // Konfigureras i ElevenLabs som header `x-voice-token` eller Bearer.
+// ============================================================================
+// SCC-nycklade röstnotsendpoints (walkie-talkie: Alex på WhatsApp).
+// Definierade FÖRE sharedSecretAuth: de autentiseras med Bearer SCC_API_TOKEN
+// (authMiddleware), inte med ElevenLabs-webhookens VOICE_WEBHOOK_TOKEN.
+// VPS:en anropar dessa; ELEVENLABS_API_KEY lämnar aldrig Render.
+// ============================================================================
+
+// POST /api/v1/voice/alex-tts { text } → mp3 med sajtens svenska Alex-röst.
+router.post('/alex-tts', authMiddleware, async (req: Request, res: Response) => {
+    const text = typeof req.body?.text === 'string' ? req.body.text.slice(0, 1200) : '';
+    if (!text) {
+        return res.status(400).json({ error: 'text is required' });
+    }
+    const audio = await generateAlexSpeech(text);
+    if (!audio) {
+        return res.status(502).json({ error: 'TTS generation failed' });
+    }
+    res.setHeader('Content-Type', 'audio/mpeg');
+    return res.send(audio);
+});
+
+// POST /api/v1/voice/stt — rå ljudkropp (audio/* eller application/octet-stream)
+// → { text, language_code } via ElevenLabs Scribe.
+router.post(
+    '/stt',
+    authMiddleware,
+    express.raw({ type: ['audio/*', 'application/octet-stream'], limit: '25mb' }),
+    async (req: Request, res: Response) => {
+        const apiKey = config.ELEVENLABS_API_KEY;
+        if (!apiKey) {
+            return res.status(503).json({ error: 'ELEVENLABS_API_KEY not configured' });
+        }
+        const body = req.body as Buffer;
+        if (!Buffer.isBuffer(body) || body.length === 0) {
+            return res.status(400).json({ error: 'audio body required (content-type audio/* or application/octet-stream)' });
+        }
+        try {
+            const form = new FormData();
+            form.append('model_id', 'scribe_v1');
+            const mime = String(req.headers['content-type'] || 'application/octet-stream');
+            form.append('file', new Blob([new Uint8Array(body)], { type: mime }), 'voice-note');
+            const sttResp = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+                method: 'POST',
+                headers: { 'xi-api-key': apiKey },
+                body: form,
+            });
+            if (!sttResp.ok) {
+                console.error('[voice/stt] ElevenLabs STT failed:', sttResp.status);
+                return res.status(502).json({ error: 'STT failed' });
+            }
+            const data = await sttResp.json() as { text?: string; language_code?: string };
+            return res.json({ text: data.text ?? '', language_code: data.language_code ?? null });
+        } catch (err) {
+            console.error('[voice/stt] error:', err instanceof Error ? err.message : err);
+            return res.status(500).json({ error: 'Internal STT error' });
+        }
+    }
+);
+
 router.use(sharedSecretAuth({ envName: 'VOICE_WEBHOOK_TOKEN', label: 'voice' }));
 
 // ============================================================================
@@ -309,9 +369,29 @@ router.post('/tts', async (req: Request, res: Response) => {
     if (!text) {
         return res.status(400).json({ error: 'text is required' });
     }
+    if (!config.ELEVENLABS_API_KEY) {
+        return res.status(503).json({ error: 'ELEVENLABS_API_KEY not configured' });
+    }
+    const audio = await generateAlexSpeech(text);
+    if (!audio) {
+        return res.status(502).json({ error: 'TTS generation failed' });
+    }
+    res.setHeader('Content-Type', 'audio/mpeg');
+    return res.send(audio);
+});
+
+/**
+ * Genererar tal med sajtens Alex-röst (voice_id hämtas från agentkonfigen och
+ * cachas). SPEGLA samtals-Alex exakt: samma modell (eleven_turbo_v2_5) och samma
+ * inställningar som agentens konverserande TTS. multilingual_v2 med låg
+ * stability gav forcerat tempo och osvensk prosodi (2026-07-19).
+ * Delas av /tts (rundturen) och /alex-tts (walkie-talkie). null vid fel.
+ */
+async function generateAlexSpeech(text: string): Promise<Buffer | null> {
     const apiKey = config.ELEVENLABS_API_KEY;
     if (!apiKey) {
-        return res.status(503).json({ error: 'ELEVENLABS_API_KEY not configured' });
+        console.error('[voice/tts] ELEVENLABS_API_KEY not configured');
+        return null;
     }
     try {
         if (!cachedVoiceId && config.ELEVENLABS_AGENT_ID) {
@@ -325,9 +405,6 @@ router.post('/tts', async (req: Request, res: Response) => {
             }
         }
         const voiceId = cachedVoiceId ?? 'EXAVITQu4vr4xnSDxMaL';
-        // SPEGLA samtals-Alex exakt: samma modell (eleven_turbo_v2_5) och samma
-        // inställningar som agentens konverserande TTS. multilingual_v2 med låg
-        // stability gav forcerat tempo och osvensk prosodi (2026-07-19).
         const ttsResp = await fetch(
             `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_64`,
             {
@@ -348,15 +425,14 @@ router.post('/tts', async (req: Request, res: Response) => {
         );
         if (!ttsResp.ok) {
             console.error('[voice/tts] ElevenLabs TTS failed:', ttsResp.status);
-            return res.status(502).json({ error: 'TTS generation failed' });
+            return null;
         }
-        res.setHeader('Content-Type', 'audio/mpeg');
-        return res.send(Buffer.from(await ttsResp.arrayBuffer()));
+        return Buffer.from(await ttsResp.arrayBuffer());
     } catch (err) {
         console.error('[voice/tts] error:', err instanceof Error ? err.message : err);
-        return res.status(500).json({ error: 'Internal TTS error' });
+        return null;
     }
-});
+}
 
 // ============================================================================
 // POST /api/v1/voice/tools
