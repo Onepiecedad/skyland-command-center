@@ -2,7 +2,7 @@
 
 > **Den enda sanningen om driften.** Uppdateras i samma commit som ändrar något.
 > Handover-filerna under `docs/HANDOVER_*.md` är historik, inte nuläge.
-> Senast verifierad: **2026-08-31** (Claude + Joakim, live-tester mot prod).
+> Senast verifierad: **2026-09-01** (Claude + Joakim, live-tester mot prod).
 > Maskinell koll: `SCC_API_TOKEN=… python3 scripts/drift_check.py` jämför prod (`/health`,
 > `/api/v1/integrations/health`, `/api/v1/integrations/flags`) mot tabellen nedan. Exit 1 = drift.
 
@@ -78,24 +78,31 @@
 - Sekvens **"Reaktivering — beauty"** aktiv med 7 enrollments (beauty-kliniker Göteborg), nästa steg **2026-09-01 17:03** i skuggläge. Döm i Skuggvecka. Autosend-beslut 7 sep.
 - Suppression-listan seedad med befintliga kunder (GKMK, Vinnie) + studsar.
 
-## Schemalagda jobb på Alex (kollat 31 aug)
+## Schemalagda jobb på Alex (fixat 1 sep)
 
 Cron ligger **inte** i `openclaw-config/cron/jobs.json` längre — OpenClaw flyttade
 det till `~/.openclaw/state/openclaw.sqlite` (tabellen `cron_jobs`). Repo-filen är
-en gammal kopia som ingen läser.
+arkiverad; `cron/README.md` visar hur man läser den riktiga tabellen.
 
-| Jobb | Schema | Läge |
+**Roten till att inget kört sedan flytten:** varje rad i `cron_jobs` hade
+`store_key = /Users/onepiecedad/.openclaw/cron/jobs.json`, alltså Macens sökväg.
+Schemaläggaren på VPS:en läser `/home/alex/.openclaw/cron/jobs.json`, hittade noll
+jobb och fyrade ingenting. Det förklarade också varför ett jobb som lades till
+*efter* flytten körde felfritt var femte minut: det skrevs under rätt nyckel.
+Nio rader flyttade till rätt nyckel 1 sep (databasen säkerhetskopierad först till
+`openclaw.sqlite.bak-*`), `next_run_at_ms` nollställd så schemat räknas om, gateway
+omstartad. **Kolla `store_key` först om jobb slutar fyra efter en flytt.**
+
+| Jobb | Schema | Läge efter fixen |
 |---|---|---|
-| Skyland morgonbrief | 07:00 | på — senaste körning 30 aug 11:19, har inte fyrat sedan flytten |
-| Morning check-in | 07:00 | på — samma sak |
-| Skyland nattliga leads | 02:00 | på — samma sak |
-| Kvällssammanfattning | 21:00 | på men **kraschar varje gång**: `himalaya`/`apple-calendar` finns bara på Macen. 7 fel i rad |
-| Kundvakt — veckorapport | fre 15:00 | på men **kraschar**: alla modeller timeout. 6 fel i rad |
-| Daily Skill Update, Skyland LinkedIn-jobben, morning_brief_calendar | — | av |
+| Skyland morgonbrief | 07:00 | ok, levererad på WhatsApp |
+| Kvällssammanfattning | 21:00 | **ok, levererad** — första lyckade körningen sedan 30 aug, och beviset på att omskrivningen mot SCC:s `/reports/digest` håller |
+| Morning check-in | 07:00 | kördes ok, `delivery=not-delivered` — troligen triagens SKIP, som är avsett. Verifiera nästa morgon |
+| Skyland nattliga leads | 02:00 | fel: `incomplete turn` från Kimi (modellen stannade med ett verktygsanrop öppet). Infrastrukturen är inte problemet. Omschemalagd till 02:00 |
+| Kundvakt — veckorapport | fre 15:00 | orörd, 6 modelltimeouts i rad. Kör manuellt en gång |
 
-Att inget morgonjobb kört sedan flytten är oklart om det beror på jobben eller
-schemaläggaren. **Verifiera 1 sep på morgonen.** Full genomgång i
-`docs/OPENCLAW_CONFIG_INVENTERING.md`.
+Två WhatsApp-meddelanden går nu 07:00 (morgonbrief + check-in) utöver
+digest-mejlet från SCC. Överväg att slå ihop dem.
 
 ## Kända skavanker
 
