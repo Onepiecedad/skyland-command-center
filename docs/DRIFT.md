@@ -93,16 +93,39 @@ Nio rader flyttade till rätt nyckel 1 sep (databasen säkerhetskopierad först 
 `openclaw.sqlite.bak-*`), `next_run_at_ms` nollställd så schemat räknas om, gateway
 omstartad. **Kolla `store_key` först om jobb slutar fyra efter en flytt.**
 
-| Jobb | Schema | Läge efter fixen |
+| Jobb | Schema | Läge |
 |---|---|---|
-| Skyland morgonbrief | 07:00 | ok, levererad på WhatsApp |
-| Kvällssammanfattning | 21:00 | **ok, levererad** — första lyckade körningen sedan 30 aug, och beviset på att omskrivningen mot SCC:s `/reports/digest` håller |
-| Morning check-in | 07:00 | kördes ok, `delivery=not-delivered` — troligen triagens SKIP, som är avsett. Verifiera nästa morgon |
-| Skyland nattliga leads | 02:00 | fel: `incomplete turn` från Kimi (modellen stannade med ett verktygsanrop öppet). Infrastrukturen är inte problemet. Omschemalagd till 02:00 |
-| Kundvakt — veckorapport | fre 15:00 | orörd, 6 modelltimeouts i rad. Kör manuellt en gång |
+| **Skyland morgon** | 07:00 | ok, levererad. Slår ihop gamla *Morning check-in* och *Skyland morgonbrief* till en rapport: SCC-siffrorna, vädret, nattens leads-brief om den finns, och alltid en rad även när allt är lugnt |
+| Kvällssammanfattning | 21:00 | ok, levererad. Läser SCC:s `/reports/digest` |
+| Skyland nattliga leads | 02:00 | fel 1 sep: `incomplete turn` från Kimi. Infrastrukturen är inte problemet. Nästa försök 02:00 |
+| **Kundvakt — veckorapport** | fre 15:00 | **ok, levererad, noll fel i rad.** Rapport och snapshot skrivna |
+| Skyland morgonbrief | — | avstängd, uppgick i *Skyland morgon* |
 
-Två WhatsApp-meddelanden går nu 07:00 (morgonbrief + check-in) utöver
-digest-mejlet från SCC. Överväg att slå ihop dem.
+**Larm vid tystnad:** alla fyra aktiva jobb har nu `failure-alert` efter två fel i
+rad, levererat på WhatsApp. Det var frånvaron av det som lät kvällssammanfattningen
+krascha sju gånger i tystnad.
+
+### Kundvakten: tre Mac-rester i rad, inte modellen
+
+Den hade sex fel i rad och gissningen var modelltimeout. Det var fel. Tre saker:
+
+1. **`exec-approvals.json` pekade på Macens godkännandesocket**
+   (`/Users/onepiecedad/.clawdbot/exec-approvals.sock`) med `ask: on-miss`. Agenten
+   `kundvakt` saknades i filen, föll på defaults, och frågan om lov gick till en
+   socket ingen lyssnar på. Körningen **hängde för evigt** i stället för att fela.
+   Nu: `kundvakt` har samma nivå som syskonagenterna, och defaults står på
+   `ask: off` + `askFallback: deny` — en server där ingen kan svara ska neka direkt,
+   inte hänga.
+2. **Agenten körde `python3 /Users/onepiecedad/clawd/scripts/kundvakt.py`**, en
+   sökväg den mindes från Mac-tiden. Cron-prompten anger nu absolut Linux-sökväg.
+3. **`kundvakt.py` läste bara `~/Developer/openclaw-config/.env`**, alltså Macens
+   layout, och dog på "SCC_API_TOKEN saknas". Den provar nu `~/.openclaw/.env`,
+   `~/openclaw-config/.env` och den gamla sökvägen i tur och ordning.
+
+Samma dag städades sju agent-instruktionsfiler (`IDENTITY.md`, `HEARTBEAT.md`) från
+`/Users/onepiecedad/...`. **Mönstret att leta efter när något slutar fungera efter en
+flytt: en absolut sökväg till den gamla maskinen.** Det har nu förklarat fem separata
+fel — pollern, mejlsignalen, kalendern, schemaläggarens `store_key` och kundvakten.
 
 ## Kända skavanker
 
