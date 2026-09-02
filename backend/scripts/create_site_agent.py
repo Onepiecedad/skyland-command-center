@@ -67,6 +67,11 @@ def agent_config(prompt_file, first, lang, voice_id):
     return {
         'agent': {
             'first_message': first, 'language': lang,
+            # Sajten skickar besökarkontext som dynamiska variabler när formuläret
+            # redan är skickat. Tomma defaults gör vanliga samtal opåverkade.
+            'dynamic_variables': {'dynamic_variable_placeholders': {
+                'visitor_context': '', 'visitor_name': '', 'visitor_company': '',
+                'visitor_message': '', 'ai_answer': ''}},
             'prompt': {
                 'prompt': prompt, 'llm': 'gpt-4.1-mini', 'temperature': 0.3, 'tool_ids': tool_ids,
                 'built_in_tools': {
