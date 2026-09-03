@@ -225,6 +225,55 @@ den binder Alex till en påslagen dator, och `tailscale serve` finns redan.
 med grön gateway. Anslutningen är alltså hel; registreringen av skills och noder
 är en egen fråga.
 
+## Dagsbudgeten räknade fel på den manuella kön (3 sep)
+
+`OUTBOUND_DAILY_LIMIT` gällde inte för "Skicka nu" i Skuggvecka. Sju skuggrader
+från 1 sep klickades iväg den 3 sep; efteråt svarade budgeträknaren fortfarande
+**noll skickade idag**. Alla sju passerade utan att synas.
+
+Orsaken: räkningen nycklade på `created_at`, alltså när *raden skapades*. För
+maskinens egna utskick är det samma ögonblick som utskicket, men ett godkänt
+skuggmejl behåller sitt `created_at` från dagen utkastet skrevs. En kö med gamla
+skuggrader kunde därför klickas igenom i sin helhet utan att taket märkte något.
+
+Det obehagliga var att räcket såg friskt ut. Det returnerade 429 helt korrekt för
+sekvensmotorns utskick, som alltid har färskt `created_at`. Bara operatörsvägen
+gick under radarn — och det är den väg som med flit saknar kill switch, eftersom
+ett klick antas vara ett medvetet beslut. Antagandet håller för sju rader. Det
+håller inte för en kö på femtio efter autosend-beslutet.
+
+**Dessutom fanns räkningen i tre exemplar som hunnit glida isär:**
+
+| Var | Filtrerade på | Fel |
+|---|---|---|
+| `services/comms.ts` | bara `direction=outbound` | räknade skuggutkast som utskick — bromsade för tidigt |
+| `services/sequenceRunner.ts` | `status != 'shadow'` | räknade misslyckade utskick |
+| `routes/sequences.ts` | `status = 'sent'` | rätt filter, fel tidsstämpel — hålet ovan |
+
+Åtgärdat: en enda exporterad `countSentToday()` i `services/outreach.ts`, använd
+av alla tre. Den räknar på **när mejlet gick**, inte när raden skapades — två
+frågor summeras, maskinens utskick (`approved_at` saknas, `created_at` idag) plus
+operatörens (`approved_at` idag), eftersom PostgREST inte kan filtrera på ett
+`coalesce`-uttryck. Ingen rad kan hamna i båda.
+
+Kontrollfråga när något ser konstigt ut med volymtaket — nya räknaren ska ge
+samma siffra som denna:
+
+```sql
+with start as (select date_trunc('day', now() at time zone 'Europe/Stockholm')
+                      at time zone 'Europe/Stockholm' as t)
+select (select count(*) from messages, start where direction='outbound' and status='sent'
+          and metadata->>'approved_at' is null and created_at >= start.t)
+     + (select count(*) from messages, start where direction='outbound' and status='sent'
+          and (metadata->>'approved_at')::timestamptz >= start.t) as skickat_idag;
+```
+
+Verifierat mot produktionsdata 3 sep: gamla räknaren 0, nya 7 — de sju bumparna.
+
+**Läxa värd att bära vidare:** ett skyddsräck som bara testats på den ena vägen in
+är inte testat. Maskinvägen och människovägen delar tak men inte kod, och det var
+i springan mellan dem hålet satt.
+
 ## Kända skavanker
 
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.

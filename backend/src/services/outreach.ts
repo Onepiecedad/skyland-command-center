@@ -121,6 +121,40 @@ export async function addSuppression(
 const STOCKHOLM = 'Europe/Stockholm';
 
 /** (veckodag 1=mån..7=sön, timme, minut) i Stockholm för en tidpunkt. */
+/**
+ * Dagens faktiska utskick — underlag för OUTBOUND_DAILY_LIMIT.
+ *
+ * Räknas på NÄR MEJLET GICK, inte när raden skapades. För maskinens egna
+ * utskick är det samma ögonblick, men ett godkänt skuggmejl behåller sitt
+ * `created_at` från dagen utkastet skrevs. Därför såg budgeten noll skickade
+ * den 3 sep efter att sju skuggrader från 1 sep klickats iväg — hela den
+ * manuella kön gick under radarn. Operatörsvägen saknar kill switch med
+ * flit; då måste åtminstone volymtaket gälla för den.
+ *
+ * Två frågor i stället för en `coalesce`: PostgREST kan inte filtrera på ett
+ * uttryck. A = maskinens utskick idag (ingen approved_at), B = operatörens
+ * (approved_at idag). Ingen rad kan hamna i båda.
+ *
+ * Jämförelsen mot metadata->>approved_at är textuell, vilket är korrekt så
+ * länge värdet skrivs med toISOString() — UTC, fast bredd, sorterbart.
+ */
+export async function countSentToday(now: Date = new Date()): Promise<number> {
+    const start = new Date(now); start.setHours(0, 0, 0, 0);
+    const startIso = start.toISOString();
+    const base = () => supabase.from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('direction', 'outbound')
+        .eq('status', 'sent');
+
+    const [maskin, operator] = await Promise.all([
+        base().is('metadata->>approved_at', null).gte('created_at', startIso),
+        base().gte('metadata->>approved_at', startIso),
+    ]);
+    if (maskin.error) throw new Error(`Kunde inte räkna dagens utskick: ${maskin.error.message}`);
+    if (operator.error) throw new Error(`Kunde inte räkna dagens utskick: ${operator.error.message}`);
+    return (maskin.count ?? 0) + (operator.count ?? 0);
+}
+
 export function stockholmParts(d: Date): { dow: number; hour: number; minute: number } {
     const parts = new Intl.DateTimeFormat('en-GB', {
         timeZone: STOCKHOLM, weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false,

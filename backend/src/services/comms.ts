@@ -7,6 +7,7 @@
 import { supabase } from './supabase';
 import { config } from '../config';
 import { getEmailProvider } from './email';
+import { countSentToday } from './outreach';
 
 export interface CommsResult {
     success: boolean;
@@ -21,18 +22,6 @@ interface EmailTaskInput {
     reply_to?: string;
 }
 
-async function countOutboundToday(): Promise<number> {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-    const { count, error } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('direction', 'outbound')
-        .gte('created_at', startOfDay.toISOString());
-    if (error) throw new Error(`Kunde inte räkna dagens utskick: ${error.message}`);
-    return count ?? 0;
-}
-
 export async function executeCommsEmail(
     task: Record<string, unknown>,
     runId: string
@@ -43,7 +32,7 @@ export async function executeCommsEmail(
     }
 
     // 2. Daglig budget
-    const sentToday = await countOutboundToday();
+    const sentToday = await countSentToday();
     if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
         return { success: false, error: `Daglig utskicksbudget nådd (${sentToday}/${config.OUTBOUND_DAILY_LIMIT}). Se volymtrappan i docs/EMAIL_INFRA.md.` };
     }

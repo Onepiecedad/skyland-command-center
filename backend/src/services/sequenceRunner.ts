@@ -30,7 +30,7 @@ import { supabase } from './supabase';
 import { config } from '../config';
 import { getEmailProvider } from './email';
 import { getSmsProvider } from './sms';
-import { outboundMode, splitDm, isSuppressed, suppressionApplies, normalizePolicy, msUntilWindowOpen, outreachJitterMs, type OutboundPolicy } from './outreach';
+import { outboundMode, splitDm, isSuppressed, suppressionApplies, normalizePolicy, msUntilWindowOpen, outreachJitterMs, countSentToday, type OutboundPolicy } from './outreach';
 import { logger } from './logger';
 
 const MAX_STEPS_PER_TICK = 50;      // skydd mot oändliga loopar
@@ -152,17 +152,6 @@ function waitMsFromConfig(cfg: Record<string, unknown>): number {
     return n('minutes') * 60_000 + n('hours') * 3_600_000 + n('days') * 86_400_000;
 }
 
-async function countOutboundToday(): Promise<number> {
-    const start = new Date(); start.setHours(0, 0, 0, 0);
-    const { count } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('direction', 'outbound')
-        .neq('status', 'shadow')
-        .gte('created_at', start.toISOString());
-    return count ?? 0;
-}
-
 /** Har kontakten svarat sedan enrollment startade? (inkommande message) */
 async function hasReplied(contactId: string, sinceISO: string): Promise<boolean> {
     const { count } = await supabase
@@ -240,7 +229,7 @@ async function execSendEmail(
     // Dagsbudgeten är en outreach-broms. Transaktionell post är volymbegränsad av
     // sig själv (en påminnelse per bokning) och får inte fastna bakom kalla mejl.
     if (policy !== 'transactional') {
-        const sentToday = await countOutboundToday();
+        const sentToday = await countSentToday();
         if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
             return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
         }
@@ -301,7 +290,7 @@ async function execSendSms(
     }
 
     if (policy !== 'transactional') {
-        const sentToday = await countOutboundToday();
+        const sentToday = await countSentToday();
         if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
             return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
         }

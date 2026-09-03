@@ -11,7 +11,7 @@ import { enrollContact } from '../services/sequenceEvents';
 import { runDueEnrollments } from '../services/sequenceRunner';
 import { getEmailProvider } from '../services/email';
 import { getSmsProvider } from '../services/sms';
-import { isSuppressed } from '../services/outreach';
+import { isSuppressed, countSentToday } from '../services/outreach';
 import { config } from '../config';
 
 const router = Router();
@@ -199,11 +199,9 @@ router.post('/shadow-review/:messageId/send', async (req: Request, res: Response
     const hit = await isSuppressed(channel === 'sms' ? 'phone' : 'email', to);
     if (hit) return res.status(409).json({ error: `Mottagaren är spärrad (${hit.kind}: ${hit.reason ?? 'okänd orsak'})` });
 
-    const start = new Date(); start.setHours(0, 0, 0, 0);
-    const { count } = await supabase.from('messages').select('id', { count: 'exact', head: true })
-        .eq('direction', 'outbound').eq('status', 'sent').gte('created_at', start.toISOString());
-    if ((count ?? 0) >= config.OUTBOUND_DAILY_LIMIT) {
-        return res.status(429).json({ error: `Dagsbudgeten är nådd (${count}/${config.OUTBOUND_DAILY_LIMIT}). Försök igen i morgon eller höj OUTBOUND_DAILY_LIMIT.` });
+    const sentToday = await countSentToday();
+    if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
+        return res.status(429).json({ error: `Dagsbudgeten är nådd (${sentToday}/${config.OUTBOUND_DAILY_LIMIT}). Försök igen i morgon eller höj OUTBOUND_DAILY_LIMIT.` });
     }
 
     try {
