@@ -162,6 +162,69 @@ tillbaka NAMN och företag och får dem bekräftade (stavning vid osäkerhet) in
 `agent_8301…` (sv) och `agent_4501…` (en) med `create_site_agent.py`.
 Testkontakten är omdöpt, taggad `test` + `stt-felstavning` och satt till `lost`.
 
+## Alex i Server-läge: det är alltid klientens DNS (3 sep)
+
+Symtom: `scc.skylandai.se` visar bannern "Server-läge — Alex kör i molnet med
+full CRM-åtkomst", statusen står på **Ansluter…**, och sidopanelen är tom —
+`0 skills`, `0 noder`, inga trådar. Alex svarar ändå, men bara med CRM.
+
+**Server-läge är inte ett fel, det är reservläget.** `AlexView` sätter
+`useBackendAlex = gateway.status !== 'connected' && gatewayGraceOver`. Kommer
+inte WebSocket:en mot gatewayen upp inom grace-perioden pratar frontenden med
+SCC-backenden i stället. Backenden har CRM men inga skills och inga sub-agenter
+— de bor i gatewayen. Därav de tomma räknarna.
+
+### Vägen fram till gatewayen, hela kedjan
+
+| Led | Var | Status |
+|---|---|---|
+| Gatewayen | `openclaw-gateway.service` på VPS:en `alex` | binder **bara** `127.0.0.1:18789` och `[::1]:18789` (`openclaw.json`: `"mode": "local"`, `"tailscale": { "mode": "off" }`) |
+| Framför den | `tailscale serve` → `https://alex.tail8a8e79.ts.net` | tailnet-only, proxar till `127.0.0.1:18789` |
+| I bundlen | `VITE_GATEWAY_URL` | sätts i Render → bakas in av `ARG VITE_GATEWAY_URL` i `backend/Dockerfile` |
+| I klienten | Tailscale med **accept-dns på** | annars går uppslaget av `*.ts.net` till publik DNS |
+
+Alla fyra måste stämma. Gatewayen exponeras aldrig mot internet — den nås bara
+av enheter som redan är med i tailnätet, och det är därför `VITE_GATEWAY_TOKEN`
+får ligga i den publika bundlen (se motiveringen i `backend/Dockerfile`).
+Kommentaren i `frontend/.env.production` som säger att gateway-URL:en aldrig får
+bakas in gäller **funnel-adresser**, alltså publikt nåbara. Tailnet-adressen är
+en annan riskklass, och den är den som används.
+
+### Felet 3 sep, och hur det hittades
+
+Bundlen var rätt hela tiden — `wss://alex.tail8a8e79.ts.net` låg i
+`/assets/index-*.js`, ingen localhost-fallback. Gatewayen var uppe sedan 1 sep
+08:25 UTC och jobbade. Felet satt i **Macens DNS**: Tailscale hade
+`CorpDNS: false`, så Chrome frågade publik DNS efter `alex.tail8a8e79.ts.net`
+och fick NXDOMAIN. Tailscales egen resolver på `100.100.100.100` svarade rätt
+hela tiden, och `tailscale ping alex` gick fram — nätet var alltså aldrig nere,
+bara namnuppslaget.
+
+Åtgärd: `tailscale set --accept-dns=true` på Macen. Server-läget försvann direkt,
+gatewayen gick grön, trådarna laddades.
+
+### Felsök i den här ordningen — inte tvärtom
+
+1. **Bundlen först.** `curl -s https://scc.skylandai.se/ | grep -o '/assets/index-[^"]*\.js'`,
+   hämta den och `grep -o 'wss://[a-z0-9.-]*ts\.net'`. Står tailnet-adressen där
+   är Render och Dockerfilen oskyldiga — läs aldrig `.env.production` som facit
+   på vad som faktiskt byggdes.
+2. **Klientens DNS.** `nslookup alex.tail8a8e79.ts.net` mot systemresolvern och
+   mot `100.100.100.100`. Svarar bara den senare är `accept-dns` av.
+3. **Tailnätet.** `tailscale ping alex`.
+4. **Tjänsten sist.** `ssh alex@62.238.113.151 'systemctl --user is-active openclaw-gateway; ss -lntp | grep 18789'`.
+
+Att porten är stängd på tailnet-IP:t (`nc -z 100.97.160.13 18789` misslyckas) är
+**väntat och rätt** — gatewayen är loopback-bunden, `tailscale serve` tar 443.
+Det är inget fel att jaga.
+
+En SSH-tunnel (`ssh -L 18789:127.0.0.1:18789`) fungerar också, men är fel svar:
+den binder Alex till en påslagen dator, och `tailscale serve` finns redan.
+
+**Kvar att reda ut:** `0 skills`, `0 noder` och `Capabilities 0` står kvar även
+med grön gateway. Anslutningen är alltså hel; registreringen av skills och noder
+är en egen fråga.
+
 ## Kända skavanker
 
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.
