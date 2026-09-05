@@ -1,3 +1,8 @@
+> **Fryst dagbok.** Den här loggen slutade uppdateras 24 juli 2026 och beskriver
+> ett system som delvis inte finns längre: n8n är avvecklat, Alex bor på en VPS,
+> pollern kör inte på Macen. Läs den för bakgrund, aldrig för nuläge.
+> Arbetsdagboken fortsätter i `docs/HANDOVER_*.md`; driftläget står i `docs/DRIFT.md`.
+
 # Skyland Command Center – Utvecklingslogg
 
 ---

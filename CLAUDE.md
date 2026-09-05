@@ -1,81 +1,40 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-08-04
+> Senast uppdaterad: 2026-09-05
 
-> ## 🧭 BÖRJA HÄR (nuläge, läs först)
-> Ny session? Läs dessa i ordning innan du gör något:
-> 1. `docs/HANDOVER_2026-08-04.md` — SENASTE läget: **(a) Alex-överrapporteringen
->    ÅTGÄRDAD + skarptestad** (riktigt verktygsprotokoll, kvittoruta; prod kör
->    fix-committen sedan 1/8; testfallet All Gold 2×100 %). **(b) NY KUND: GKMK**
->    (Göteborgs Krav Maga Klubb, kampsport-vertikal, Sales-pipelinen → Won) —
->    Meta Lead Ads-kampanj, mål live v.34; VIKTIGT: klubben ringer sina leads
->    SJÄLVA (skillnad mot tattoo-modellen); 8 todos, paketet till Peter förfaller
->    5/8 + affärsfrågan (pro bono/betalt?) oställd. **(c) NY SKILL `video-watch`**
->    — Alex kan se video (bildrutor + Whisper-transkript); skarptestad. **(d)
->    SPARLAGER:** `ad_library.video_analysis` (strukturerat schema) +
->    `save_analysis.py` (→ ad_library eller kortets Materialflik); ad-intel +
->    scc-crm har vidarepekare (kanon: vinnande skill pekar vidare). Kryptonite:
->    pitch skickad, väntar tumme upp, uppföljning 7/8. Webchat-Alex kör `main`
->    på Kimi K2.5 — svag routing, nämn skills vid namn.
-> 2. `docs/HANDOVER_2026-07-27.md` — bakgrund: **annonssystemet steg 1+2 KLARA.**
->    Skill `ad-intel` i drift (Meta Ad Library → tabell `ad_library` i Supabase, RLS på),
->    681 annonser scrapade (SE, tattoo+beauty). Terräng: av 65 CRM-kort annonserar 1
->    (Gothenburg Tattoo, 229 dgr på MEXPAND-mallen ordagrant); beauty har mönstervolymen
->    (MediQ 987 dgr). Affärsbeslut (KANON, bekräftat av Joakim 2026-07-27): studion betalar
->    annonskostnad, 10 % provision — doktriner + docs uppdaterade med 10 %-noter.
->    **STEG 3 KLART (se avsnitt 6b):** skill `ad-factory` i drift — fyra
->    konceptuellt olika annonser per kund, testad skarpt mot Pistolero. Bygger på
->    content-pipeline (importerar den) + `ad_intel.py --patterns`. Kvar: beauty
->    otestad skarpt, koppling till produce-package obyggd. Apify-krediterna fungerar igen.
->    **META-POLICYN ÄR KOLLAD** (`docs/META_ADS_POLICY.md`): tatuering är inte en
->    förbjuden kategori; "du + ditt tillstånd"-tilltal och före/efter-format är
->    kodgrindade i ad-factory. Operatörschecklista (18+, inga garantier, inga
->    hälsofrågor i leadformuläret) följer med i varje annonspaket.
->    **Städlista (avsnitt 4b) — MESTADELS AVKLARAD 2026-07-27 kväll:** WhatsApp
->    OMLÄNKAD (orsaken var "not linked" efter uppgraderingen; QR via `openclaw
->    channels login --channel whatsapp`) — healthy/connected. Webbsök: gamla
->    `exa-web-search-free` finns inte längre på ClawHub — officiella
->    `@openclaw/exa-plugin` 2026.7.1 installerad + laddad. Repots `openclaw.json`
->    SYNKAD från live (commit `88e809e` i openclaw-config) → deploy_openclaw_config.sh
->    är säker att köra igen. KVAR: `scrapling` blockerad uppströms (ClawHub v1.0.1
->    kräver plugin-API 1.0.0, runtime kör 2026.7.1-2) — räkna med haltande
->    prospect-research tills den uppdaterats; övriga 13 avstängda tillägg tas vid
->    behov. OBS: Terminalens default-`openclaw` kraschar (Homebrew-node@22 +
->    libsimdjson) — använd nvm-binären `~/.nvm/versions/node/v24.18.0/bin/openclaw`.
-> 3. `docs/HANDOVER_2026-07-24.md` — bakgrund: **SCC→OpenClaw-dispatchen fullt driftsatt +
->    testad end-to-end** (pull-modell: `OPENCLAW_DISPATCH_MODE=pull` i Render + poller på Macen via
->    launchd `com.skyland.scc-poller`). Sex grindar lagade (montering `/api/v1`, agent-registrering,
->    sessionKey `hook:`, py3.9). Två-Alexar: verktygen finns på server-Alex (⌘J-docken), inte
->    gateway-Alex. Öppna trådar: Apify-kredit slut, kundlösa produce-tasks syns ej i approval-UI.
-> 4. `docs/HANDOVER_2026-07-23.md` — bakgrund: affärsmodell-byte (annonsbudget-modellen),
->    material-arkiv (Fas 2), `produce_package` (Fas 3), Borås, Scrapling-omkopplat research-flöde.
->    **Del 2:** beauty-vertikalen byggd (Prospecting (Beauty) i prod) + ads_pipeline + sync_skills.sh.
-> 5. `docs/HANDOVER_2026-07-19.md` — bakgrund: röststyrning, mobil-UX, IG-DM-autologg,
->    integrationsvakt + de första varma svaren från marknaden.
-> 6. `docs/HANDOVER_2026-07-18.md` — bakgrund: hela prospekteringsmaskinen komplett
->    (discover/prospect/dm/batch-pipelines, 52 kort över 7 orter, 47 validerade DM).
-> 7. `docs/HANDOVER-CRM-F1-och-leadlista.md` — bakgrund: F1 CRM-kärnan, affärsmodellen
->    (kursen/MEXPAND), GHL-strategin, öppna beslut.
-> 8. `docs/TICKETS_F1_CRM.md` — vad som byggdes i F1.
+> ## 🧭 BÖRJA HÄR (läs i den här ordningen)
 >
-> **Var vi står (2026-07-23):** Prospekteringsmaskinen är FLERVERTIKAL — tattoo (skarp drift:
-> 60+ kort, 8 öppnare kvar i kö, 4 varma dialoger) och beauty (byggd, väntar på BV-8-pilot +
-> doktrin-beslut). Pipeline "Prospecting (Beauty)" finns i prod. ads_pipeline ger annons-spaning
-> via Meta Ad Library (rapporter i ~/clawd/out/ads-reports/, runs_ads-stämplar på kort).
-> Affärsmodellen för tattoo är annonsbudget-modellen (studion betalar annons, provision/andel per
-> bokad sittning). Historik nedan:
+> 1. **`docs/DRIFT.md`** — vad som kör just nu: tjänster, konton,
+>    produktionsflaggor, schemalagda jobb, kända skavanker. **Enda sanningen om
+>    drift.** Motsäger något annat dokument den här filen, är det andra gammalt.
+> 2. **`docs/STABILISERINGSPLAN.md`** — var i planen vi står. Fas 0–3 klara,
+>    Fas 4 (volym) pågår.
+> 3. **`docs/HANDOVER_2026-09-05.md`** — senaste arbetsdagboken (3–5 sep):
+>    autosend-beslutet, den nattliga påfyllnaden, doktrin- och stadiegrinden.
 >
-> **(2026-07-13):** F1 CRM-kärnan levererad. Ovanpå den finns nu ett **prospekterings-spår**
-> för Joakims egen kundanskaffning: ny pipeline **"Prospecting (Agency)"** (8 stages) med **37 riktiga
-> tatuerarstudior** (Göteborg + Mölndal) inlagda som contacts + opportunities, berikade (IG/mail/webb)
-> och **scorade** (score/tier/booking_flow i `contacts.custom`). CRM-korten visar score/IG/kanal och
-> har sort/filter (commits `bb3aa99`, `4d81b4c`, pushade). Nästa: DM-outreach till tier A, ev. skala
-> listan mot ~100. Parallellt kvarstår **F2** (utgående e-post/SMS + kalender/bokning).
+> Behöver du Alex-konfigurationen: `docs/OPENCLAW_CONFIG_INVENTERING.md`.
+> Sajtflödena: `docs/SITE_FLOWS.md`. Mejlinfran: `docs/EMAIL_INFRA.md`.
 >
-> **Att veta:** externa kopplingar (Supabase-MCP, GHL LeadConnector-MCP, ev. Chrome) måste
-> anslutas per session. Git i den mountade `.git` tillåter inte `unlink` — flytta undan
-> `*.lock` med `mv` vid behov. Push sker från Joakims egen terminal.
+> ### Var vi står (5 sep 2026)
+>
+> Reaktiveringskedjan går av sig själv. Ett cronjobb på Alex (02:00) hittar nya
+> kliniker, fyller i mejladresser, kör research och DM, och skriver in färdiga
+> kort i mejlsekvensen. Öppnaren skickas automatiskt; bump och avslut ligger i
+> manuell kö och kräver ett klick i Skuggvecka. Dagstak 20 utskick.
+>
+> Nästa mätpunkt är **50 skickade öppnare** — före det säger svarsfrekvensen
+> ingenting om copyn. Sju utskick är inte ett underlag.
+>
+> ### Om äldre handovers
+>
+> `docs/HANDOVER_*.md` är **kronologisk historik, inte nuläge.** Filerna från juli
+> och augusti beskriver ett system som delvis inte finns längre: n8n är avvecklat,
+> Alex bor på en VPS, pollern kör inte på Macen. Läs dem för bakgrund till ett
+> beslut, aldrig för att veta hur något fungerar i dag. Det svaret står i DRIFT.md.
+>
+> **Att veta när du jobbar här:** git i den mountade `.git` tillåter inte
+> `unlink` — ta bort `*.lock` med `rm` från Macens egen terminal vid behov.
 
 > **VIKTIGT — arkitekturen har ändrats sedan tidigare versioner av denna fil:**
 > - Entrypoint är `backend/src/server.ts` (klassbaserad, helmet, CORS, WebSocket-gateway, statisk SPA-servering). `backend/src/index.ts` är LEGACY och körs inte (`package.json` → `dev`/`start` pekar på server.ts).

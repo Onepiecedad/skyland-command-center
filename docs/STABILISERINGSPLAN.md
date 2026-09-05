@@ -145,6 +145,8 @@ säger svarsfrekvensen något om copyn — sju utskick sa ingenting alls.
 | Dokument | Innehåll |
 |---|---|
 | `DRIFT.md` | Vad som kör just nu — läs den först |
+| `HANDOVER_2026-09-05.md` | **Senaste arbetsdagboken (3–5 sep):** autosend-beslutet, nattlig påfyllnad, doktrin- och stadiegrinden |
+| `HANDOVER_2026-09-01.md` | Fas 3 och de fem tysta sökvägsfelen från VPS-flytten |
 | `HANDOVER_2026-08-30.md` | Arbetsdagbok: vad som gjordes, vilka buggar som hittades |
 | `BACKLOG_2026-08-31.md` | Vad som ska göras härnäst, prioriterat efter konverteringsdata |
 | `VPS_MIGRATION.md` | Flytten av Alex (3.4) och de fällor den avslöjade |
