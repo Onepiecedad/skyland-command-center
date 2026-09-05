@@ -61,6 +61,39 @@ router.get('/', async (req: Request, res: Response) => {
     }
 });
 
+// POST / — skriv en aktivitet. Fanns bara på den gamla minnesmocken
+// (/api/activities), så allt som loggade dit försvann vid nästa omstart och
+// syntes aldrig i dashboarden. Nattjobb och andra skript utanför backendet
+// behöver en riktig väg in i aktivitetsloggen.
+const createSchema = z.object({
+    customer_id: z.string().uuid().nullish(),
+    agent: z.string().min(1),
+    action: z.string().min(1),
+    event_type: z.string().min(1),
+    severity: z.enum(['info', 'warn', 'error']).default('info'),
+    autonomy_level: z.enum(['OBSERVE', 'SUGGEST', 'ACT', 'SILENT']).default('OBSERVE'),
+    details: z.record(z.string(), z.unknown()).default({}),
+});
+
+router.post('/', async (req: Request, res: Response) => {
+    const parsed = createSchema.safeParse(req.body);
+    if (!parsed.success) {
+        return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
+    }
+    try {
+        const { data, error } = await supabase
+            .from('activities')
+            .insert({ ...parsed.data, customer_id: parsed.data.customer_id ?? null })
+            .select('*')
+            .single();
+        if (error) return res.status(500).json({ error: error.message });
+        return res.status(201).json({ activity: data });
+    } catch (err) {
+        console.error('[Activities] Unexpected error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // GET /:id — single activity
 router.get('/:id', async (req: Request, res: Response) => {
     try {
