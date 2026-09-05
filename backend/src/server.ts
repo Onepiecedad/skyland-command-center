@@ -49,6 +49,8 @@ import automationsRouter from './routes/automations.js';
 import sequencesRouter from './routes/sequences.js';
 import emailInboundRouter from './routes/emailInbound.js';
 import igDmWebhookRouter from './routes/igDmWebhook.js';
+import whatsappWebhookRouter from './routes/whatsappWebhook.js';
+import whatsappRouter from './routes/whatsapp.js';
 import marinmekanikerWebhookRouter from './routes/marinmekanikerWebhook.js';
 import siteWebhooksRouter from './routes/siteWebhooks.js';
 import bookingsRouter from './routes/bookings.js';
@@ -155,7 +157,12 @@ class Server {
     this.app.use(requestIdMiddleware);
 
     // Body parsing
-    this.app.use(express.json({ limit: '10mb' }));
+    // rawBody behövs för webhookar som signerar råkroppen (WhatsApp/Meta:
+    // X-Hub-Signature-256). Bufferten sparas per request innan JSON tolkas.
+    this.app.use(express.json({
+      limit: '10mb',
+      verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = buf; },
+    }));
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
     // Request logging
@@ -212,6 +219,7 @@ class Server {
     this.app.use('/api/v1/voice', voiceRouter);
     this.app.use('/api/v1/webhooks/email', emailInboundRouter);  // inkommande mejl (egen token)
     this.app.use('/api/v1/webhooks/ig-dm', igDmWebhookRouter);   // IG-DM-autologg via n8n (egen token)
+    this.app.use('/api/v1/webhooks/whatsapp', whatsappWebhookRouter); // WhatsApp Cloud API (Meta-signatur / egen token) — Cold Experience-intaget
     this.app.use('/api/v1/webhooks/marinmekaniker', marinmekanikerWebhookRouter); // ordernotis, ersätter n8n (egen token)
     this.app.use('/api/v1/webhooks/site', siteWebhooksRouter);       // skylandai.se: session/telemetri/void/voice (SCC-48, ersätter n8n)
     this.app.use('/api/v1/webhooks/calcom', calcomWebhookRouter); // Cal.com-bokningar (egen token)
@@ -238,6 +246,7 @@ class Server {
     this.app.use('/api/v1/bookings', bookingsRouter);      // Cal.com-spegel → kalendern (SCC-45)
     this.app.use('/api/v1/customers', customersRouter);
     this.app.use('/api/v1/contacts', contactsRouter);
+    this.app.use('/api/v1/whatsapp', whatsappRouter);       // operatörens WhatsApp-svar + 24h-fönstret
     this.app.use('/api/v1/studio-assets', studioAssetsRouter); // Studio-material-arkiv (Storage-backat)
     this.app.use('/api/v1/pipelines', pipelinesRouter);
     this.app.use('/api/v1/tasks', tasksRouter);

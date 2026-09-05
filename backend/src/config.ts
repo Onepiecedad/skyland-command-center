@@ -90,6 +90,25 @@ const envSchema = z.object({
         .default('true')
         .transform((v) => v !== 'false'),
 
+    // --- WhatsApp Cloud API (Cold Experience-intaget, 5 sep) ---
+    // Webhooken /api/v1/webhooks/whatsapp: GET verifieras med VERIFY_TOKEN, POST
+    // signaturkontrolleras med APP_SECRET (X-Hub-Signature-256). Saknas
+    // APP_SECRET accepteras bara Bearer LEADS_INTAKE_TOKEN — test/manuell väg.
+    WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+    WHATSAPP_APP_SECRET: z.string().optional(),
+    WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+    WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+    WHATSAPP_GRAPH_VERSION: z.string().default('v21.0'),
+    // Tenanten inkommande hamnar hos när numret inte matchar någon
+    // tenants.config.whatsapp_phone_number_id.
+    WHATSAPP_TENANT_SLUG: z.string().default('cold-experience'),
+    // Egen kill switch. Svar till någon som själv skrivit in är inte outreach
+    // och lyder därför inte OUTBOUND_ENABLED/OUTBOUND_MODE/dagsbudgeten.
+    WHATSAPP_OUTBOUND_ENABLED: z
+        .string()
+        .default('true')
+        .transform((v) => v !== 'false'),
+
     // --- Arbetstidsfönster för outreach (plan 2.5) ---
     // Riktiga outreach-utskick går bara vardagar START–END (Europe/Stockholm) och
     // sprids slumpat 0–JITTER minuter så en batch inte fyrar i samma sekund.

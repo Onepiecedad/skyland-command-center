@@ -60,6 +60,12 @@
 | `DAILY_DIGEST_ENABLED` | ej satt (default `true`) | Ett digestmejl till `EMAIL_FORWARD_TO` varje morgon med dygnets siffror. Byggd 31 aug (plan 3.2). |
 | `DAILY_DIGEST_HOUR` | ej satt (default `7`) | Timme i **svensk** tid. Containern kör UTC; digesten räknar om själv. |
 | `DAILY_DIGEST_INTERVAL_MS` | ej satt (default `900000`) | Hur ofta klockan kollas. Digesten går första kontrollen efter timslaget. |
+| `WHATSAPP_VERIFY_TOKEN` | **ej satt** | Metas prenumerationsverifiering av `/api/v1/webhooks/whatsapp` (GET). Välj en sträng, sätt den här och i Meta App Dashboard → WhatsApp → Configuration. |
+| `WHATSAPP_APP_SECRET` | **ej satt** | Appens hemlighet (Meta App Dashboard → App settings → Basic). Med den satt signaturkontrolleras varje POST (`X-Hub-Signature-256`). **Utan den accepteras bara Bearer `LEADS_INTAKE_TOKEN`** — test/manuell väg, inte produktion. |
+| `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | **ej satta** | Svarsvägen ut via Graph API. Permanent system-user-token från Business Manager, inte det 24-timmars-token Meta visar i dashboarden. |
+| `WHATSAPP_TENANT_SLUG` | ej satt (default `cold-experience`) | Vart inkommande hamnar när `phone_number_id` inte matchar någon `tenants.config.whatsapp_phone_number_id`. |
+| `WHATSAPP_OUTBOUND_ENABLED` | ej satt (default `true`) | Egen kill switch för WhatsApp-svar. Ett svar till någon som själv skrivit in är inte outreach och lyder därför **inte** `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudgeten. |
+| `WHATSAPP_GRAPH_VERSION` | ej satt (default `v21.0`) | Graph API-version. |
 | Valfria, ej satta | `SITE_VOICE_WEBHOOK_TOKEN`, `SITE_RAG_KEY`, `SITE_ELEVENLABS_API_KEY`, `EXTRA_CORS_ORIGINS`, `MM_ORDER_WEBHOOK_TOKEN` | Faller tillbaka på `LEADS_INTAKE_TOKEN` resp. `ELEVENLABS_API_KEY`. |
 
 ## Konfiguration (fynd 3, åtgärdat 30 aug)
@@ -529,6 +535,52 @@ beskrivning av en bugg, och **ska inte behöva det** — ett undantagsregister
 ruttnar. Texten säger `/Users/<utvecklare>/` nu och kontrollen förblir
 undantagslös.
 
+## WhatsApp-intag för Cold Experience (byggt 5 sep, väntar på Meta-sidan)
+
+**Första externa tenanten får sina leads i det vanliga CRM:et.** Inte i det
+separata `ce_*`-schemat från 10 aug (se skavankerna). Kontakter, kort, tråd,
+todos — samma tabeller som tattoo och beauty, skilda åt av `tenant_id`.
+
+**Pipeline:** `Cold Experience — leads` (id `1541531a…`, tenant `cold-experience`):
+Ny → Kvalificerad → Het → Överlämnad → Bokad → Betald → Avböjt. Syns som en tab i
+CRM-fliken sedan 5 sep. Tom tills intaget är kopplat.
+
+**Webhook:** `/api/v1/webhooks/whatsapp` (`routes/whatsappWebhook.ts`,
+monterad före global auth).
+
+| Händelse | Vad som händer |
+|---|---|
+| Inkommande meddelande | tenant ur `phone_number_id` (→ `tenants.config.whatsapp_phone_number_id`), annars `WHATSAPP_TENANT_SLUG`. Kontakt på `custom.wa_id`, i andra hand på telefon (plus och mellanslag tas bort, `wa_id` lärs in). Saknas den skapas den: namn ur WhatsApp-profilen, telefon `+<wa_id>`, `source` `whatsapp` eller `whatsapp_ctwa`, `dedupe_key` `wa:<tenant>:<wa_id>`. Öppet kort i tenantens pipeline (`config.whatsapp_pipeline` eller den äldsta) i första stadiet om inget finns. Rad i `messages` (`channel=whatsapp`, `provider_message_id=wamid`, `metadata.contact_id`). Auto-todo "Svara …". |
+| Bild/röst/video/dokument/plats/knapp | läsbar rad (`[bild]`, `[röstmeddelande]`, knappens text …), media-id i `metadata.media_id`. Tråden visar aldrig en tom rad. |
+| CTWA-referral (annons) | `contacts.custom.ad_referral` **vid första beröringen, skrivs aldrig över.** Det är provisionsunderlaget. Taggen `ctwa`. |
+| Status (`sent`/`delivered`/`read`/`failed`) | uppdaterar vårt utgående på `provider_message_id`. `read` räknas som `delivered`. Går aldrig bakåt. Fel sparas i `metadata.error`. |
+| Omleverans | dedupe på `wamid` — Meta levererar om vid minsta tvekan. |
+
+**Svarsväg:** `POST /api/v1/whatsapp/send { contact_id, text }` (bakom vanlig
+auth) och `GET /api/v1/whatsapp/window/:contactId`. **24-timmarsfönstret**
+räknas ur tråden: fritext går bara inom 24 h från kundens senaste inkommande,
+annars 409 med skälet. Utanför fönstret måste det vara en godkänd mall — inte
+byggt än. Fönstret behöver ingen egen tabell.
+
+**Kvar, i den här ordningen:**
+
+1. **Meta-sidan (Joakim).** WhatsApp Business-konto och nummer i Cold
+   Experiences Business Manager, permanent system-user-token, app-hemlighet,
+   webhook-prenumeration på `messages` mot
+   `https://scc.skylandai.se/api/v1/webhooks/whatsapp` med verify-token.
+   Sätt de fyra WHATSAPP-variablerna i Render. Sätt
+   `tenants.config.whatsapp_phone_number_id` på cold-experience.
+2. Mallar (utanför 24 h) — kräver godkända templates hos Meta.
+3. Agenten: svar på fyra språk, het-lead-detektion, överlämning till Gustav.
+   Hakar i tråden när den finns.
+4. Kortet: språk, fönster öppet/stängt, när en människa tog över. Fält, inte
+   en ny vy.
+
+**Tester:** `services/whatsapp.test.ts` (13, rena funktioner) och
+`__tests__/whatsappWebhook.test.ts` (14, mot en databasfejk i minnet:
+`__tests__/helpers/fakeSupabase.ts` — den ser vad som *händer*, inte bara att
+ett anrop gjordes).
+
 ## Kända skavanker
 
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.
@@ -540,6 +592,7 @@ undantagslös.
 - **VPS:en kan inte hämta från GitHub.** `~/openclaw-config` på Alex har origin över HTTPS utan credentials, så `git pull` felar ("could not read Username"). Skills deployas därför med `rsync` från Macen + `REPO_SKILLS=... scripts/sync_skills.sh <skill>`. Följden: repot på VPS:en driver isär från GitHub, och en fix som ligger committad kan sakna på den maskin som faktiskt kör. Bump-doktrinen och `channel: email` (commit 47b96b1, 4 sep) hade aldrig nått Alex — upptäckt först 5 sep. Ge VPS:en en deploy-nyckel så `git pull` fungerar.
 - **`GET /api/v1/skills` läser en katalog som bara finns där OpenClaw kör.** På Render finns den inte, och tom katalog rapporterades som `0`. Dashboarden visade "0 skills" och "Capabilities 0" medan gatewayn hade 73 laddade. Endpointen svarar nu `available:false` med skäl och dashboarden visar `?`. Den riktiga fixen är att läsa skills över gateway-anslutningen som frontend redan har öppen. Samma familj som rollfils-modalen: filer på operatörens dator finns inte i molnet.
 - `/api/v1/skills-db` pekar på tabellen `skills` i Supabase. **Den tabellen finns inte.**
+- **`ce_*`-schemat (8 tabeller, applicerat 10 aug) är vilande.** Noll rader, ingen kod läser eller skriver det. Cold Experience-intaget byggdes 5 sep på det vanliga CRM:et i stället — två datamodeller för "en lead med en konversation" är samma felklass som två räknesätt för samma kö. Det som var bra i `ce_*` (24h/72h-fönstren, opt-out på fyra språk, GDPR-radering) tas in som fält och funktioner på de vanliga tabellerna när det behövs. Riv tabellerna i en städning; låt ingen bygga på dem.
 - **Macen kör fortfarande `com.skyland.daily-ops`** i launchd (senast 31 aug 05:05) och skriver in i `openclaw-config/runs/inbox/`. Pollerns plist är avstängd, men inte den här. Två maskiner skriver in i samma katalog.
 - **Repots `openclaw.json` är Mac-formad.** En körning av `deploy_openclaw_config.sh` skulle sätta `gateway.tailscale.mode=off` och peka arbetsytan på `/Users/onepiecedad/clawd`. Kör det inte förrän configen är VPS-formad.
 - ~~Hemsidans boka-knapp länkade till Calendly~~ **åtgärdad**: knappen pekar på `cal.com/joakim-landqvist-yrcioq/15min` (Skyland_AI_System `18dfd61`), verifierad live 1 sep. Sajtens mobilbuggar (röstdemot avklippt, tangentbordsnav, död policylänk) fixade 1 sep i `05a523e` — se det repots logg.
