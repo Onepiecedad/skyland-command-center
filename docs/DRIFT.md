@@ -96,7 +96,7 @@ omstartad. **Kolla `store_key` först om jobb slutar fyra efter en flytt.**
 
 | Jobb | Schema | Läge |
 |---|---|---|
-| **Skyland morgon** | 07:00 | ok, levererad. Slår ihop gamla *Morning check-in* och *Skyland morgonbrief* till en rapport: SCC-siffrorna, vädret, nattens leads-brief om den finns, och alltid en rad även när allt är lugnt |
+| **Skyland morgon** | 07:00 | ok, levererad. SCC-siffrorna, vädret, maskinens hälsa, nattens påfyllnadsrapport, och alltid en rad även när allt är lugnt. **Läste fel fil till 5 sep:** `brief-DATUM.md` från det avstängda jobbet *Skyland nattliga leads*. Den hade rapporterat "nattkörningen fallerade" varje morgon. Pekar nu på `fill-DATUM.md` |
 | Kvällssammanfattning | 21:00 | ok, levererad. Läser SCC:s `/reports/digest` |
 | **Skyland nattlig påfyllnad** | 02:00 | **NY 5 sep.** `payload_kind=command` → `daily_fill.py`. Ingen leverans (utskriften är hundratals rader), larm efter första felet. Se *Nattlig påfyllnad* nedan |
 | Preflight | 06:30 | ok. Larm efter ETT fel |
@@ -481,6 +481,53 @@ nu sekvensens `allow_reenroll` och nekar på historik oavsett status.
 `/api/v1/activities` (Supabase) var läs-bar. POST fanns bara på den gamla
 minnesmocken `/api/activities`, så allt som loggade dit försvann vid omstart.
 POST finns nu på den riktiga, bakom samma auth som resten av `/api/v1`.
+
+## Uppdateringar installerar sig inte själva, med flit (5 sep)
+
+OpenClaw har `openclaw update --yes`, som startar om gatewayen på egen hand. Den
+går att lägga i cron. **Gör inte det.**
+
+Gatewayen kör nattjobbet, cron-schemat, skills och WhatsApp-kanalen som alla
+larm går över. Uppgraderar den sig själv 04:00 och går sönder, är maskinen som
+ska säga till samma maskin som just gick sönder — och larmvägen dog med den. Du
+får veta det nästa gång du råkar öppna dashboarden.
+
+Delningen: **upptäckten automatiseras, knapptrycket inte.**
+`proactive-checkin/scripts/check_maskin.sh` (fjärde wrappern, ny 5 sep) körs av
+morgonbriefen 07:00 och rapporterar ny version, mediemappens storlek och ledig
+disk som `VARNING:`-rader, som går överst i briefen. Den installerar ingenting
+och raderar ingenting. Morgonbriefens prompt förbjuder det uttryckligen.
+
+Trösklar: media 2 048 MB (`MEDIA_TAK_MB`), disk 15 % ledigt (`DISK_MIN_PCT`).
+
+### Mediemappen städas inte automatiskt, också med flit
+
+`~/.openclaw/media/inbound/` är 37 MB i 304 filer mot 63 GB ledigt. Det är inget
+problem att lösa, och innehållet är skälet att inte lösa det ändå: **205 jpg,
+20 png, 9 pdf och 6 docx** vid sidan av de 61 röstnoterna. Röstnotens text finns
+kvar i sessionen, så där förloras ingenting. Bilden och PDF:en finns bara som
+fil, och en beskrivning av en bild är inte bilden.
+
+En tröskel som säger till är ärligare än ett schema som slänger i förväg. Skulle
+städning ändå behövas är bara två saker säkra att ta automatiskt: arbetskopiorna
+i `~/clawd/media/inbound/openclaw-staged-*` (dubbletter per definition) och
+`.ogg` äldre än 90 dagar. Bilder och dokument aldrig.
+
+### Chattens "Outside allowed folders" på röstmeddelanden
+
+Inkommande media landar i `~/.openclaw/media/inbound/` och stageras till en
+arbetskopia under arbetsytan `~/clawd/media/inbound/openclaw-staged-*/`. Agenten
+läser arbetskopian och transkriberar korrekt, men chattvyn länkar till
+originalet, som ligger utanför de mappar dashboarden får servera. Uppspelningen
+failar, meddelandet gör det inte. Kosmetiskt.
+
+### preflight failade på en beskrivning av buggen den letar efter
+
+`scc-crm/references/sajtandringar.md` beskriver sökvägsbuggen och innehöll därför
+`/Users/onepiecedad/...` ordagrant. Kontrollen kan inte skilja en bugg från en
+beskrivning av en bugg, och **ska inte behöva det** — ett undantagsregister
+ruttnar. Texten säger `/Users/<utvecklare>/` nu och kontrollen förblir
+undantagslös.
 
 ## Kända skavanker
 
