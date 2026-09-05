@@ -111,15 +111,23 @@ laptopen gör det.
       (se DRIFT.md). **Kvar: sätt `OUTBOUND_MODE=auto` och `OUTBOUND_ENABLED=true`
       i Render** — koden och stegflaggorna är på plats och testade.
 
-## Fas 4 · Volym · EJ PÅBÖRJAD
+## Fas 4 · Volym · PÅGÅR
 
 **Mål:** Först nu byggs påfyllningen.
 
-- [ ] **4.1** Daglig discover-cron — fyll på till N kort per vertikal och stad, dedupe
-      mot CRM och suppression, kostnadstak per dag
-- [ ] **4.2** Automatisk enroll av kort över poänggräns, resten till manuell hög
+- [x] **4.1** Daglig discover-cron — `Skyland nattlig påfyllnad` 02:00 på Alex kör
+      `daily_fill.py` som rent kommando (5 sep). Ortsrotation över 26 orter, dedupe mot
+      CRM, backpressure vid 30 obearbetade kort, mejlberikning innan research så inga
+      krediter går till kort som ändå inte kan mejlas
+- [x] **4.2** Automatisk enroll av kort över poänggräns (score ≥ 40), högst 12 per
+      natt, resten står kvar i kön. **Doktringrinden** är den viktiga delen: bara kort
+      vars DM skrevs med `beauty-reaktivering` skrivs in. 25 kort bar nykundspitchen
+      och hade annars gått ut under fel ämnesrad
 - [ ] **4.3** Nästa vertikal (tandläkare eller verkstad) som egen vertikalfil med egen
       scoring, brief och DM-doktrin *(Joakim sätter doktrin)*
+
+**Nästa mätpunkt:** 50 skickade öppnare. Vid 12/dygn är det fyra dagar. Först då
+säger svarsfrekvensen något om copyn — sju utskick sa ingenting alls.
 
 ---
 
@@ -128,7 +136,9 @@ laptopen gör det.
 | När | Vad |
 |---|---|
 | 1 sep efter 17:03 | Skuggveckan: sju kort får skuggrader, ska dömas. Underlag till 3.6 |
-| 7 sep | Autosend-beslutet (3.6) |
+| ~~7 sep~~ 5 sep | Autosend-beslutet (3.6) — avgjort i förtid: öppnaren live, bump och avslut i manuell kö |
+| 10 sep 09:00 | Avslutsmejlen till de sex kvarvarande klinikerna landar som utkast i Skuggvecka. Går inte utan klick |
+| ~10 sep | 50 skickade öppnare passeras vid 12/dygn. Först då går copyn att bedöma |
 
 ## Relaterade dokument
 

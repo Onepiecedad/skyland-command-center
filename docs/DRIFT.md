@@ -38,12 +38,12 @@
 
 | Flagga | Värde | Effekt |
 |---|---|---|
-| `OUTBOUND_ENABLED` | `false` | Motorn skickar inget på egen hand. Gäller sekvenser med `outbound_policy='outreach'` (default). |
+| `OUTBOUND_ENABLED` | `true` (5 sep) | Motorn skickar på egen hand. Gäller sekvenser med `outbound_policy='outreach'` (default). |
 | `OUTREACH_WINDOW_ENABLED` | ej satt (default `true`) | Plan 2.5: LIVE outreach skickas bara vardagar 08–17 (Europe/Stockholm, `OUTREACH_WINDOW_START_HOUR`/`END_HOUR`) och sprids slumpat 1–90 min (`OUTREACH_JITTER_MINUTES`) så en batch inte fyrar i samma tick. Gäller INTE transactional och INTE skuggläget (skuggrader ska synas direkt i Skuggvecka). |
 | `TRANSACTIONAL_OUTBOUND_ENABLED` | ej satt (default `true`) | Kill switch för `outbound_policy='transactional'` (Strategisamtal-påminnelserna). Transaktionell post går ut OAVSETT `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudget; suppression gäller utom orsaken `existing_customer`. Fynd 4 åtgärdat 30 aug. |
-| `OUTBOUND_MODE` | `shadow` | Utskick loggas som `messages.status='shadow'`. Granskas i Försäljning → Skuggvecka; "Skicka nu" skickar manuellt. |
+| `OUTBOUND_MODE` | `auto` (5 sep) | Steg med `require_approval: true` går ändå i skugga. Utskick i skugga loggas som `messages.status='shadow'`. Granskas i Försäljning → Skuggvecka; "Skicka nu" skickar manuellt. |
 | `SEQUENCE_RUNNER_ENABLED` | `true` | Motorn tickar varje minut. **Verifiera dessa tre innan du enrollar något med `next_run_at=now()`.** |
-| `OUTBOUND_DAILY_LIMIT` | `5` | Tak för riktiga utskick/dag, gäller även "Skicka nu". |
+| `OUTBOUND_DAILY_LIMIT` | `20` (höjt 5 sep från 5) | Tak för riktiga utskick/dag, gäller även "Skicka nu". Nattjobbet skriver in högst 12 öppnare/dygn; resten av taket är utrymme för bump och avslut. Vid 12 utskick/dag når du 50 skickade öppnare på fyra dagar — det är först då copyn går att bedöma. |
 | `EMAIL_FROM` / `EMAIL_REPLY_TO` / `EMAIL_FORWARD_TO` | `Skyland AI <joakim@send.skylandai.se>` / `joakim@send.skylandai.se` / `joakim@skylandai.se` | Avsändare, svar till Inbound, kopia till inkorgen. |
 | `EMAIL_INBOUND_TOKEN` | satt | Token i Resend-webhookens URL. |
 | `RESEND_API_KEY` | satt | Mejl ut + integrationshälsan. |
@@ -98,13 +98,18 @@ omstartad. **Kolla `store_key` först om jobb slutar fyra efter en flytt.**
 |---|---|---|
 | **Skyland morgon** | 07:00 | ok, levererad. Slår ihop gamla *Morning check-in* och *Skyland morgonbrief* till en rapport: SCC-siffrorna, vädret, nattens leads-brief om den finns, och alltid en rad även när allt är lugnt |
 | Kvällssammanfattning | 21:00 | ok, levererad. Läser SCC:s `/reports/digest` |
-| Skyland nattliga leads | 02:00 | fel 1 sep: `incomplete turn` från Kimi. Infrastrukturen är inte problemet. Nästa försök 02:00 |
-| **Kundvakt — veckorapport** | fre 15:00 | **ok, levererad, noll fel i rad.** Rapport och snapshot skrivna |
+| **Skyland nattlig påfyllnad** | 02:00 | **NY 5 sep.** `payload_kind=command` → `daily_fill.py`. Ingen leverans (utskriften är hundratals rader), larm efter första felet. Se *Nattlig påfyllnad* nedan |
+| Preflight | 06:30 | ok. Larm efter ETT fel |
+| **Kundvakt — veckorapport** | fre 15:00 | **fel 5 sep:** "Agent couldn't generate a response". Hade inget larm; det är satt nu |
+| ~~Skyland nattliga leads~~ | 02:00 | **avstängd 5 sep.** Pekade på `~/Developer/openclaw-config/scripts/daily_leads.py` som inte finns på VPS:en, rapporterade ändå `ok`, och agenten improviserade flaggor. Ersatt av *Skyland nattlig påfyllnad* |
+| ~~morning_brief_calendar~~ | — | **borttagen 5 sep.** Avstängd, utan schema, med fel — en rad som bara låg och lyste rött |
 | Skyland morgonbrief | — | avstängd, uppgick i *Skyland morgon* |
+| Daily Skill Update | 04:00 | avstängd. Föll på `Delivering to WhatsApp requires target`; larmmålet satt 5 sep |
 
-**Larm vid tystnad:** alla fyra aktiva jobb har nu `failure-alert` efter två fel i
-rad, levererat på WhatsApp. Det var frånvaron av det som lät kvällssammanfattningen
-krascha sju gånger i tystnad.
+**Larm vid tystnad:** **alla aktiva jobb** har `failure-alert` på WhatsApp (5 sep
+fick Kundvakt och nattjobbet sina). Det var frånvaron av det som lät
+kvällssammanfattningen krascha sju gånger i tystnad — och som lät `Skyland
+nattliga leads` rapportera `ok` i dagar utan att göra något.
 
 ### Skyddsnäten (byggda 1 sep, efter femte Mac-sökvägsfelet)
 
@@ -383,6 +388,73 @@ Ingenting, tills nya kort enrollas. De sex aktiva enrollments står på position
 flaggat. Fas 4 (volym) har inte börjat, så det finns inga nya kort. Switchen
 armerar systemet för nästa batch — den startar ingen.
 
+## Nattlig påfyllnad: kedjan fyller på sig själv (5 sep)
+
+**Problemet var inte motorn, det var bränslet.** Systemet kunde skicka, mäta och
+stoppa på svar, men ingenting fyllde på med nya kort. Sju kliniker är inget
+underlag: vid 5–10 % svarsfrekvens är sannolikheten att sju utskick ger noll svar
+ungefär hälften till två tredjedelar. Autosend hade inget att göra.
+
+**Jobb:** `Skyland nattlig påfyllnad`, 02:00 Europe/Stockholm,
+`payload_kind=command` → `python3 ~/.openclaw/skills/scc-crm/scripts/daily_fill.py`.
+WhatsApp-larm efter första felet. Ingen leverans av utskriften (den blir hundratals
+rader); rapporten går till `~/clawd/out/leads/fill-<datum>.md` och till SCC som
+aktiviteten `outreach.daily_fill`.
+
+**Föregångaren, `Skyland nattliga leads`, var avstängd 5 sep.** Den var en
+agentprompt: "starta lead-motorn ... kör exakt via exec: nohup python3
+~/Developer/openclaw-config/scripts/daily_leads.py". Den sökvägen finns inte på
+VPS:en. Jobbet rapporterade ändå `ok` varje natt, eftersom agenten bara skulle
+bekräfta att processen startat. Någon natt löste agenten problemet genom att
+hitta på flaggor till `discover_pipeline.py` (`--count --format json
+--output-dir`) som inte finns, och en annan natt körde den en tattoo-sökning på
+tre kort. **Ett cron-jobb ska köra ett kommando, inte be en modell köra ett
+kommando.**
+
+Fem steg, var och en avstängbar med `--skip`:
+
+1. `discover` — nästa ort ur `verticals/beauty-reaktivering.json` → `cities`
+   (26 orter, Göteborgsområdet först). Rotationen i
+   `~/.openclaw/state/daily_fill.json`. Hoppas över när kön obearbetade kort med
+   mejl passerat 30.
+2. `mejl` — `email_enrich.py`. **21 av 41 beauty-kort saknade mejladress** och
+   kunde därför aldrig skrivas in i en mejlsekvens. discover skrapar bara
+   startsidan; adressen ligger på /kontakt eller i en mailto-länk.
+3. `research` — `prospect_batch --require-email --limit N`. Kort utan mejl får
+   ingen research: det är att betala för något som ändå inte kan användas.
+4. `doktrin` — se nedan.
+5. `enroll` — kompletta kort skrivs in i sekvensen.
+
+### Doktringrinden: ett komplett kort kan bära fel brev
+
+**25 av 33 beauty-kort med DM bar nykundspitchen** ("skulle ni ha plats för fler
+kunder?"), inte reaktiveringsfrågan. Åtta av dem hade mejladress. Hade
+nattjobbet enrollat på "har mejl + har DM" hade en kapacitetsfråga till en ny
+kund gått ut under ämnesraden *"Snabb fråga om era kunder från förra året"*.
+
+Doktrinen fanns bara inbakad i fritexten `custom.dm_hook_source`
+(`dm_pipeline (modell, beauty, validerad) 2026-08-30`). Ett filter som måste
+strängmatcha fritext släpper förr eller senare igenom fel sak. `dm_pipeline`
+skriver den nu som eget fält, `custom.dm_vertical`; grinden läser det och faller
+tillbaka på fritexten för äldre kort. Bara `beauty-reaktivering` släpps in.
+Steg 4 skriver om felaktiga kort ur den research som redan är betald.
+
+**Rör aldrig grinden för att få in fler kort.** Kön är ett symptom.
+
+### allow_reenroll=false betydde en gång i taget
+
+Databasens unik-spärr gäller bara AKTIVA enrollments. En kontakt som gått hela
+sekvensen — eller hoppat ur för att den SVARAT — gick att skriva in på nytt och
+fick samma brev igen. Osynligt så länge påfyllningen var manuell; med ett
+nattjobb är det ett brev till någon som redan sagt sitt. `enrollContact` läser
+nu sekvensens `allow_reenroll` och nekar på historik oavsett status.
+
+### Aktivitetsloggen gick inte att skriva till
+
+`/api/v1/activities` (Supabase) var läs-bar. POST fanns bara på den gamla
+minnesmocken `/api/activities`, så allt som loggade dit försvann vid omstart.
+POST finns nu på den riktiga, bakom samma auth som resten av `/api/v1`.
+
 ## Kända skavanker
 
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.
@@ -391,6 +463,9 @@ armerar systemet för nästa batch — den startar ingen.
 - Integrationshälsan: `n8n:*`-checkarna är borta (2.1b, 30 aug). Nya: `site:skylandai.se`, `site:lang.js` (båda agent-id:na), `site:agent-tools` (självtest över publika adressen med X-Skyland-Key), `elevenlabs:site-agents`. Agent-id:n är hårdkodade i `services/integrationHealth.ts` — byter du agent, byt där + `lang.js` + SITE_FLOWS.
 - `GET /api/v1/website/workflows` (Sajt-fliken, "n8n Workflow-hälsa") pekar fortfarande på n8n:s API. Död — visar tomt. Riv eller byt mot `activities` från sajt-webhookarna.
 - Engelska röstagenten är otestad i skarpt samtal.
+- **VPS:en kan inte hämta från GitHub.** `~/openclaw-config` på Alex har origin över HTTPS utan credentials, så `git pull` felar ("could not read Username"). Skills deployas därför med `rsync` från Macen + `REPO_SKILLS=... scripts/sync_skills.sh <skill>`. Följden: repot på VPS:en driver isär från GitHub, och en fix som ligger committad kan sakna på den maskin som faktiskt kör. Bump-doktrinen och `channel: email` (commit 47b96b1, 4 sep) hade aldrig nått Alex — upptäckt först 5 sep. Ge VPS:en en deploy-nyckel så `git pull` fungerar.
+- **`GET /api/v1/skills` läser en katalog som bara finns där OpenClaw kör.** På Render finns den inte, och tom katalog rapporterades som `0`. Dashboarden visade "0 skills" och "Capabilities 0" medan gatewayn hade 73 laddade. Endpointen svarar nu `available:false` med skäl och dashboarden visar `?`. Den riktiga fixen är att läsa skills över gateway-anslutningen som frontend redan har öppen. Samma familj som rollfils-modalen: filer på operatörens dator finns inte i molnet.
+- `/api/v1/skills-db` pekar på tabellen `skills` i Supabase. **Den tabellen finns inte.**
 - **Macen kör fortfarande `com.skyland.daily-ops`** i launchd (senast 31 aug 05:05) och skriver in i `openclaw-config/runs/inbox/`. Pollerns plist är avstängd, men inte den här. Två maskiner skriver in i samma katalog.
 - **Repots `openclaw.json` är Mac-formad.** En körning av `deploy_openclaw_config.sh` skulle sätta `gateway.tailscale.mode=off` och peka arbetsytan på `/Users/onepiecedad/clawd`. Kör det inte förrän configen är VPS-formad.
 - ~~Hemsidans boka-knapp länkade till Calendly~~ **åtgärdad**: knappen pekar på `cal.com/joakim-landqvist-yrcioq/15min` (Skyland_AI_System `18dfd61`), verifierad live 1 sep. Sajtens mobilbuggar (röstdemot avklippt, tangentbordsnav, död policylänk) fixade 1 sep i `05a523e` — se det repots logg.
