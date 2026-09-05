@@ -106,7 +106,7 @@ laptopen gör det.
       Skälet är att underlaget aldrig räckte till en tröskel. Sju utskick, alla
       dömda "hade skickat", noll underkännanden att koda på — och det enda svar
       verkligheten gav var ett missförstånd: Ambers läste bumpen som en kundfråga
-      och svarade med en prisofferт. Öppnaren är det enda steget som bär sin egen
+      och svarade med en prisoffert. Öppnaren är det enda steget som bär sin egen
       kontext, så det är där gränsen går. Mekanik: `require_approval` per steg
       (se DRIFT.md). **Kvar: sätt `OUTBOUND_MODE=auto` och `OUTBOUND_ENABLED=true`
       i Render** — koden och stegflaggorna är på plats och testade.
