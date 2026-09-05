@@ -246,6 +246,20 @@ export { scanSkills, parseFrontmatter, readSkillStatus };
 // ============================================================================
 router.get('/', (_req: Request, res: Response) => {
     try {
+        // Katalogen finns bara där OpenClaw kör. På Render finns den inte, och
+        // då svarade endpointen med en tom lista — dashboarden visade "0 skills"
+        // och "Capabilities 0" fast gatewayn hade 73 laddade. En lampa som lyser
+        // fel är värre än ingen lampa: säg att siffran inte kan läsas här.
+        // (Samma läxa som rollfils-modalen: filer på operatörens dator finns
+        // inte i molnet.)
+        if (!fs.existsSync(SKILLS_DIR)) {
+            return res.json({
+                skills: [], count: 0, enabled_count: 0, disabled_count: 0,
+                source: SKILLS_DIR, available: false,
+                reason: 'Skills-katalogen finns bara på maskinen där OpenClaw kör. '
+                      + 'Backendet i molnet kan inte läsa den — siffran är okänd, inte noll.',
+            });
+        }
         const skills = scanSkills(SKILLS_DIR);
         const enabledCount = skills.filter(s => s.enabled).length;
         return res.json({
@@ -254,6 +268,7 @@ router.get('/', (_req: Request, res: Response) => {
             enabled_count: enabledCount,
             disabled_count: skills.length - enabledCount,
             source: SKILLS_DIR,
+            available: true,
         });
     } catch (err) {
         console.error('Error scanning skills:', err);

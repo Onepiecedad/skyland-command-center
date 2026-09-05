@@ -70,6 +70,10 @@ export default function AlexView() {
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [skillSearch, setSkillSearch] = useState('');
   const [skills, setSkills] = useState<Skill[]>([]);
+  // false = backendet kan inte läsa skills-katalogen (den bor på maskinen där
+  // OpenClaw kör). Visa "?" i stället för "0" — noll är ett påstående, och det
+  // påståendet var falskt.
+  const [skillsAvailable, setSkillsAvailable] = useState(true);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
 
@@ -108,7 +112,10 @@ export default function AlexView() {
   useEffect(() => {
     fetchWithAuth(SKILLS_API)
       .then(r => r.json())
-      .then(data => setSkills(data.skills || []))
+      .then(data => {
+        setSkills(data.skills || []);
+        setSkillsAvailable(data.available !== false);
+      })
       .catch(err => console.error('Failed to fetch skills:', err));
   }, []);
 
@@ -196,7 +203,9 @@ export default function AlexView() {
             </div>
             <div className="alex-stat">
               <Layers size={10} />
-              <span>{skills.length} skills</span>
+              <span title={skillsAvailable ? undefined : 'Skills-katalogen bor på maskinen där OpenClaw kör och kan inte läsas härifrån.'}>
+                {skillsAvailable ? `${skills.length} skills` : 'skills: ej läsbart här'}
+              </span>
             </div>
           </div>
         </div>
@@ -274,7 +283,10 @@ export default function AlexView() {
                 >
                   <Puzzle size={13} />
                   <span>Capabilities</span>
-                  <span className="alex-section-count">{skills.length}</span>
+                  <span className="alex-section-count"
+                        title={skillsAvailable ? undefined : 'Kan inte läsas från molnbackendet.'}>
+                    {skillsAvailable ? skills.length : '?'}
+                  </span>
                 </button>
                 <button
                   className={`alex-section-item ${activeTab === 'costs' ? 'active' : ''}`}
