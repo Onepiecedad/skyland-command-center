@@ -441,6 +441,33 @@ Steg 4 skriver om felaktiga kort ur den research som redan är betald.
 
 **Rör aldrig grinden för att få in fler kort.** Kön är ett symptom.
 
+### Stadiegrinden: operatörens "No Fit" är data
+
+Första skarpa körningen (5 sep) skrev in **Hudmottagningen Citysjukhuset +7** i
+mejlsekvensen. Kortet låg i **No Fit** — någon hade redan dömt bort det. Grinden
+läste taggen `niche:beauty` och struntade i stadiet. Mejlet hade gått ut måndag
+morgon; enrollmentet är avslutat med `exit_reason='no_fit_stage'`.
+
+Samma fel gjorde två saker till, tyst:
+- backpressuren räknade nio No Fit-kort som obearbetad kö, så discover hade
+  stängts av för en hög ingen någonsin skulle beta av
+- research-räkningen sa "6 kort att köra" medan `prospect_batch`, som letar i
+  New Prospect-kolumnen, hittade noll. **Två räknesätt för samma sak.**
+
+Nu läses pipelinen en gång per körning. `OPEN_STAGES = New Prospect, Qualified,
+Outreach Ready` — bara de får bearbetas och skrivas in.
+
+### Första skarpa körningen (5 sep, `--skip discover`)
+
+7 mejladresser hittade (21 kort utan adress → 14), 8 DM omskrivna till rätt
+doktrin, 8 kort inskrivna (9 minus det bortdömda). Väggtid 13 min. Öppnarna går
+ut måndag 7 sep 08–09 — lördag ligger utanför utskicksfönstret, och det syns på
+att motorn själv sköt fram dem.
+
+Ett fynd på köpet: researchern flaggade `IDENTITET_FEL` på **Pro Clinique** —
+kortets `area` säger göteborg men profilen och adressen är Borås. Kortets ort
+stämmer inte alltid med verkligheten, och öppnaren skriver ut orten.
+
 ### allow_reenroll=false betydde en gång i taget
 
 Databasens unik-spärr gäller bara AKTIVA enrollments. En kontakt som gått hela
