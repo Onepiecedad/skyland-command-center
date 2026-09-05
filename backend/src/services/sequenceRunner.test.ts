@@ -48,6 +48,10 @@ vi.mock('./supabase', () => ({
                             gte: () => chain,
                             neq: () => chain,
                             contains: () => chain,
+                            // countSentToday (5 sep) filtrerar på metadata->>approved_at
+                            is: () => chain,
+                            order: () => chain,
+                            limit: () => Promise.resolve({ data: [], error: null }),
                             then: (resolve: (v: unknown) => void) =>
                                 resolve({
                                     count: cursor.dir === 'inbound' ? h.state.inboundCount : h.state.outboundCount,
@@ -487,5 +491,42 @@ describe('execStep — arbetstidsfönster + spridning (plan 2.5)', () => {
         expect(res.status).toBe('success');
         expect(h.state.inserted.some(i => i.table === 'messages' && i.row.status === 'shadow')).toBe(true);
         expect(h.emailSend).not.toHaveBeenCalled();
+    });
+});
+
+describe('execStep — require_approval håller ett steg i manuell kö', () => {
+    it('live-läge + require_approval → skuggrad, ingen provider', async () => {
+        (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'auto';
+        config.OUTBOUND_ENABLED = true;   // globalt läge = live
+        const res = await execStep(
+            step('send_email', { subject: 'x', body: 'y', require_approval: true }),
+            enr, contact, ENROLLED_AT
+        );
+        expect(h.emailSend).not.toHaveBeenCalled();
+        expect(res.control).toBe('advance');
+        const msg = h.state.inserted.find(i => i.table === 'messages');
+        expect(msg?.row.status).toBe('shadow');
+    });
+
+    it('live-läge utan flaggan → skickas på riktigt', async () => {
+        (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'auto';
+        config.OUTBOUND_ENABLED = true;
+        const res = await execStep(step('send_email', { subject: 'x', body: 'y' }), enr, contact, ENROLLED_AT);
+        expect(h.emailSend).toHaveBeenCalledTimes(1);
+        expect(res.status).toBe('success');
+        const msg = h.state.inserted.find(i => i.table === 'messages');
+        expect(msg?.row.status).toBe('sent');
+    });
+
+    it('kill switchen vinner över flaggan: OUTBOUND_ENABLED=false → off, ingen skuggrad', async () => {
+        (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'auto';
+        config.OUTBOUND_ENABLED = false;
+        const res = await execStep(
+            step('send_email', { subject: 'x', body: 'y', require_approval: true }),
+            enr, contact, ENROLLED_AT
+        );
+        expect(h.emailSend).not.toHaveBeenCalled();
+        expect(res.status).toBe('failed');
+        expect(h.state.inserted.find(i => i.table === 'messages')).toBeUndefined();
     });
 });

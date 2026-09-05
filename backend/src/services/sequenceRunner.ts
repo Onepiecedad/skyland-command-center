@@ -30,7 +30,7 @@ import { supabase } from './supabase';
 import { config } from '../config';
 import { getEmailProvider } from './email';
 import { getSmsProvider } from './sms';
-import { outboundMode, splitDm, isSuppressed, suppressionApplies, normalizePolicy, msUntilWindowOpen, outreachJitterMs, countSentToday, type OutboundPolicy } from './outreach';
+import { outboundMode, splitDm, isSuppressed, suppressionApplies, normalizePolicy, msUntilWindowOpen, outreachJitterMs, countSentToday, type OutboundPolicy, type OutboundMode } from './outreach';
 import { logger } from './logger';
 
 const MAX_STEPS_PER_TICK = 50;      // skydd mot oändliga loopar
@@ -189,10 +189,26 @@ async function logSkip(contact: ContactRow, seqId: string, channel: string, reas
     });
 }
 
+/** Läget för ETT steg.
+ *
+ * Ett steg med `require_approval: true` går aldrig live, oavsett globalt läge:
+ * det loggas som skuggrad och väntar på ett klick i Skuggvecka. Det gör att
+ * öppnaren kan gå på autosend medan bump och avslut stannar i manuell kö —
+ * beslut 5 sep 2026, efter att bumpen till Ambers lästes som en kundfråga.
+ *
+ * Kill switchen vinner alltid: är läget 'off' förblir det 'off'. En flagga som
+ * kan göra systemet försiktigare får inte kunna göra det djärvare.
+ */
+function stepMode(step: StepRow, policy: OutboundPolicy): OutboundMode {
+    const base = outboundMode(policy);
+    if (base === 'off') return 'off';
+    return step.config?.require_approval === true ? 'shadow' : base;
+}
+
 async function execSendEmail(
     step: StepRow, enr: EnrollmentRow, contact: ContactRow, policy: OutboundPolicy
 ): Promise<StepResult> {
-    const mode = outboundMode(policy);
+    const mode = stepMode(step, policy);
     if (mode === 'off') {
         const reason = policy === 'transactional' ? 'TRANSACTIONAL_OUTBOUND_ENABLED=false' : 'OUTBOUND_ENABLED=false';
         return { status: 'failed', control: 'retry', detail: { reason, policy } };
@@ -257,7 +273,7 @@ async function execSendEmail(
 async function execSendSms(
     step: StepRow, enr: EnrollmentRow, contact: ContactRow, policy: OutboundPolicy
 ): Promise<StepResult> {
-    const mode = outboundMode(policy);
+    const mode = stepMode(step, policy);
     if (mode === 'off') {
         const reason = policy === 'transactional' ? 'TRANSACTIONAL_OUTBOUND_ENABLED=false' : 'OUTBOUND_ENABLED=false';
         return { status: 'failed', control: 'retry', detail: { reason, policy } };
