@@ -41,13 +41,19 @@ vi.mock('./supabase', () => {
             from(table: string) {
                 if (table === 'messages') {
                     return {
-                        // countOutboundToday: .select(...).eq().gte() → { count, error }
+                        // countSentToday gör TVÅ frågor och summerar dem:
+                        //   maskinens sändningar  .is('metadata->>approved_at', null).gte(created_at)
+                        //   operatörens knapptryck .gte('metadata->>approved_at', ...)
+                        // Mocken måste skilja på dem, annars dubbelräknas
+                        // outboundCount och dagsbudgettesterna mäter fel sak.
                         select() {
+                            let operator = false;
                             const chain = {
                                 eq: () => chain,
-                                gte: () => chain,
+                                is: () => chain,
+                                gte: (col: string) => { if (col.includes('approved_at')) operator = true; return chain; },
                                 then: (resolve: (v: unknown) => void) =>
-                                    resolve({ count: state.outboundCount, error: state.countError }),
+                                    resolve({ count: operator ? 0 : state.outboundCount, error: state.countError }),
                             };
                             return chain;
                         },

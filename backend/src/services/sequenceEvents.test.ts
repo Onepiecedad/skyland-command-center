@@ -14,6 +14,10 @@ const h = vi.hoisted(() => {
         sequences: [] as Array<unknown>,   // FIFO för sequences.select
         insertError: null as unknown,
         updateError: null as unknown,
+        // enrollContact: sekvensraden (allow_reenroll) + kontaktens tidigare
+        // enrollments. null/tom = spärren är inte i vägen, som före 5 sep.
+        seqRow: null as { allow_reenroll: boolean } | null,
+        prevEnrollments: [] as Array<{ id: string }>,
     };
     const calls = { inserts: [] as Record<string, unknown>[], updates: 0 };
     return { state, calls };
@@ -29,12 +33,19 @@ vi.mock('./supabase', () => ({
             if (table === 'sequences') {
                 const b: Record<string, unknown> = {};
                 b.select = () => b; b.eq = () => b;
+                b.maybeSingle = () => Promise.resolve({ data: h.state.seqRow, error: null });
                 b.then = (resolve: (v: unknown) => void) =>
                     resolve(h.state.sequences.shift() ?? { data: [], error: null });
                 return b;
             }
             // sequence_enrollments
             return {
+                select: () => {
+                    const q: Record<string, unknown> = {};
+                    q.eq = () => q;
+                    q.limit = () => Promise.resolve({ data: h.state.prevEnrollments, error: null });
+                    return q;
+                },
                 insert: (payload: Record<string, unknown>) => {
                     h.calls.inserts.push(payload);
                     return Promise.resolve({ error: h.state.insertError });
@@ -56,6 +67,8 @@ beforeEach(() => {
     h.state.sequences = [];
     h.state.insertError = null;
     h.state.updateError = null;
+    h.state.seqRow = null;
+    h.state.prevEnrollments = [];
     h.calls.inserts = [];
     h.calls.updates = 0;
 });
@@ -78,6 +91,32 @@ describe('enrollContact', () => {
         const res = await enrollContact('seq-1', 'c-1');
         expect(res.enrolled).toBe(false);
         expect(res.reason).toBe('boom');
+    });
+
+    // allow_reenroll=false betyder EN gång. Databasens unik-spärr gäller bara
+    // AKTIVA rader, så en kontakt som gått hela vägen — eller hoppat ur för att
+    // den svarat — gick att skriva in igen och fick samma brev en gång till.
+    it('allow_reenroll=false + tidigare enrollment → nekas, ingen insert', async () => {
+        h.state.seqRow = { allow_reenroll: false };
+        h.state.prevEnrollments = [{ id: 'e-gammal' }];
+        const res = await enrollContact('seq-1', 'c-1');
+        expect(res).toEqual({ enrolled: false, reason: 'already_enrolled_once' });
+        expect(h.calls.inserts).toHaveLength(0);
+    });
+
+    it('allow_reenroll=false utan historik → skrivs in', async () => {
+        h.state.seqRow = { allow_reenroll: false };
+        const res = await enrollContact('seq-1', 'c-1');
+        expect(res).toEqual({ enrolled: true });
+        expect(h.calls.inserts).toHaveLength(1);
+    });
+
+    it('allow_reenroll=true → historik spelar ingen roll', async () => {
+        h.state.seqRow = { allow_reenroll: true };
+        h.state.prevEnrollments = [{ id: 'e-gammal' }];
+        const res = await enrollContact('seq-1', 'c-1');
+        expect(res).toEqual({ enrolled: true });
+        expect(h.calls.inserts).toHaveLength(1);
     });
 });
 

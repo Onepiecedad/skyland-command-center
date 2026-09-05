@@ -18,11 +18,24 @@ type TriggerType =
     | 'booking_created' | 'booking_cancelled' | 'booking_no_show' | 'tag_added';
 
 /** Skriv in en kontakt i en sekvens. Unik-aktiv-spärren hanterar dedup.
- *  `context` bär variabler in i körningen (t.ex. booking_start för wait_until). */
+ *  `context` bär variabler in i körningen (t.ex. booking_start för wait_until).
+ *
+ *  allow_reenroll=false betyder EN gång, inte en gång i taget. Databasspärren
+ *  är unik på AKTIVA enrollments, så en kontakt som redan gått hela sekvensen
+ *  — eller hoppat ur för att den svarat — gick att skriva in på nytt och fick
+ *  samma brev igen. Det märktes inte medan påfyllningen var manuell. */
 export async function enrollContact(
     sequenceId: string, contactId: string, opportunityId?: string | null,
     context: Record<string, unknown> = {}
 ): Promise<{ enrolled: boolean; reason?: string }> {
+    const { data: seq } = await supabase
+        .from('sequences').select('allow_reenroll').eq('id', sequenceId).maybeSingle();
+    if (seq && seq.allow_reenroll !== true) {
+        const { data: prev } = await supabase
+            .from('sequence_enrollments').select('id')
+            .eq('sequence_id', sequenceId).eq('contact_id', contactId).limit(1);
+        if (prev && prev.length > 0) return { enrolled: false, reason: 'already_enrolled_once' };
+    }
     const { error } = await supabase.from('sequence_enrollments').insert({
         sequence_id: sequenceId,
         contact_id: contactId,
