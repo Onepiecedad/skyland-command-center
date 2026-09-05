@@ -422,6 +422,38 @@ export async function execStep(
 // Enrollment-processor
 // ---------------------------------------------------------------------------
 
+/** När gick det senaste mejlet i den här enrollmenten FAKTISKT iväg?
+ *
+ * Väntetiden räknades förut från när motorn passerade wait-steget. I skuggläge
+ * loggar sändsteget bara ett utkast och returnerar advance, så klockan startade
+ * medan mejlet fortfarande låg ogjort i kön. Den 3 sep 2026 klickades sju
+ * skuggrader iväg två dygn efter att de skapats: motorn trodde att bumpen gick
+ * 1 sep, mottagarna fick den 3 sep, och avslutsmejlet låg därmed 54 timmar för
+ * tidigt. Fyra kliniker fick öppnare och bump 35 timmar isär i stället för tre
+ * dygn.
+ *
+ * approved_at sätts när en operatör klickar "Skicka nu"; saknas den är
+ * created_at rätt, för då skickade maskinen själv och tidpunkterna sammanfaller.
+ */
+async function lastActualSendAt(enrollmentId: string): Promise<number | null> {
+    const { data } = await supabase
+        .from('messages')
+        .select('created_at, metadata')
+        .eq('direction', 'outbound')
+        .eq('status', 'sent')
+        .contains('metadata', { enrollment_id: enrollmentId })
+        .order('created_at', { ascending: false })
+        .limit(20);
+    let senaste: number | null = null;
+    for (const m of data ?? []) {
+        const meta = (m.metadata ?? {}) as Record<string, unknown>;
+        const iso = typeof meta.approved_at === 'string' ? meta.approved_at : (m.created_at as string);
+        const t = Date.parse(iso);
+        if (Number.isFinite(t) && (senaste === null || t > senaste)) senaste = t;
+    }
+    return senaste;
+}
+
 async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Promise<void> {
     // Ladda sekvens + kontakt
     const { data: seq } = await supabase
@@ -488,10 +520,20 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
         }
 
         if (res.control === 'wait') {
-            // Vänta: hoppa förbi wait-steget och pausa till efter väntetiden
+            // Vänta: hoppa förbi wait-steget och pausa till efter väntetiden.
+            // Klockan startar när föregående mejl FAKTISKT gick, inte när motorn
+            // råkade passera hit — annars räknar en skuggrad som godkänns sent
+            // ned en tid som aldrig löpt. max(nu, ...) så ett gammalt ankare
+            // aldrig ger en tidpunkt i det förflutna. Saknas ankare (inget
+            // utskick ännu i enrollmenten) gäller nu, som förut.
+            const waitMs = res.waitMs ?? 0;
+            const ankare = await lastActualSendAt(enr.id);
+            const nasta = ankare === null
+                ? Date.now() + waitMs
+                : Math.max(Date.now(), ankare + waitMs);
             await supabase.from('sequence_enrollments').update({
                 current_position: position + 1,
-                next_run_at: new Date(Date.now() + (res.waitMs ?? 0)).toISOString(),
+                next_run_at: new Date(nasta).toISOString(),
                 updated_at: new Date().toISOString(),
             }).eq('id', enr.id);
             return;
