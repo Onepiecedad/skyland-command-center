@@ -332,6 +332,57 @@ producera. Vägen ut är att skilja stegen åt — öppnaren på autosend för a
 urvalet, bump och avslut kvar i manuell kö, eftersom det var bumpen som visade
 sig kunna missförstås.
 
+## Autosend: öppnaren live, bump och avslut i manuell kö (beslut 5 sep)
+
+Plan 3.6 avgjord. Öppnaren får gå utan godkännande; bump och avslut stannar
+i Skuggvecka och kräver ett klick per meddelande.
+
+**Varför just den gränsen.** Öppnaren är det enda steget som bär sin egen
+kontext — den presenterar avsändaren och ställer sin fråga i samma andetag.
+Bumpen gör det inte, och det kostade: Ambers Laserklinik svarade 4 sep med en
+offert på 6000 kr för hårborttagning, eftersom frågan om deras prislista kom
+utan avsändarram. Avslutsmejlet har hårdkodad text och säger därför minst av
+allt om mallkvaliteten. Underlaget räckte aldrig till att döma hela sekvensen:
+sju utskick, varav fyra med en kadens som aldrig var avsedd, ett svar som var
+ett missförstånd, och noll svar som inte betyder något vid n=7.
+
+### Mekaniken: `require_approval` per steg
+
+Läget avgörs numera per steg, inte bara globalt. Ett `send_email` eller
+`send_sms` vars config har `require_approval: true` loggas alltid som skuggrad
+och väntar på "Skicka nu", oavsett `OUTBOUND_MODE`.
+
+Kill switchen vinner ändå: är läget `off` förblir det `off`. **En flagga som gör
+systemet försiktigare får aldrig kunna göra det djärvare** — det är regeln som
+gör att den här sortens undantag är säkra att lägga till.
+
+Satt på `Reaktivering — beauty` position 4 (bump) och 7 (avslut). Position 0
+(öppnaren) är avsiktligt utan flagga.
+
+Tre tester i `sequenceRunner.test.ts` bevakar grinden: live + flagga ger
+skuggrad utan providerkall, live utan flagga skickar på riktigt, och
+`OUTBOUND_ENABLED=false` ger `off` även med flaggan satt.
+
+### Produktionsflaggor för autosend
+
+| Variabel | Under skuggveckan | För autosend |
+|---|---|---|
+| `OUTBOUND_MODE` | `shadow` | `auto` |
+| `OUTBOUND_ENABLED` | `false` | `true` |
+| `OUTBOUND_DAILY_LIMIT` | `5` | `5` tills volymen kräver mer |
+
+Notera att det krävs **två** ändringar, inte en. `OUTBOUND_ENABLED=false` är
+huvudströmbrytaren; med den av spelar läget ingen roll. Taket på 5 per dag
+räknar sedan 5 sep även manuellt godkända utskick (se avsnittet om
+dagsbudgeten) och är alltså ett verkligt tak för första gången.
+
+### Vad som faktiskt händer när switchen slås om
+
+Ingenting, tills nya kort enrollas. De sex aktiva enrollments står på position
+6 och når aldrig öppnaren igen; deras nästa steg är avslutsmejlet, som är
+flaggat. Fas 4 (volym) har inte börjat, så det finns inga nya kort. Switchen
+armerar systemet för nästa batch — den startar ingen.
+
 ## Kända skavanker
 
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.

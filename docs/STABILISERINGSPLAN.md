@@ -100,9 +100,16 @@ laptopen gör det.
       skarptestad), och schemakontroll överst i morgonbriefen. Bakgrund: fem
       separata fel hade samma rot — en absolut sökväg till den gamla maskinen —
       och alla fem misslyckades tyst. Se DRIFT.md, "Skyddsnäten" *(1 sep)*
-- [ ] **3.6** **Autosend-beslut efter skuggveckan** — över 90 procent "hade skickat" och
-      underkända med kodbara skäl ⇒ validatormodell som scorar utkast, över tröskel
-      autosend, under tröskel manuell kö *(Joakim beslutar, 7 sep)*
+- [x] **3.6** **Autosend-beslut efter skuggveckan** *(avgjort 5 sep, två dagar
+      tidigare än planerat)* — utfallet blev inte en validatormodell utan en
+      gräns per STEG: öppnaren går live, bump och avslut stannar i manuell kö.
+      Skälet är att underlaget aldrig räckte till en tröskel. Sju utskick, alla
+      dömda "hade skickat", noll underkännanden att koda på — och det enda svar
+      verkligheten gav var ett missförstånd: Ambers läste bumpen som en kundfråga
+      och svarade med en prisofferт. Öppnaren är det enda steget som bär sin egen
+      kontext, så det är där gränsen går. Mekanik: `require_approval` per steg
+      (se DRIFT.md). **Kvar: sätt `OUTBOUND_MODE=auto` och `OUTBOUND_ENABLED=true`
+      i Render** — koden och stegflaggorna är på plats och testade.
 
 ## Fas 4 · Volym · EJ PÅBÖRJAD
 
