@@ -167,11 +167,62 @@ async function handleBounce(type: string, data: Record<string, unknown>): Promis
     return emails;
 }
 
+/** Leverans- och engagemangshändelser från Resend.
+ *
+ * De här kastades tidigare med ett 200 och ett axelryck. Konsekvensen syntes
+ * 5 sep 2026: sju kliniker hade fått öppnaren, ingen hade svarat, och det gick
+ * inte att skilja "ingen öppnade" från "ingen mätte". Systemet hade aldrig
+ * frågat. Nu registreras händelserna på utskicket självt.
+ *
+ * `status` rörs INTE. Den beskriver vad VI gjorde (sent/shadow/bounced);
+ * det här är vad MOTTAGAREN gjorde. Blandas de blir båda oläsbara.
+ *
+ * Om öppningssiffror: de överdriver alltid. Apple Mail Privacy Protection och
+ * många företagsfilter hämtar bilder automatiskt, vilket registreras som en
+ * öppning ingen människa gjort. En hög siffra betyder därför lite. En NOLLA
+ * över en hel batch betyder desto mer — och det var den frågan vi inte kunde
+ * ställa. Leveranshändelsen är däremot hårddata.
+ */
+const ENGAGEMENT: Record<string, 'delivered' | 'opened' | 'clicked' | 'delayed'> = {
+    'email.delivered': 'delivered',
+    'email.opened': 'opened',
+    'email.clicked': 'clicked',
+    'email.delivery_delayed': 'delayed',
+};
+
+async function handleEngagement(type: string, data: Record<string, unknown>): Promise<boolean> {
+    const kind = ENGAGEMENT[type];
+    const providerId = typeof data.email_id === 'string' ? data.email_id : null;
+    if (!kind || !providerId) return false;
+
+    const { data: msg, error } = await supabase
+        .from('messages').select('id, metadata')
+        .eq('provider_message_id', providerId).maybeSingle();
+    if (error || !msg) return false;  // händelse för ett utskick vi inte äger
+
+    const meta = (msg.metadata ?? {}) as Record<string, unknown>;
+    const now = new Date().toISOString();
+    const prev = typeof meta[`${kind}_count`] === 'number' ? (meta[`${kind}_count`] as number) : 0;
+
+    const { error: uErr } = await supabase.from('messages').update({
+        metadata: {
+            ...meta,
+            [`${kind}_at`]: meta[`${kind}_at`] ?? now,   // första gången vinner
+            [`${kind}_last_at`]: now,
+            [`${kind}_count`]: prev + 1,
+        },
+    }).eq('id', msg.id);
+    if (uErr) { logger.warn('emailInbound', `kunde inte spara ${type}: ${uErr.message}`); return false; }
+    return true;
+}
+
 /**
  * POST /inbound — EN webhook-URL för allt från Resend:
  *   email.received   → hämta kropp via API → ingest (inbox, sekvensstopp, vidarebefordran)
  *   email.bounced / email.complained → suppression_list + markera utskicket
- *   övriga Resend-events (sent/delivered/opened/clicked) → ignoreras (200)
+ *   email.delivered / opened / clicked / delivery_delayed → registreras på
+ *     utskicket (metadata: *_at, *_last_at, *_count) — status rörs inte
+ *   email.sent och okända typer → ignoreras (200)
  * Generiska leverantörer (Postmark/Mailgun-liknande payload med from/subject/text)
  * fungerar fortfarande: saknas `type` tolkas kroppen som ett komplett mejl.
  */
@@ -184,6 +235,10 @@ router.post('/inbound', inboundAuth, async (req: Request, res: Response) => {
         if (type === 'email.bounced' || type === 'email.complained') {
             const emails = await handleBounce(type, data);
             return res.status(200).json({ status: 'suppressed', emails });
+        }
+        if (ENGAGEMENT[type]) {
+            const recorded = await handleEngagement(type, data);
+            return res.status(200).json({ status: recorded ? 'recorded' : 'ignored', type });
         }
         if (type && type !== 'email.received') {
             return res.status(200).json({ status: 'ignored', type });

@@ -274,6 +274,64 @@ Verifierat mot produktionsdata 3 sep: gamla räknaren 0, nya 7 — de sju bumpar
 är inte testat. Maskinvägen och människovägen delar tak men inte kod, och det var
 i springan mellan dem hålet satt.
 
+## Vi mätte aldrig om mejlen lästes (5 sep)
+
+Frågan var varför ingen svarade på öppnaren till de sju klinikerna. Svaret var
+att frågan inte gick att ställa: `routes/emailInbound.ts` tog emot Resends
+`delivered`, `opened` och `clicked` och kastade dem med ett 200. Systemet kunde
+alltså inte skilja **"ingen öppnade"** från **"ingen mätte"** — och inte heller
+veta om mejlen ens levererades, bara att Resend tagit emot dem för sändning.
+
+Åtgärdat: händelserna registreras nu på utskicket i `messages.metadata` som
+`delivered_at` / `opened_at` / `clicked_at`, plus `*_last_at` och `*_count`.
+`status` rörs inte — den beskriver vad VI gjorde (sent/shadow/bounced), medan
+det här är vad MOTTAGAREN gjorde. Blandas de blir båda oläsbara.
+
+**Två förbehåll som avgör om detta ger något.** Öppningsspårning måste vara
+påslagen i Resend, och webhooken måste prenumerera på just de händelsetyperna.
+Är något av det av är koden stum — den registrerar det som kommer, och det
+kommer ingenting. Kontrollera i Resend-panelen, inte i koden.
+
+Och öppningssiffror överdriver alltid: Apple Mail Privacy Protection och många
+företagsfilter hämtar bilder automatiskt, vilket ser ut som en öppning ingen
+människa gjort. En hög siffra betyder därför lite. En NOLLA över en hel batch
+betyder desto mer. `delivered` är däremot hårddata.
+
+### Avsändarautentisering (kontrollerad 5 sep)
+
+| Post | Läge |
+|---|---|
+| DKIM `resend._domainkey.send.skylandai.se` | finns |
+| DMARC `_dmarc.send.skylandai.se` | finns, `p=none`, `rua=mailto:joakim@skylandai.se` |
+| DMARC på organisationsdomänen `skylandai.se` | saknas |
+| **SPF på `send.skylandai.se` och `skylandai.se`** | **saknas helt** |
+
+Kontrollerat mot både 8.8.8.8 och 1.1.1.1. SPF-avsaknaden blockerar inget —
+DKIM ensamt räcker för Gmail och Microsoft — men den kostar spampoäng gratis.
+Posten som ska läggas på `send.skylandai.se` (bekräfta värdet mot Resends
+DNS-sida, den visar exakt vad kontot kräver):
+
+```
+send.skylandai.se.  TXT  "v=spf1 include:amazonses.com ~all"
+```
+
+Eftersom `rua` pekar på Joakims egen adress finns dessutom DMARC-rapporter i
+inkorgen som visar hur mottagarnas servrar faktiskt behandlade utskicken. Det
+är riktig leveransdata som redan är betald för.
+
+### Statistiken bakom "ingen svarade"
+
+Sju utskick bär inte slutsatsen att copyn är fel. Vid en svarsfrekvens på 5–10
+procent är sannolikheten för noll svar av sju mellan 48 och 70 procent — noll
+svar är alltså det mest sannolika utfallet även för en bra kampanj. Underlag
+för att döma texten kräver storleksordningen 50–100 utskick.
+
+**Och där finns en cirkel att bryta:** Fas 4 (volym) startar inte förrän 3.6
+(autosend) är beslutad, men 3.6 ska avgöras på ett underlag som bara volym kan
+producera. Vägen ut är att skilja stegen åt — öppnaren på autosend för att bygga
+urvalet, bump och avslut kvar i manuell kö, eftersom det var bumpen som visade
+sig kunna missförstås.
+
 ## Kända skavanker
 
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.
