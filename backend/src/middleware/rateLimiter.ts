@@ -1,11 +1,16 @@
 import rateLimit from 'express-rate-limit';
 
 /**
- * Global rate limiter — 100 requests per minute per IP.
+ * Global rate limiter — 600 requests per minute per IP.
+ *
+ * 6 sep 2026: var 100. Dashboarden fyrar ~20 anrop vid laddning plus två
+ * SSE-strömmar; med två flikar/webbläsare bakom samma IP slog SCC i taket mot
+ * sig själv (429 på allt, ContextMonitor kraschade på 429-svaret → svart sida).
+ * Login har sin egen, mycket snävare spärr (loginLimiter) — den rörs inte.
  */
 export const globalLimiter = rateLimit({
     windowMs: 60 * 1000,
-    limit: 100,
+    limit: 600,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'Too many requests, please try again later.' },
