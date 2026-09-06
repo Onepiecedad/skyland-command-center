@@ -603,6 +603,14 @@ båda för sent. Nu larmar `services/operatorAlert.ts` på två vägar samtidigt
 Flaggor: `OPERATOR_ALERTS_ENABLED` (default `true`) och `OPERATOR_WHATSAPP_TO`
 (numret; utan det hoppas WhatsApp-vägen över och bara mejlet går).
 
+**Två nummer — använd WhatsApp-numret.** Joakim har `+46737329083` (WhatsApp
+ligger på det, fortfarande aktivt) och `+46735643495` (telefonen han ringer
+från). Larmen ska till WhatsApp-numret: `OPERATOR_WHATSAPP_TO=+46737329083`.
+Det stämmer med gatewayens kanal i `openclaw.json` (`allowFrom`,
+`groupAllowFrom`, `dmPolicy: allowlist`, `selfChatMode: true`) — inget behöver
+ändras där. (`skills/phone-voice/bridge/contacts.json` märker samma nummer
+"Björn"; fel etikett i en annan skill, rör inte WhatsApp-kanalen.)
+
 Dedupe på `reply.interested:<contact_id>` i 24 h — ett kort larmar en gång även om
 svaret klassas om. Varje larm loggas som activity `operator.alert` med vilka vägar
 som gick fram. Larmet kan aldrig fälla klassificeringen: alla fel sväljs och loggas.
