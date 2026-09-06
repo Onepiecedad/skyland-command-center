@@ -188,6 +188,7 @@ router.post('/shadow-review/:messageId/send', async (req: Request, res: Response
         .from('messages').select('*').eq('id', req.params.messageId).maybeSingle();
     if (gErr) return res.status(500).json({ error: gErr.message });
     if (!m) return res.status(404).json({ error: 'Message not found' });
+    if (m.status === 'queued') return res.status(409).json({ error: 'Meddelandet skickas redan (dubbelklick?) — vänta och ladda om' });
     if (m.status !== 'shadow') return res.status(409).json({ error: `Meddelandet är inte ett skuggmejl (status=${m.status})` });
     const meta = (m.metadata ?? {}) as Record<string, unknown>;
     const review = meta.review as { verdict?: string } | null;
@@ -204,8 +205,36 @@ router.post('/shadow-review/:messageId/send', async (req: Request, res: Response
         return res.status(429).json({ error: `Dagsbudgeten är nådd (${sentToday}/${config.OUTBOUND_DAILY_LIMIT}). Försök igen i morgon eller höj OUTBOUND_DAILY_LIMIT.` });
     }
 
+    // Granskning 6 sep: atomisk claim. Två samtidiga klick läste båda status=shadow,
+    // skickade båda och skrev sedan över varandra. Nu vinner exakt ETT anrop
+    // övergången shadow→queued; det andra får 409. approved_at sätts redan här så
+    // raden räknas i dagsbudgeten (countSentToday räknar queued+approved_at) —
+    // det är reservationen av platsen.
+    const now = new Date().toISOString();
+    const claimedMeta = { ...meta, shadow: false, sent_from_shadow: true, approved_at: now };
+    const { data: claimed, error: clErr } = await supabase.from('messages')
+        .update({ status: 'queued', metadata: claimedMeta })
+        .eq('id', m.id).eq('status', 'shadow')
+        .select('id');
+    if (clErr) return res.status(500).json({ error: clErr.message });
+    if (!claimed || claimed.length === 0) {
+        return res.status(409).json({ error: 'Meddelandet togs just av ett annat anrop (dubbelklick?) — ladda om' });
+    }
+    const release = async () => {
+        // Provider tog inte emot: lämna tillbaka utkastet så det kan skickas igen.
+        await supabase.from('messages').update({ status: 'shadow', metadata: meta }).eq('id', m.id).eq('status', 'queued');
+    };
+
+    // Budgeten kontrolleras igen EFTER reservationen: två anrop som båda passerade
+    // första kontrollen på plats 19/20 kan inte båda bli skickade.
+    const afterClaim = await countSentToday();
+    if (afterClaim > config.OUTBOUND_DAILY_LIMIT) {
+        await release();
+        return res.status(429).json({ error: `Dagsbudgeten är nådd (${afterClaim - 1}/${config.OUTBOUND_DAILY_LIMIT}).` });
+    }
+
+    let providerMessageId: string;
     try {
-        let providerMessageId: string;
         if (channel === 'sms') {
             providerMessageId = (await getSmsProvider().send({ to, text: m.content })).providerMessageId;
         } else {
@@ -213,25 +242,39 @@ router.post('/shadow-review/:messageId/send', async (req: Request, res: Response
             const text = rest.join('\n').replace(/^\n+/, '');
             providerMessageId = (await getEmailProvider().send({ to, subject, text })).providerMessageId;
         }
-        const now = new Date().toISOString();
-        const { error: uErr } = await supabase.from('messages').update({
-            status: 'sent',
-            provider_message_id: providerMessageId,
-            metadata: { ...meta, shadow: false, sent_from_shadow: true, approved_at: now },
-        }).eq('id', m.id);
-        if (uErr) return res.status(500).json({ error: uErr.message });
-        await supabase.from('activities').insert({
-            customer_id: m.customer_id ?? null, agent: 'operator', event_type: 'message',
-            action: 'shadow.approved_send', severity: 'info',
-            details: { message_id: m.id, to, channel, contact_id: meta.contact_id ?? null, provider_message_id: providerMessageId },
-        });
-        logger.info('sequences', `skuggmejl ${m.id} skickat på riktigt till ${to} (operatörsgodkänt)`);
-        return res.json({ ok: true, provider_message_id: providerMessageId });
     } catch (err) {
         const message = err instanceof Error ? err.message : 'okänt utskicksfel';
         logger.error('sequences', `approved send misslyckades: ${message}`);
+        await release();
         return res.status(502).json({ error: `Utskicket misslyckades: ${message}` });
     }
+
+    // Providern har mejlet. Bokföringen får INTE misslyckas tyst: raden stannar
+    // som queued (kan inte skickas igen) och felet loggas som activity med
+    // provider-id så det går att rätta för hand.
+    const record = () => supabase.from('messages').update({
+        status: 'sent',
+        provider_message_id: providerMessageId,
+        metadata: claimedMeta,
+    }).eq('id', m.id);
+    let { error: uErr } = await record();
+    if (uErr) ({ error: uErr } = await record());
+    if (uErr) {
+        logger.error('sequences', `SKICKAT MEN EJ BOKFÖRT: message ${m.id} till ${to}, provider ${providerMessageId}: ${uErr.message}`);
+        await supabase.from('activities').insert({
+            customer_id: m.customer_id ?? null, agent: 'operator', event_type: 'message',
+            action: 'shadow.sent_unrecorded', severity: 'error',
+            details: { message_id: m.id, to, channel, contact_id: meta.contact_id ?? null, provider_message_id: providerMessageId, error: uErr.message },
+        });
+        return res.status(500).json({ error: `Mejlet GICK IVÄG (provider ${providerMessageId}) men kunde inte bokföras: ${uErr.message}. Raden är låst som queued — rätta för hand, skicka INTE igen.` });
+    }
+    await supabase.from('activities').insert({
+        customer_id: m.customer_id ?? null, agent: 'operator', event_type: 'message',
+        action: 'shadow.approved_send', severity: 'info',
+        details: { message_id: m.id, to, channel, contact_id: meta.contact_id ?? null, provider_message_id: providerMessageId },
+    });
+    logger.info('sequences', `skuggmejl ${m.id} skickat på riktigt till ${to} (operatörsgodkänt)`);
+    return res.json({ ok: true, provider_message_id: providerMessageId });
 });
 
 // POST / — skapa sekvens (+ steg)

@@ -69,13 +69,30 @@ def parse_drift_md(path: Path) -> dict[str, str]:
             continue
         raw_vals = cols[1]
         if raw_vals.startswith("`") and " / " in raw_vals and len(names) > 1:
-            vals = [v.strip().strip("`") for v in raw_vals.split(" / ")]
+            vals = [_clean_value(v) for v in raw_vals.split(" / ")]
         else:
-            vals = [raw_vals.strip("`")] * len(names)
+            vals = [_clean_value(raw_vals)] * len(names)
         for n, v in zip(names, vals):
             # "ej satt (default `true`)" → "ej satt"; programmet fyller i zod-defaulten själv.
             expected[n] = "ej satt" if v.lower().startswith("ej satt") else v
     return expected
+
+
+def _clean_value(raw: str) -> str:
+    """Värdet i DRIFT.md-tabellen, avskalat från markdown och kommentarer.
+
+    Granskning 6 sep: "`true` (5 sep)" blev "true` (5 sep)" och "**ej satt**"
+    förblev fetstilt, så drift_check larmade falskt även när driften stämde.
+    Regler: första backtick-värdet vinner om det finns ("`20` (höjt 5 sep från 5)"
+    → "20"); annars strippas fetstil/kursiv och en avslutande parentes-kommentar
+    ("ej satt (default `true`)" → "ej satt")."""
+    v = raw.strip()
+    m = re.match(r"^`([^`]*)`", v)
+    if m:
+        return m.group(1).strip()
+    v = v.strip("*_").strip()
+    v = re.sub(r"\s*\([^)]*\)\s*$", "", v).strip()
+    return v.strip("`").strip()
 
 
 def get(base: str, path: str, token: str | None, timeout: float = 20.0) -> tuple[int, dict]:

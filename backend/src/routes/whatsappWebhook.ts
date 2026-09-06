@@ -66,15 +66,23 @@ router.post('/', async (req: Request, res: Response) => {
         return res.status(200).json({ status: 'ignored' });
     }
 
-    let messages = 0, statuses = 0, failed = 0;
+    let messages = 0, statuses = 0, failed = 0, failedMessages = 0;
     for (const ev of events) {
         try {
             if (ev.kind === 'message') { await handleInbound(ev); messages++; }
             else { await handleStatus(ev); statuses++; }
         } catch (err) {
             failed++;
+            if (ev.kind === 'message') failedMessages++;
             logger.error('whatsapp', `händelse ${ev.kind} ${ev.mid} misslyckades: ${err instanceof Error ? err.message : err}`);
         }
+    }
+    // Misslyckades lagringen av ett MEDDELANDE svarar vi 500 så Meta levererar om
+    // (de försöker igen med backoff i upp till ett dygn). Statusuppdateringar som
+    // fallerar kvitteras ändå — de är inte data vi förlorar en kund på.
+    if (failedMessages > 0) {
+        logger.error('whatsapp', `${failedMessages} inkommande meddelande(n) kunde inte sparas — svarar 500 för omleverans`);
+        return res.status(500).json({ status: 'error', messages, statuses, failed });
     }
     return res.status(200).json({ status: 'ok', messages, statuses, failed });
 });
@@ -195,7 +203,10 @@ async function handleInbound(ev: InboundEvent): Promise<void> {
 
     const oppId = await ensureOpportunity(tenant, contact);
 
-    await supabase.from('messages').insert({
+    // Granskning 6 sep: insert-felet ignorerades — ett lagringsfel såg ut som
+    // lyckad mottagning och meddelandet var borta. Kasta så händelsen räknas som
+    // failed, loggas hårt och svaras med 500 (Meta försöker då om).
+    const { error: insErr } = await supabase.from('messages').insert({
         customer_id: null,
         role: 'user', channel: 'whatsapp', direction: 'inbound',
         content: ev.text,
@@ -209,6 +220,7 @@ async function handleInbound(ev: InboundEvent): Promise<void> {
             referral: ev.referral, logged_by: 'whatsapp-webhook',
         },
     });
+    if (insErr) throw new Error(`kunde inte spara inkommande WhatsApp ${ev.mid} från ${ev.waId}: ${insErr.message}`);
 
     const endOfToday = new Date(); endOfToday.setHours(23, 59, 0, 0);
     await createAutoTodo({

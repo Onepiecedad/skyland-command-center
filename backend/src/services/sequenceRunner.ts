@@ -34,8 +34,16 @@ import { outboundMode, splitDm, isSuppressed, suppressionApplies, normalizePolic
 import { logger } from './logger';
 
 const MAX_STEPS_PER_TICK = 50;      // skydd mot oändliga loopar
-const RETRY_BACKOFF_MS = 30 * 60_000; // 30 min vid retriabla fel
+const RETRY_BACKOFF_MS = 30 * 60_000; // 30 min vid TRANSPORTFEL (provider nere, DB-fel)
 const MAX_RETRIES = 5;
+/** Policy-/budgetstopp (kill switch av, dagstak nått, väntar på godkännande) är
+ *  INTE fel: de skjuts upp utan att räkna upp retries. Annars dog en kö som
+ *  mötte fullt dagstak på morgonen efter 5 × 30 min som failed/max_retries. */
+const POLICY_HOLD_MS = 60 * 60_000;
+/** Steg med require_approval väntar på klick i Skuggvecka; kolla var 15:e min. */
+const APPROVAL_HOLD_MS = 15 * 60_000;
+/** Hur länge en enrollment är "claimad" av en tick innan en annan tick får ta den. */
+const CLAIM_MS = 10 * 60_000;
 
 interface StepRow {
     id: string;
@@ -91,7 +99,14 @@ interface StepResult {
     status: 'success' | 'skipped' | 'failed';
     control: Control;
     waitMs?: number;
+    /** Absolut tidpunkt (ms) för wait_until — får INTE ankras om på senaste utskick. */
+    targetAt?: number;
     detail?: Record<string, unknown>;
+}
+
+/** Uppskjutning som inte är ett fel: räknar inte retries, rör inte spread_pos. */
+function hold(waitMs: number, detail: Record<string, unknown>): StepResult {
+    return { status: 'success', control: 'defer', waitMs, detail: { ...detail, policy_hold: true } };
 }
 
 // ---------------------------------------------------------------------------
@@ -134,17 +149,65 @@ function bodyFromConfig(cfg: Record<string, unknown>, contact: ContactRow, key: 
     return render(tpl, contact);
 }
 
-/** Skuggläge: logga exakt det som skulle skickats, rör ingen provider. */
+/** Skuggläge: logga exakt det som skulle skickats, rör ingen provider.
+ *
+ * Två lägen:
+ *  - Globalt skuggläge (OUTBOUND_MODE=shadow): torrkörning — logga och gå vidare,
+ *    så hela flödet syns i Skuggvecka. Som förut.
+ *  - Steg med `require_approval: true` (manuell kö): logga EN gång och håll
+ *    kvar enrollmenten på steget tills operatören klickat "Skicka nu". Först då
+ *    går motorn vidare till wait-steget, som därmed ankras på det faktiska
+ *    utskicket. Tidigare gick motorn vidare direkt, wait ankrades på ÖPPNARENS
+ *    sändtid och avslutsutkastet dök upp i Skuggvecka för tidigt. */
 async function logShadow(
-    channel: 'email' | 'sms', enr: EnrollmentRow, contact: ContactRow, to: string, content: string, extra: Record<string, unknown> = {}
+    channel: 'email' | 'sms', step: StepRow, enr: EnrollmentRow, contact: ContactRow, to: string, content: string, extra: Record<string, unknown> = {}
 ): Promise<StepResult> {
+    const manualQueue = step.config?.require_approval === true;
+    if (manualQueue) {
+        const existing = await findShadowForStep(enr.id, step.id);
+        if (existing) {
+            if (existing.status === 'sent') {
+                return { status: 'success', control: 'advance',
+                         detail: { to, shadow: true, approved: true, approved_at: existing.approved_at, message_id: existing.id } };
+            }
+            // Finns redan ett utkast (granskat eller inte) — vänta på klicket.
+            return hold(APPROVAL_HOLD_MS, { reason: 'awaiting_approval', message_id: existing.id, verdict: existing.verdict });
+        }
+    }
     await supabase.from('messages').insert({
         customer_id: contact.customer_id ?? null,
         role: 'assistant', channel, direction: 'outbound', status: 'shadow',
         content,
-        metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to, shadow: true, ...extra },
+        metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, step_id: step.id, position: step.position, to, shadow: true, ...extra },
     });
+    if (manualQueue) {
+        return hold(APPROVAL_HOLD_MS, { reason: 'awaiting_approval', created: true, to });
+    }
     return { status: 'success', control: 'advance', detail: { to, shadow: true } };
+}
+
+/** Skuggmeddelandet för exakt detta steg i denna enrollment (om något). */
+async function findShadowForStep(
+    enrollmentId: string, stepId: string
+): Promise<{ id: string; status: string; approved_at: string | null; verdict: string | null } | null> {
+    const { data } = await supabase
+        .from('messages')
+        .select('id, status, metadata, created_at')
+        .eq('direction', 'outbound')
+        .contains('metadata', { enrollment_id: enrollmentId, step_id: stepId })
+        .order('created_at', { ascending: false })
+        .limit(5);
+    const rows = (data ?? []) as { id: string; status: string; metadata: Record<string, unknown> | null }[];
+    if (rows.length === 0) return null;
+    const sent = rows.find(r => r.status === 'sent');
+    const m = sent ?? rows[0];
+    const meta = (m.metadata ?? {}) as Record<string, unknown>;
+    const review = (meta.review ?? null) as { verdict?: string } | null;
+    return {
+        id: m.id, status: m.status,
+        approved_at: typeof meta.approved_at === 'string' ? meta.approved_at : null,
+        verdict: review?.verdict ?? null,
+    };
 }
 
 function waitMsFromConfig(cfg: Record<string, unknown>): number {
@@ -211,7 +274,8 @@ async function execSendEmail(
     const mode = stepMode(step, policy);
     if (mode === 'off') {
         const reason = policy === 'transactional' ? 'TRANSACTIONAL_OUTBOUND_ENABLED=false' : 'OUTBOUND_ENABLED=false';
-        return { status: 'failed', control: 'retry', detail: { reason, policy } };
+        // Kill switch är ett policybeslut, inte ett fel: vänta, räkna inte retries.
+        return hold(POLICY_HOLD_MS, { reason, policy });
     }
     const to = contact.email || (typeof contact.custom?.email === 'string' ? (contact.custom!.email as string) : null);
     if (!to) { await logSkip(contact, enr.sequence_id, 'email', 'no_email'); return { status: 'skipped', control: 'advance', detail: { reason: 'no_email' } }; }
@@ -234,7 +298,7 @@ async function execSendEmail(
         return { status: 'skipped', control: 'advance', detail: { reason: 'empty_email' } };
     }
 
-    if (mode === 'shadow') return logShadow('email', enr, contact, to, `${subject}\n\n${body}`, { subject });
+    if (mode === 'shadow') return logShadow('email', step, enr, contact, to, `${subject}\n\n${body}`, { subject });
 
     const deferEmail = outreachDeferMs(enr, step.position, policy, mode);
     if (deferEmail > 0) {
@@ -247,7 +311,8 @@ async function execSendEmail(
     if (policy !== 'transactional') {
         const sentToday = await countSentToday();
         if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
-            return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
+            // Fullt dagstak = vänta tills räknaren nollställs, inte ett fel att räkna upp.
+            return hold(POLICY_HOLD_MS, { reason: 'daily_limit', sentToday, limit: config.OUTBOUND_DAILY_LIMIT });
         }
     }
 
@@ -276,7 +341,8 @@ async function execSendSms(
     const mode = stepMode(step, policy);
     if (mode === 'off') {
         const reason = policy === 'transactional' ? 'TRANSACTIONAL_OUTBOUND_ENABLED=false' : 'OUTBOUND_ENABLED=false';
-        return { status: 'failed', control: 'retry', detail: { reason, policy } };
+        // Kill switch är ett policybeslut, inte ett fel: vänta, räkna inte retries.
+        return hold(POLICY_HOLD_MS, { reason, policy });
     }
     const phone = contact.phone || (typeof contact.custom?.phone === 'string' ? (contact.custom!.phone as string) : null);
     if (!phone) {
@@ -297,7 +363,7 @@ async function execSendSms(
         await logSkip(contact, enr.sequence_id, 'sms', 'empty_sms');
         return { status: 'skipped', control: 'advance', detail: { reason: 'empty_sms' } };
     }
-    if (mode === 'shadow') return logShadow('sms', enr, contact, phone, text);
+    if (mode === 'shadow') return logShadow('sms', step, enr, contact, phone, text);
 
     const deferSms = outreachDeferMs(enr, step.position, policy, mode);
     if (deferSms > 0) {
@@ -308,7 +374,8 @@ async function execSendSms(
     if (policy !== 'transactional') {
         const sentToday = await countSentToday();
         if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
-            return { status: 'failed', control: 'retry', detail: { reason: 'daily_limit', sentToday } };
+            // Fullt dagstak = vänta tills räknaren nollställs, inte ett fel att räkna upp.
+            return hold(POLICY_HOLD_MS, { reason: 'daily_limit', sentToday, limit: config.OUTBOUND_DAILY_LIMIT });
         }
     }
     try {
@@ -411,7 +478,9 @@ function execWaitUntil(step: StepRow, enr: EnrollmentRow): StepResult {
     const waitMs = target - Date.now();
     if (Number.isNaN(target)) return { status: 'skipped', control: 'advance', detail: { reason: 'bad_base_time', baseIso } };
     if (waitMs <= 0) return { status: 'success', control: 'advance', detail: { target: new Date(target).toISOString(), passed: true } };
-    return { status: 'success', control: 'wait', waitMs, detail: { target: new Date(target).toISOString() } };
+    // targetAt = absolut tid. Wait-hanteraren får INTE ankra om den på senaste
+    // utskick (det gav "24h före mötet" räknat från bekräftelsemejlets sändtid).
+    return { status: 'success', control: 'wait', waitMs, targetAt: target, detail: { target: new Date(target).toISOString() } };
 }
 
 export async function execStep(
@@ -470,6 +539,11 @@ async function lastActualSendAt(enrollmentId: string): Promise<number | null> {
     return senaste;
 }
 
+function withoutRetries(ctx: Record<string, unknown> | null | undefined): Record<string, unknown> {
+    const { retries: _drop, ...rest } = (ctx ?? {}) as Record<string, unknown>;
+    return rest;
+}
+
 async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Promise<void> {
     // Ladda sekvens + kontakt
     const { data: seq } = await supabase
@@ -526,9 +600,15 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
 
         if (res.control === 'defer') {
             // Plan 2.5: samma steg körs om när fönstret öppnar; spread_pos ser till
-            // att spridningen inte läggs på igen då.
+            // att spridningen inte läggs på igen då. Policy-hold (kill switch,
+            // dagstak, väntar på godkännande) är inte en spridning och rör inte
+            // spread_pos — och nollställer retries, för det var inget fel.
+            const ctx = res.detail?.policy_hold === true
+                ? withoutRetries(enr.context)
+                : { ...withoutRetries(enr.context), spread_pos: position };
+            enr.context = ctx;
             await supabase.from('sequence_enrollments').update({
-                context: { ...enr.context, spread_pos: position },
+                context: ctx,
                 next_run_at: new Date(Date.now() + (res.waitMs ?? 60_000)).toISOString(),
                 updated_at: new Date().toISOString(),
             }).eq('id', enr.id);
@@ -543,12 +623,21 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
             // aldrig ger en tidpunkt i det förflutna. Saknas ankare (inget
             // utskick ännu i enrollmenten) gäller nu, som förut.
             const waitMs = res.waitMs ?? 0;
-            const ankare = await lastActualSendAt(enr.id);
-            const nasta = ankare === null
-                ? Date.now() + waitMs
-                : Math.max(Date.now(), ankare + waitMs);
+            let nasta: number;
+            if (typeof res.targetAt === 'number') {
+                // wait_until: absolut tidpunkt (t.ex. 24h före mötet). Ankringen
+                // nedan gäller bara relativa intervall ("vänta 3 dagar").
+                nasta = Math.max(Date.now(), res.targetAt);
+            } else {
+                const ankare = await lastActualSendAt(enr.id);
+                nasta = ankare === null
+                    ? Date.now() + waitMs
+                    : Math.max(Date.now(), ankare + waitMs);
+            }
+            enr.context = withoutRetries(enr.context);
             await supabase.from('sequence_enrollments').update({
                 current_position: position + 1,
+                context: enr.context,
                 next_run_at: new Date(nasta).toISOString(),
                 updated_at: new Date().toISOString(),
             }).eq('id', enr.id);
@@ -571,10 +660,13 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
             return;
         }
 
-        // advance → nästa steg i samma tick
+        // advance → nästa steg i samma tick. Ett lyckat steg nollställer retries:
+        // räknaren ackumulerades annars över hela enrollmentens livstid, så fem
+        // spridda transportfel över flera veckor gav failed/max_retries.
         position += 1;
+        enr.context = withoutRetries(enr.context);
         await supabase.from('sequence_enrollments')
-            .update({ current_position: position, updated_at: new Date().toISOString() }).eq('id', enr.id);
+            .update({ current_position: position, context: enr.context, updated_at: new Date().toISOString() }).eq('id', enr.id);
     }
 
     // Nådde loop-taket → pausa kort, fortsätt nästa tick
@@ -586,7 +678,25 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
 // Publikt: en tick
 // ---------------------------------------------------------------------------
 
+let tickInFlight = false;
+
 export async function runDueEnrollments(limit = 25): Promise<{ processed: number }> {
+    // setInterval väntar inte på förra ticken. Tar en tick > intervallet (25 mejl
+    // med providerlatens) startade nästa ovanpå och samma enrollment kördes två
+    // gånger. En tick i taget per process; claim nedan skyddar över processer.
+    if (tickInFlight) {
+        logger.warn('sequenceRunner', 'förra ticken pågår fortfarande — hoppar över denna');
+        return { processed: 0 };
+    }
+    tickInFlight = true;
+    try {
+        return await runDueEnrollmentsInner(limit);
+    } finally {
+        tickInFlight = false;
+    }
+}
+
+async function runDueEnrollmentsInner(limit: number): Promise<{ processed: number }> {
     const nowISO = new Date().toISOString();
     const { data, error } = await supabase
         .from('sequence_enrollments')
@@ -602,6 +712,15 @@ export async function runDueEnrollments(limit = 25): Promise<{ processed: number
     let processed = 0;
     for (const enr of rows) {
         try {
+            // Atomisk claim: flytta next_run_at framåt BARA om raden fortfarande är
+            // förfallen. Får vi ingen rad tillbaka har en annan tick/process redan
+            // tagit den. processEnrollment skriver sedan sitt eget next_run_at.
+            const { data: claimed } = await supabase
+                .from('sequence_enrollments')
+                .update({ next_run_at: new Date(Date.now() + CLAIM_MS).toISOString() })
+                .eq('id', enr.id).eq('status', 'active').lte('next_run_at', nowISO)
+                .select('id');
+            if (!claimed || claimed.length === 0) continue;
             await processEnrollment(enr, enr.enrolled_at);
             processed++;
         } catch (err) {
