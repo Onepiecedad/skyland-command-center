@@ -36,9 +36,11 @@ export function ContextMonitor() {
 
   // Load pricing config
   useEffect(() => {
+    // 6 sep 2026: ett 429/5xx-svar är också JSON ({error}) — det ska inte bli
+    // "prislistan" och krascha hela appen på Object.entries(undefined).
     fetch('/config/pricing.json')
-      .then(r => r.json())
-      .then(setPricing)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(p => setPricing(p && typeof p === 'object' && p.models ? p : null))
       .catch(err => console.error('Failed to load pricing:', err));
   }, []);
 
@@ -218,7 +220,7 @@ export function ContextMonitor() {
       </div>
 
       {/* Model Pricing Info */}
-      {pricing && (
+      {pricing?.models && (
         <div className="pricing-section">
           <h4>Model Pricing (per 1K tokens)</h4>
           <div className="pricing-list">
