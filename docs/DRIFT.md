@@ -62,9 +62,10 @@
 | `DAILY_DIGEST_INTERVAL_MS` | ej satt (default `900000`) | Hur ofta klockan kollas. Digesten går första kontrollen efter timslaget. |
 | `WHATSAPP_VERIFY_TOKEN` | **ej satt** | Metas prenumerationsverifiering av `/api/v1/webhooks/whatsapp` (GET). Välj en sträng, sätt den här och i Meta App Dashboard → WhatsApp → Configuration. |
 | `WHATSAPP_APP_SECRET` | **ej satt** | Appens hemlighet (Meta App Dashboard → App settings → Basic). Med den satt signaturkontrolleras varje POST (`X-Hub-Signature-256`). **Utan den accepteras bara Bearer `LEADS_INTAKE_TOKEN`** — test/manuell väg, inte produktion. |
-| `WHATSAPP_ACCESS_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | **ej satta** | Svarsvägen ut via Graph API. Permanent system-user-token från Business Manager, inte det 24-timmars-token Meta visar i dashboarden. |
-| `WHATSAPP_TENANT_SLUG` | ej satt (default `cold-experience`) | Vart inkommande hamnar när `phone_number_id` inte matchar någon `tenants.config.whatsapp_phone_number_id`. |
-| `WHATSAPP_OUTBOUND_ENABLED` | ej satt (default `true`) | Egen kill switch för WhatsApp-svar. Ett svar till någon som själv skrivit in är inte outreach och lyder därför **inte** `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudgeten. |
+| `WHATSAPP_ACCESS_TOKEN` | **ej satt** | Svarsvägen ut via Graph API. Permanent system-user-token från Business Manager, inte det 24-timmars-token Meta visar i dashboarden. |
+| `WHATSAPP_PHONE_NUMBER_ID` | satt (6 sep) | Cold Experience-numret. Satt i förväg medan intaget installeras (egen tråd, sep 2026); utan `WHATSAPP_VERIFY_TOKEN` och Meta-prenumeration kommer inget in och därmed går inget ut. |
+| `WHATSAPP_TENANT_SLUG` | `cold-experience` (satt uttryckligen 6 sep, = default) | Vart inkommande hamnar när `phone_number_id` inte matchar någon `tenants.config.whatsapp_phone_number_id`. |
+| `WHATSAPP_OUTBOUND_ENABLED` | `true` (satt uttryckligen 6 sep, = default) | Egen kill switch för WhatsApp-svar. Ett svar till någon som själv skrivit in är inte outreach och lyder därför **inte** `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudgeten. |
 | `WHATSAPP_GRAPH_VERSION` | ej satt (default `v21.0`) | Graph API-version. |
 | Valfria, ej satta | `SITE_VOICE_WEBHOOK_TOKEN`, `SITE_RAG_KEY`, `SITE_ELEVENLABS_API_KEY`, `EXTRA_CORS_ORIGINS`, `MM_ORDER_WEBHOOK_TOKEN` | Faller tillbaka på `LEADS_INTAKE_TOKEN` resp. `ELEVENLABS_API_KEY`. |
 
