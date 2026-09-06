@@ -56,6 +56,15 @@ describe('checkClawRateLimits', () => {
         expect(res.allowed).toBe(true);
     });
 
+    it('undantar claw:notify från kvoten (larm ska aldrig kvotas bort)', async () => {
+        // Inga svar köade: om grinden gjorde DB-anrop skulle den läsa DEFAULT och
+        // ändå tillåta, så testet bevisar undantaget genom att inga köer förbrukas.
+        h.queues.task_runs = [{ data: null, error: null }];
+        const res = await checkClawRateLimits('cust-1', 'claw:notify');
+        expect(res.allowed).toBe(true);
+        expect(h.queues.task_runs.length).toBe(1);
+    });
+
     it('tillåter claw under alla gränser', async () => {
         h.queues.tasks = [{ data: [], error: null }];             // 0 samtidiga
         h.queues.task_runs = [
