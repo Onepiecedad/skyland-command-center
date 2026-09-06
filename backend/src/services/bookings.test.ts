@@ -14,6 +14,7 @@ const h = vi.hoisted(() => {
         contact: null as Record<string, unknown> | null,
         upsert: { data: { id: 'bk-1' } as Record<string, unknown> | null, error: null as unknown },
         upsertPayload: null as Record<string, unknown> | null,
+        lastTouch: null as Record<string, unknown> | null,
     };
     const seq = { created: vi.fn(async () => undefined), cancelled: vi.fn(async () => undefined), noShow: vi.fn(async () => undefined) };
     return { state, seq };
@@ -35,6 +36,13 @@ vi.mock('./supabase', () => ({
             if (table === 'contacts') {
                 return { select: () => ({ or: () => ({ limit: () => Promise.resolve({ data: h.state.contact ? [h.state.contact] : [], error: null }) }) }) };
             }
+            if (table === 'messages') {
+                // findLastTouch (SCC-36): .select().eq().eq().contains().gte().lte().order().limit()
+                const chain: Record<string, unknown> = {};
+                for (const m of ['select', 'eq', 'contains', 'gte', 'lte', 'order']) chain[m] = () => chain;
+                chain.limit = () => Promise.resolve({ data: h.state.lastTouch ? [h.state.lastTouch] : [], error: null });
+                return chain;
+            }
             if (table === 'bookings') {
                 return {
                     upsert: (payload: Record<string, unknown>) => {
@@ -55,6 +63,7 @@ beforeEach(() => {
     h.state.contact = { id: 'c-1', customer_id: 'cust-1' };
     h.state.upsert = { data: { id: 'bk-1' }, error: null };
     h.state.upsertPayload = null;
+    h.state.lastTouch = null;
     h.seq.created.mockClear();
     h.seq.cancelled.mockClear();
     h.seq.noShow.mockClear();
@@ -96,5 +105,25 @@ describe('mirrorBooking', () => {
         h.state.upsert = { data: null, error: { message: 'upsert kaputt' } };
         const res = await mirrorBooking('created', { external_id: 'cal-4', attendee_email: 'a@x.se' });
         expect(res.ok).toBe(false);
+    });
+});
+
+describe('mirrorBooking — attribution (SCC-36)', () => {
+    it('created: stämplar senaste utskick till kontakten på bokningen', async () => {
+        h.state.lastTouch = { id: 'm-9', channel: 'email', created_at: '2026-09-02T10:00:00Z', metadata: { contact_id: 'c-1', enrollment_id: 'e-1' } };
+        await mirrorBooking('created', { external_id: 'cal-9', attendee_email: 'a@x.se' });
+        expect(h.state.upsertPayload).toMatchObject({
+            attributed_message_id: 'm-9', attributed_enrollment_id: 'e-1', attributed_touch_at: '2026-09-02T10:00:00Z', attribution_note: 'last_touch:email',
+        });
+    });
+    it('cancelled: rör inte attributionsfälten (spåret suddas inte)', async () => {
+        h.state.lastTouch = { id: 'm-9', channel: 'email', created_at: '2026-09-02T10:00:00Z', metadata: {} };
+        await mirrorBooking('cancelled', { external_id: 'cal-9', attendee_email: 'a@x.se' });
+        expect(h.state.upsertPayload).not.toHaveProperty('attributed_message_id');
+    });
+    it('inget utskick i fönstret: bokningen sparas utan stämpel', async () => {
+        await mirrorBooking('created', { external_id: 'cal-10', attendee_email: 'a@x.se' });
+        expect(h.state.upsertPayload).not.toHaveProperty('attributed_message_id');
+        expect(h.state.upsertPayload).toMatchObject({ contact_id: 'c-1', status: 'booked' });
     });
 });
