@@ -68,6 +68,15 @@ const envSchema = z.object({
 
     // --- Operatörslogin (SCC-36) ---
     OPERATOR_PASSWORD: z.string().optional(),
+
+    // Operatörslarm (plan 3.1): intresserade svar ska nå Joakim direkt, inte
+    // vänta på morgondigesten. WhatsApp går via Alex (claw:notify + pollern),
+    // mejl via EMAIL_FORWARD_TO. Utan numret hoppas WhatsApp-vägen över.
+    OPERATOR_ALERTS_ENABLED: z
+        .string()
+        .default('true')
+        .transform(v => v !== 'false'),
+    OPERATOR_WHATSAPP_TO: z.string().optional(),
     AUTH_SESSION_SECRET: z.string().optional(),
 
     // --- Outbound e-post (SCC-30) ---

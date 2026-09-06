@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
+    alerts: [] as Record<string, unknown>[],
     chatText: '{"intent":"interested","confidence":0.95,"reason":"vill boka"}',
     chatThrows: false,
     suppressions: [] as string[],
@@ -40,6 +41,12 @@ vi.mock('./outreach', () => ({
 
 vi.mock('./logger', () => ({ logger: { info: () => {}, warn: () => {}, error: () => {} } }));
 
+// Plan 3.1: intresserade svar larmar operatören. Larmet mockas — det testas
+// för sig i operatorAlert.test.ts; här bevakar vi bara ATT och NÄR det avfyras.
+vi.mock('./operatorAlert', () => ({
+    alertOperator: (a: Record<string, unknown>) => { h.alerts.push(a); return Promise.resolve({ sent: true }); },
+}));
+
 vi.mock('./supabase', () => {
     const chain = (table: string) => ({
         select: () => chain(table),
@@ -65,7 +72,7 @@ describe('svarsklassificering', () => {
         h.chatText = '{"intent":"interested","confidence":0.95,"reason":"vill boka"}';
         h.chatThrows = false;
         h.conf = 0.8; h.enabled = true;
-        h.suppressions.length = 0; h.updates.length = 0; h.activities.length = 0;
+        h.suppressions.length = 0; h.updates.length = 0; h.activities.length = 0; h.alerts.length = 0;
         mod = await import('./replyClassifier');
     });
 
@@ -131,5 +138,46 @@ describe('svarsklassificering', () => {
         const r = await mod.classifyAndApply(base);
         expect(r.moved).toBe(true);
         expect(h.updates[0]).toHaveProperty('stage_id', 'st-target');
+    });
+});
+
+describe('operatörslarm vid intresse (plan 3.1)', () => {
+    let mod: typeof import('./replyClassifier');
+    const base = { contactId: 'c-1', customerId: null, fromEmail: 'amber@x.se', subject: 'Re: Hej', text: 'Ja, berätta mer!' };
+
+    beforeEach(async () => {
+        vi.resetModules();
+        h.chatText = '{"intent":"interested","confidence":0.95,"reason":"vill veta mer"}';
+        h.chatThrows = false; h.conf = 0.8; h.enabled = true;
+        h.suppressions.length = 0; h.updates.length = 0; h.activities.length = 0; h.alerts.length = 0;
+        mod = await import('./replyClassifier');
+    });
+
+    it('larmar med kontaktnamn, klassning och dedupe-nyckel per kontakt', async () => {
+        await mod.classifyAndApply({ ...base, contactName: 'Ambers Laserklinik' });
+        expect(h.alerts).toHaveLength(1);
+        expect(h.alerts[0]).toMatchObject({ kind: 'reply.interested', dedupeKey: 'reply.interested:c-1', contactId: 'c-1' });
+        expect(String(h.alerts[0].title)).toContain('Ambers Laserklinik');
+        expect(String(h.alerts[0].body)).toContain('Ja, berätta mer!');
+    });
+
+    it('utan namn används mejladressen i rubriken', async () => {
+        await mod.classifyAndApply(base);
+        expect(String(h.alerts[0].title)).toContain('amber@x.se');
+    });
+
+    it('larmar inte under konfidenströskeln — då har inget hänt med kortet heller', async () => {
+        h.chatText = '{"intent":"interested","confidence":0.5,"reason":"osäkert"}';
+        await mod.classifyAndApply(base);
+        expect(h.alerts).toHaveLength(0);
+    });
+
+    it('larmar inte på nej, autosvar eller fråga', async () => {
+        for (const intent of ['no', 'autoreply', 'question', 'other']) {
+            h.alerts.length = 0;
+            h.chatText = `{"intent":"${intent}","confidence":0.95,"reason":"x"}`;
+            await mod.classifyAndApply(base);
+            expect(h.alerts, intent).toHaveLength(0);
+        }
     });
 });

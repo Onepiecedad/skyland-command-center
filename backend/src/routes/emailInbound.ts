@@ -120,6 +120,7 @@ async function ingestInbound(mail: InboundMail): Promise<{ matched: boolean; con
     await classifyAndApply({
         contactId: contact.id,
         customerId: contact.customer_id ?? null,
+        contactName: contact.name ?? null,
         fromEmail, subject, text,
     });
 

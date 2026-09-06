@@ -24,6 +24,7 @@ import { config } from '../config';
 import { supabase } from './supabase';
 import { addSuppression } from './outreach';
 import { logger } from './logger';
+import { alertOperator } from './operatorAlert';
 
 export type ReplyIntent = 'interested' | 'no' | 'autoreply' | 'question' | 'other';
 
@@ -179,8 +180,10 @@ export async function classifyAndApply(params: {
     fromEmail: string;
     subject: string;
     text: string;
+    /** Kontaktens namn — bara för läsbara larm; saknas det används mejladressen. */
+    contactName?: string | null;
 }): Promise<ApplyResult> {
-    const { contactId, customerId, fromEmail, subject, text } = params;
+    const { contactId, customerId, fromEmail, subject, text, contactName } = params;
     const empty: ApplyResult = { intent: null, confidence: 0, acted: false, moved: false, suppressed: false };
 
     if (!config.REPLY_CLASSIFIER_ENABLED) return empty;
@@ -207,6 +210,27 @@ export async function classifyAndApply(params: {
                 logger.warn('replyClassifier', `kunde inte spärra: ${err instanceof Error ? err.message : err}`);
             }
         }
+    }
+
+    // Plan 3.1: ett intresserat svar är färskvara — larma operatören direkt
+    // (WhatsApp via Alex + mejl). Best-effort: alertOperator kastar aldrig, och
+    // klassificeringen får aldrig falla på att ett larm inte gick fram.
+    if (acted && c.intent === 'interested') {
+        await alertOperator({
+            kind: 'reply.interested',
+            title: `Intresserat svar: ${contactName ?? fromEmail}`,
+            body: [
+                `Från: ${fromEmail}`,
+                `Ämne: ${subject || '(inget ämne)'}`,
+                `Klassning: interested (${c.confidence.toFixed(2)}${c.byRule ? ', regel' : ''})`,
+                moved ? 'Kortet är flyttat till Replied.' : 'Kortet kunde inte flyttas — kolla i CRM.',
+                '',
+                text.trim().slice(0, 600),
+            ].join('\n'),
+            contactId, customerId,
+            dedupeKey: `reply.interested:${contactId}`,
+            url: config.SCC_PUBLIC_BASE_URL ? `${config.SCC_PUBLIC_BASE_URL}/#/crm?contact=${contactId}` : null,
+        });
     }
 
     try {
