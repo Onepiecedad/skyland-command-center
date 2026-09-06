@@ -11,7 +11,11 @@ const CLAW_MAX_RUNS_PER_HOUR_PER_CUSTOMER = config.CLAW_MAX_RUNS_PER_HOUR_PER_CU
 const CLAW_MAX_RUNS_PER_HOUR_GLOBAL = config.CLAW_MAX_RUNS_PER_HOUR_GLOBAL;
 
 // Claw executor allowlist (Ticket 19)
-const CLAW_EXECUTOR_ALLOWLIST = ['claw:research', 'claw:prospect-finder', 'claw:content', 'claw:deep-research', 'claw:report-writer', 'claw:produce-package'];
+const CLAW_EXECUTOR_ALLOWLIST = ['claw:research', 'claw:prospect-finder', 'claw:content', 'claw:deep-research', 'claw:report-writer', 'claw:produce-package', 'claw:notify'];
+
+// Plan 3.1: operatörslarm. Skickar ett kort meddelande, kostar ingen agenttid och
+// dedupliceras redan i operatorAlert. Får därför inte kvotas bort av research-volym.
+const CLAW_RATE_LIMIT_EXEMPT = ['claw:notify'];
 
 // ============================================================================
 // Types
@@ -84,6 +88,11 @@ export async function logRateLimitedActivity(
 export async function checkClawRateLimits(customerId: string | null, executor: string): Promise<RateLimitResult> {
     // Only apply rate limits to claw executors
     if (!executor.startsWith('claw:')) {
+        return { allowed: true };
+    }
+
+    // Larm-executorer är undantagna: de ska gå fram även när research-kvoten är full
+    if (CLAW_RATE_LIMIT_EXEMPT.includes(executor)) {
         return { allowed: true };
     }
 

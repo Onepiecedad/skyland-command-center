@@ -101,6 +101,29 @@ describe('dispatchTask — executor-routing', () => {
         expect(res.run.status).toBe('failed');
     });
 
+    it('claw:notify är tillåten och når webhook-grenen (operatörslarm, plan 3.1)', async () => {
+        // Push-läge utan nätverk: räcker för att bevisa att allowlisten släppte igenom
+        // executorn — felet som uppstår är ett trigger-fel, inte 'not allowed'.
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network blocked')));
+        seedCommon('claw:notify');
+
+        const res = await dispatchTask('t-1', 'worker-1');
+
+        expect(res.error ?? '').not.toMatch(/not allowed/i);
+
+        vi.unstubAllGlobals();
+    });
+
+    it('okänd claw-executor nekas fortfarande av allowlisten', async () => {
+        seedCommon('claw:not-a-real-agent');
+
+        const res = await dispatchTask('t-1', 'worker-1');
+
+        expect(res.success).toBe(false);
+        expect(res.error).toMatch(/not allowed/i);
+        expect(res.run.status).toBe('failed');
+    });
+
     it('n8n: webhook som inte kan triggas → tasken markeras failed', async () => {
         // Blockera nätverket så executeN8nWebhook inte kan trigga (oavsett env).
         vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network blocked')));
