@@ -39,6 +39,7 @@
 | Flagga | Värde | Effekt |
 |---|---|---|
 | `OUTBOUND_ENABLED` | `true` (5 sep) | Motorn skickar på egen hand. Gäller sekvenser med `outbound_policy='outreach'` (default). |
+| `OUTREACH_JITTER_MINUTES` | ej satt (default `90`) | Slumpad spridning av LIVE outreach, 1–N minuter, så en batch inte fyrar i samma tick. |
 | `OUTREACH_WINDOW_ENABLED` | ej satt (default `true`) | Plan 2.5: LIVE outreach skickas bara vardagar 08–17 (Europe/Stockholm, `OUTREACH_WINDOW_START_HOUR`/`END_HOUR`) och sprids slumpat 1–90 min (`OUTREACH_JITTER_MINUTES`) så en batch inte fyrar i samma tick. Gäller INTE transactional och INTE skuggläget (skuggrader ska synas direkt i Skuggvecka). |
 | `TRANSACTIONAL_OUTBOUND_ENABLED` | ej satt (default `true`) | Kill switch för `outbound_policy='transactional'` (Strategisamtal-påminnelserna). Transaktionell post går ut OAVSETT `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudget; suppression gäller utom orsaken `existing_customer`. Fynd 4 åtgärdat 30 aug. |
 | `OUTBOUND_MODE` | `auto` (5 sep) | Steg med `require_approval: true` går ändå i skugga. Utskick i skugga loggas som `messages.status='shadow'`. Granskas i Försäljning → Skuggvecka; "Skicka nu" skickar manuellt. |
@@ -63,9 +64,9 @@
 | `WHATSAPP_VERIFY_TOKEN` | **ej satt** | Metas prenumerationsverifiering av `/api/v1/webhooks/whatsapp` (GET). Välj en sträng, sätt den här och i Meta App Dashboard → WhatsApp → Configuration. |
 | `WHATSAPP_APP_SECRET` | **ej satt** | Appens hemlighet (Meta App Dashboard → App settings → Basic). Med den satt signaturkontrolleras varje POST (`X-Hub-Signature-256`). **Utan den accepteras bara Bearer `LEADS_INTAKE_TOKEN`** — test/manuell väg, inte produktion. |
 | `WHATSAPP_ACCESS_TOKEN` | **ej satt** | Svarsvägen ut via Graph API. Permanent system-user-token från Business Manager, inte det 24-timmars-token Meta visar i dashboarden. |
-| `WHATSAPP_PHONE_NUMBER_ID` | satt (6 sep) | Cold Experience-numret. Satt i förväg medan intaget installeras (egen tråd, sep 2026); utan `WHATSAPP_VERIFY_TOKEN` och Meta-prenumeration kommer inget in och därmed går inget ut. |
-| `WHATSAPP_TENANT_SLUG` | `cold-experience` (satt uttryckligen 6 sep, = default) | Vart inkommande hamnar när `phone_number_id` inte matchar någon `tenants.config.whatsapp_phone_number_id`. |
-| `WHATSAPP_OUTBOUND_ENABLED` | `true` (satt uttryckligen 6 sep, = default) | Egen kill switch för WhatsApp-svar. Ett svar till någon som själv skrivit in är inte outreach och lyder därför **inte** `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudgeten. |
+| `WHATSAPP_PHONE_NUMBER_ID` | **ej satt** | Cold Experience-numret; sätts när intaget installeras (egen tråd, sep 2026). Utan `WHATSAPP_VERIFY_TOKEN` och Meta-prenumeration kommer inget in och därmed går inget ut. |
+| `WHATSAPP_TENANT_SLUG` | ej satt (default `cold-experience`) | Vart inkommande hamnar när `phone_number_id` inte matchar någon `tenants.config.whatsapp_phone_number_id`. |
+| `WHATSAPP_OUTBOUND_ENABLED` | ej satt (default `true`) | Egen kill switch för WhatsApp-svar. Ett svar till någon som själv skrivit in är inte outreach och lyder därför **inte** `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudgeten. |
 | `WHATSAPP_GRAPH_VERSION` | ej satt (default `v21.0`) | Graph API-version. |
 | Valfria, ej satta | `SITE_VOICE_WEBHOOK_TOKEN`, `SITE_RAG_KEY`, `SITE_ELEVENLABS_API_KEY`, `EXTRA_CORS_ORIGINS`, `MM_ORDER_WEBHOOK_TOKEN` | Faller tillbaka på `LEADS_INTAKE_TOKEN` resp. `ELEVENLABS_API_KEY`. |
 
