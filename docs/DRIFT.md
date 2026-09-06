@@ -585,6 +585,44 @@ byggt än. Fönstret behöver ingen egen tabell.
 `__tests__/helpers/fakeSupabase.ts` — den ser vad som *händer*, inte bara att
 ett anrop gjordes).
 
+## Intresserade svar larmar direkt (plan 3.1 klar, 6 sep)
+
+Klassificeraren flyttade kortet och spärrade nej, men ingen sa till. Digesten
+kommer 07:00 och Skuggvecka kräver att man tittar — för ett "ja, berätta mer" är
+båda för sent. Nu larmar `services/operatorAlert.ts` på två vägar samtidigt:
+
+- **WhatsApp via Alex.** SCC skapar en `claw:notify`-uppgift (input: `{channel,
+  to, text}`) och dispatchar den till `pull:queued`. Pollern på VPS:en hämtar den
+  via `/claw/pending`, känner igen `agent_id=notify` och skickar den till
+  gatewayen med `deliver:true` + `to` + `channel`, plus en uttrycklig instruktion
+  i texten om att leverera ordagrant. Pollern kvitterar själv via
+  `/claw/task-result` — agenten ska bara leverera, inte hålla reda på run-id.
+- **Mejl via Resend** till `EMAIL_FORWARD_TO`, direkt via providern (internt larm:
+  rör inte dagsbudget eller `OUTBOUND_ENABLED`). Går fram även om gatewayen sover.
+
+Flaggor: `OPERATOR_ALERTS_ENABLED` (default `true`) och `OPERATOR_WHATSAPP_TO`
+(numret; utan det hoppas WhatsApp-vägen över och bara mejlet går).
+
+Dedupe på `reply.interested:<contact_id>` i 24 h — ett kort larmar en gång även om
+svaret klassas om. Varje larm loggas som activity `operator.alert` med vilka vägar
+som gick fram. Larmet kan aldrig fälla klassificeringen: alla fel sväljs och loggas.
+
+**Verifiera efter deploy** (kräver att `OPERATOR_WHATSAPP_TO` är satt i Render):
+
+```bash
+# Ett testlarm hela vägen ut — skapar en riktig claw:notify-uppgift.
+curl -s -X POST -H "Authorization: Bearer $SCC_API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"title":"Testlarm","description":"3.1-verifiering","executor":"claw:notify","status":"created",
+       "input":{"channel":"whatsapp","to":"+46737329083","text":"Testlarm från SCC"}}' \
+  https://scc.skylandai.se/api/v1/tasks
+# dispatcha id:t som kom tillbaka, vänta ≤15 s (pollerns intervall), kolla WhatsApp.
+```
+
+Kommer larmet inte fram men uppgiften blir `completed`: gatewayversionen hedrar
+inte `deliver/to/channel` från hooken. Då är rätt fix att låta `skyland`-agenten
+skicka meddelandet med sitt eget WhatsApp-verktyg i stället — texten i uppdraget
+säger redan åt den att göra det.
+
 ## Attribution: från utskick till bokning till provision (6 sep)
 
 Kedjan gick redan att följa per kort (`GET /api/v1/attribution/:contactId/timeline`),

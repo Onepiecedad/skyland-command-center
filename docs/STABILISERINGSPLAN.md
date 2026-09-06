@@ -66,12 +66,16 @@ tidpunkter inom fönstret. ✓ *(85 procent uppnått)*
 **Mål:** Svar hanteras, Alex vet vad som händer, och maskinen står inte stilla när
 laptopen gör det.
 
-- [~] **3.1** Svarsklassificering — regler fångar autosvar utan LLM-anrop, resten
+- [x] **3.1** Svarsklassificering — regler fångar autosvar utan LLM-anrop, resten
       klassas av modellen (intresserad, nej, autosvar, fråga, övrigt). Över
       konfidenströskeln flyttas kortet och ett nej spärrar adressen; under den
       loggas klassen men inget händer. Nio enhetstester *(31 aug)*.
-      **Kvar:** push till WhatsApp vid intresse — Render når inte tailnetet, så
-      den vägen går via en uppgift som pollern hämtar från `/claw/pending`
+      Pushen klar 6 sep: intresserade svar larmar operatören direkt via
+      `services/operatorAlert.ts` — WhatsApp genom en `claw:notify`-uppgift som
+      pollern hämtar från `/claw/pending` (Render når inte tailnetet), plus mejl
+      via Resend som alltid går fram. Dedupe per kontakt i 24 h, flaggor
+      `OPERATOR_ALERTS_ENABLED`/`OPERATOR_WHATSAPP_TO`, 14 nya tester. Se
+      DRIFT.md "Intresserade svar larmar direkt" för verifieringssteget.
 - [x] **3.2** Daglig digest — ett mejl kl 07 svensk tid med dygnets siffror:
       skickat och misslyckat, skuggrader loggade och kön som väntar på dom, svar
       per klass med hur många som agerades på, nya kontakter, pollerns hjärtslag,
