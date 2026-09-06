@@ -143,12 +143,14 @@ export async function countSentToday(now: Date = new Date()): Promise<number> {
     const startIso = start.toISOString();
     const base = () => supabase.from('messages')
         .select('id', { count: 'exact', head: true })
-        .eq('direction', 'outbound')
-        .eq('status', 'sent');
+        .eq('direction', 'outbound');
 
     const [maskin, operator] = await Promise.all([
-        base().is('metadata->>approved_at', null).gte('created_at', startIso),
-        base().gte('metadata->>approved_at', startIso),
+        base().eq('status', 'sent').is('metadata->>approved_at', null).gte('created_at', startIso),
+        // Operatörens "Skicka nu": sent ELLER queued (claimad, på väg) med
+        // approved_at i dag. queued räknas så att platsen är reserverad medan
+        // providern anropas — annars kunde två klick dela på sista platsen.
+        base().in('status', ['sent', 'queued']).gte('metadata->>approved_at', startIso),
     ]);
     if (maskin.error) throw new Error(`Kunde inte räkna dagens utskick: ${maskin.error.message}`);
     if (operator.error) throw new Error(`Kunde inte räkna dagens utskick: ${operator.error.message}`);

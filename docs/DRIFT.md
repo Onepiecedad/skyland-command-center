@@ -376,16 +376,18 @@ skuggrad utan providerkall, live utan flagga skickar på riktigt, och
 
 ### Produktionsflaggor för autosend
 
-| Variabel | Under skuggveckan | För autosend |
+| Variabel | Under skuggveckan | För autosend (satt 5 sep) |
 |---|---|---|
 | `OUTBOUND_MODE` | `shadow` | `auto` |
 | `OUTBOUND_ENABLED` | `false` | `true` |
-| `OUTBOUND_DAILY_LIMIT` | `5` | `5` tills volymen kräver mer |
+| `OUTBOUND_DAILY_LIMIT` | `5` | `20` (höjt 5 sep; huvudtabellen ovan är facit) |
 
 Notera att det krävs **två** ändringar, inte en. `OUTBOUND_ENABLED=false` är
-huvudströmbrytaren; med den av spelar läget ingen roll. Taket på 5 per dag
-räknar sedan 5 sep även manuellt godkända utskick (se avsnittet om
-dagsbudgeten) och är alltså ett verkligt tak för första gången.
+huvudströmbrytaren; med den av spelar läget ingen roll. Dagstaket räknar
+sedan 5 sep även manuellt godkända utskick (se avsnittet om dagsbudgeten)
+och är alltså ett verkligt tak för första gången. Gällande värde står i
+huvudtabellen under "Produktionsflaggor" — den här tabellen är historik
+över hur switchen slogs om.
 
 ### Vad som faktiskt händer när switchen slås om
 

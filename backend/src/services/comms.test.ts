@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Delad, muterbar teststate (hoistas så vi.mock-factories når den).
 const h = vi.hoisted(() => {
     const state = {
+        suppressed: [] as { kind: string; value: string; reason: string | null }[],
         outboundCount: 0,
         countError: null as string | null,
         contact: null as Record<string, unknown> | null,
@@ -50,6 +51,7 @@ vi.mock('./supabase', () => {
                             let operator = false;
                             const chain = {
                                 eq: () => chain,
+                                in: () => chain,   // countSentToday: status in (sent, queued) för operatörsdelen
                                 is: () => chain,
                                 gte: (col: string) => { if (col.includes('approved_at')) operator = true; return chain; },
                                 then: (resolve: (v: unknown) => void) =>
@@ -80,6 +82,21 @@ vi.mock('./supabase', () => {
                         }),
                     };
                 }
+                if (table === 'suppression_list') {
+                    // isSuppressed (granskning 6 sep): .select().or(expr).limit(1)
+                    return {
+                        select: () => ({
+                            or: (expr: string) => ({
+                                limit: () => {
+                                    const hit = state.suppressed.find(
+                                        (x: { kind: string; value: string }) => expr.includes(`kind.eq.${x.kind},value.eq.${x.value}`)
+                                    );
+                                    return Promise.resolve({ data: hit ? [hit] : [], error: null });
+                                },
+                            }),
+                        }),
+                    };
+                }
                 // activities (och övrigt): await .insert()
                 return { insert: () => Promise.resolve({ error: null }) };
             },
@@ -106,6 +123,7 @@ const contactWithEmail = {
 
 beforeEach(() => {
     // Återställ till "allt grönt, utskick tillåtna, 0 skickade idag".
+    h.state.suppressed = [];
     config.OUTBOUND_ENABLED = true;
     config.OUTBOUND_DAILY_LIMIT = 5;
     h.state.outboundCount = 0;
@@ -230,5 +248,16 @@ describe('executeCommsEmail — lyckat utskick', () => {
 
         expect(res.success).toBe(false);
         expect(res.error).toMatch(/Resend nere/);
+    });
+});
+
+describe('executeCommsEmail — suppression (granskning 6 sep)', () => {
+    it('spärrad mottagare stoppas vid sändning, providern anropas inte', async () => {
+        h.state.contact = contactWithEmail;
+        h.state.suppressed = [{ kind: 'email', value: 'info@studiox.se', reason: 'unsubscribe' }];
+        const res = await executeCommsEmail(validTask, 'run-1');
+        expect(res.success).toBe(false);
+        expect(res.error).toMatch(/spärrad/);
+        expect(h.sendMock).not.toHaveBeenCalled();
     });
 });

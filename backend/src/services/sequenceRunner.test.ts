@@ -46,6 +46,7 @@ vi.mock('./supabase', () => ({
                                 return chain;
                             },
                             gte: () => chain,
+                            in: () => chain,    // countSentToday (6 sep): status in (sent, queued)
                             neq: () => chain,
                             contains: () => chain,
                             // countSentToday (5 sep) filtrerar på metadata->>approved_at
@@ -126,20 +127,23 @@ beforeEach(() => {
 });
 
 describe('execStep — send_email grindar (samma som comms)', () => {
-    it('kill switch: OUTBOUND_ENABLED=false → failed/retry, ingen provider', async () => {
+    // Granskning 6 sep: policy-/budgetstopp är uppskjutning (defer + policy_hold),
+    // inte retry. Retry räknade upp mot max_retries och dödade kön efter 2,5 h.
+    it('kill switch: OUTBOUND_ENABLED=false → defer/policy_hold, ingen provider', async () => {
         config.OUTBOUND_ENABLED = false;
         const res = await execStep(step('send_email', { subject: 'x', body: 'y' }), enr, contact, ENROLLED_AT);
-        expect(res.status).toBe('failed');
-        expect(res.control).toBe('retry');
-        expect(res.detail).toMatchObject({ reason: 'OUTBOUND_ENABLED=false' });
+        expect(res.control).toBe('defer');
+        expect(res.waitMs).toBeGreaterThan(0);
+        expect(res.detail).toMatchObject({ reason: 'OUTBOUND_ENABLED=false', policy_hold: true });
         expect(h.emailSend).not.toHaveBeenCalled();
     });
 
-    it('dagsbudget nådd → failed/retry, ingen provider', async () => {
+    it('dagsbudget nådd → defer/policy_hold, ingen provider, aldrig retry', async () => {
         h.state.outboundCount = 5;
         const res = await execStep(step('send_email', { subject: 'x', body: 'y' }), enr, contact, ENROLLED_AT);
-        expect(res.status).toBe('failed');
-        expect(res.detail).toMatchObject({ reason: 'daily_limit' });
+        expect(res.control).toBe('defer');
+        expect(res.control).not.toBe('retry');
+        expect(res.detail).toMatchObject({ reason: 'daily_limit', policy_hold: true });
         expect(h.emailSend).not.toHaveBeenCalled();
     });
 
@@ -200,11 +204,11 @@ describe('execStep — outbound_policy=transactional (bokningspåminnelser går 
         expect(h.smsSend).toHaveBeenCalledTimes(1);
     });
 
-    it('TRANSACTIONAL_OUTBOUND_ENABLED=false är dess egen kill switch → retry', async () => {
+    it('TRANSACTIONAL_OUTBOUND_ENABLED=false är dess egen kill switch → defer/policy_hold', async () => {
         (config as unknown as { TRANSACTIONAL_OUTBOUND_ENABLED: boolean }).TRANSACTIONAL_OUTBOUND_ENABLED = false;
         const res = await execStep(email, enr, contact, ENROLLED_AT, 'transactional');
-        expect(res.status).toBe('failed');
-        expect(res.control).toBe('retry');
+        expect(res.control).toBe('defer');
+        expect(res.detail).toMatchObject({ policy_hold: true });
         expect(res.detail).toMatchObject({ reason: 'TRANSACTIONAL_OUTBOUND_ENABLED=false' });
         expect(h.emailSend).not.toHaveBeenCalled();
     });
@@ -271,6 +275,9 @@ describe('execStep — väntesteg', () => {
         const res = await execStep(step('wait_until', { relative_to: 'booking_start', offset_hours: -1 }), e, contact, ENROLLED_AT);
         expect(res.control).toBe('wait');
         expect(res.waitMs).toBeGreaterThan(0);
+        // Granskning 6 sep: absolut mål följer med så wait-hanteraren inte ankrar
+        // om "1h före mötet" på senaste utskick.
+        expect(res.targetAt).toBe(Date.parse(future) - 3_600_000);
     });
 
     it('wait_until: ingen bastid → skipped/advance no_base_time', async () => {
@@ -495,7 +502,7 @@ describe('execStep — arbetstidsfönster + spridning (plan 2.5)', () => {
 });
 
 describe('execStep — require_approval håller ett steg i manuell kö', () => {
-    it('live-läge + require_approval → skuggrad, ingen provider', async () => {
+    it('live-läge + require_approval → skuggrad, ingen provider, HÅLLS tills godkänd', async () => {
         (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'auto';
         config.OUTBOUND_ENABLED = true;   // globalt läge = live
         const res = await execStep(
@@ -503,9 +510,22 @@ describe('execStep — require_approval håller ett steg i manuell kö', () => {
             enr, contact, ENROLLED_AT
         );
         expect(h.emailSend).not.toHaveBeenCalled();
-        expect(res.control).toBe('advance');
+        // Granskning 6 sep: motorn får inte gå vidare till wait-steget förrän
+        // operatören klickat "Skicka nu" — annars ankras avslutets väntetid på
+        // öppnaren och avslutsutkastet dyker upp för tidigt.
+        expect(res.control).toBe('defer');
+        expect(res.detail).toMatchObject({ reason: 'awaiting_approval', policy_hold: true });
         const msg = h.state.inserted.find(i => i.table === 'messages');
         expect(msg?.row.status).toBe('shadow');
+        expect((msg?.row.metadata as Record<string, unknown>).step_id).toBe('st-1');
+    });
+
+    it('globalt skuggläge utan require_approval → torrkörning, avancerar som förut', async () => {
+        (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'shadow';
+        config.OUTBOUND_ENABLED = true;
+        const res = await execStep(step('send_email', { subject: 'x', body: 'y' }), enr, contact, ENROLLED_AT);
+        expect(res.control).toBe('advance');
+        expect(res.detail).toMatchObject({ shadow: true });
     });
 
     it('live-läge utan flaggan → skickas på riktigt', async () => {
@@ -526,7 +546,8 @@ describe('execStep — require_approval håller ett steg i manuell kö', () => {
             enr, contact, ENROLLED_AT
         );
         expect(h.emailSend).not.toHaveBeenCalled();
-        expect(res.status).toBe('failed');
+        expect(res.control).toBe('defer');
+        expect(res.detail).toMatchObject({ reason: 'OUTBOUND_ENABLED=false' });
         expect(h.state.inserted.find(i => i.table === 'messages')).toBeUndefined();
     });
 });

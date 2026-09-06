@@ -7,7 +7,7 @@
 import { supabase } from './supabase';
 import { config } from '../config';
 import { getEmailProvider } from './email';
-import { countSentToday } from './outreach';
+import { countSentToday, isSuppressed } from './outreach';
 
 export interface CommsResult {
     success: boolean;
@@ -53,6 +53,15 @@ export async function executeCommsEmail(
     const custom = (contact.custom ?? {}) as Record<string, unknown>;
     const to = contact.email || (typeof custom.email === 'string' ? custom.email : null);
     if (!to) return { success: false, error: `Kontakten "${contact.name}" saknar e-postadress` };
+
+    // 3b. Suppression — kontrolleras vid SÄNDNING, inte vid godkännande. Adressen
+    // kan ha spärrats (unsubscribe, bounce, klagomål) efter att uppgiften skapades.
+    // Granskning 6 sep: den här sändvägen saknade spärren helt. Avsiktligt utan
+    // skuggläge/arbetstidsfönster: varje comms:email är en godkänd, manuell uppgift.
+    const hit = await isSuppressed('email', to);
+    if (hit) {
+        return { success: false, error: `Mottagaren ${to} är spärrad (${hit.kind}: ${hit.reason ?? 'okänd orsak'}) — utskicket stoppat` };
+    }
 
     // 4. Skicka
     let providerMessageId: string;
