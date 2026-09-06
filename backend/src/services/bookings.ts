@@ -7,6 +7,7 @@
 import { supabase } from './supabase';
 import { logger } from './logger';
 import { onBookingCreated, onBookingCancelled, onBookingNoShow } from './sequenceEvents';
+import { findLastTouch } from './attribution';
 
 export type BookingTrigger = 'created' | 'cancelled' | 'rescheduled' | 'no_show';
 
@@ -41,7 +42,26 @@ export async function mirrorBooking(
         contactId = c?.id ?? null; customerId = c?.customer_id ?? null;
     }
 
+    // SCC-36: vid ny bokning, stämpla vilket utskick som senast nådde kontakten
+    // (inom 90 dagar). Skrivs bara vid 'created' så avbokning/ombokning inte
+    // suddar spåret. Ingen kontakt eller inget utskick = ingen stämpel, inget fel.
+    const attribution: Record<string, unknown> = {};
+    if (trigger === 'created' && contactId) {
+        try {
+            const touch = await findLastTouch(contactId);
+            if (touch) {
+                attribution.attributed_message_id = touch.message_id;
+                attribution.attributed_enrollment_id = touch.enrollment_id;
+                attribution.attributed_touch_at = touch.sent_at;
+                attribution.attribution_note = `last_touch:${touch.channel}`;
+            }
+        } catch (err) {
+            logger.warn('bookings', `attribution misslyckades (bokningen sparas ändå): ${err instanceof Error ? err.message : err}`);
+        }
+    }
+
     const { data: booking, error } = await supabase.from('bookings').upsert({
+        ...attribution,
         external_id: b.external_id,
         contact_id: contactId,
         customer_id: customerId,
@@ -61,7 +81,8 @@ export async function mirrorBooking(
     await supabase.from('activities').insert({
         customer_id: customerId, agent: 'system:calendar', event_type: 'booking',
         action: `booking.${trigger}`, severity: 'info',
-        details: { external_id: b.external_id, contact_id: contactId, title: b.title, starts_at: b.starts_at },
+        details: { external_id: b.external_id, contact_id: contactId, title: b.title, starts_at: b.starts_at,
+                   attributed_message_id: attribution.attributed_message_id ?? null },
     });
 
     // Trigga sekvenshändelse om vi hittade en kontakt

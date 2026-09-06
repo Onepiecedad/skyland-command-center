@@ -585,6 +585,36 @@ byggt än. Fönstret behöver ingen egen tabell.
 `__tests__/helpers/fakeSupabase.ts` — den ser vad som *händer*, inte bara att
 ett anrop gjordes).
 
+## Attribution: från utskick till bokning till provision (6 sep)
+
+Kedjan gick redan att följa per kort (`GET /api/v1/attribution/:contactId/timeline`),
+men ingen vy svarade på *vilka orter, doktriner, textvarianter och poängband som ger
+svar och möten*, och en bokning visste inte själv vilket utskick som ledde dit.
+Migration `20260906_attribution.sql` (applicerad 6 sep):
+
+- **`v_outreach_funnel`** — en rad per enrollment: ort (`custom.area`), doktrin
+  (`custom.dm_vertical`), textvariant (`custom.dm_variant`), poäng, researchkostnad,
+  skickat, svar, senaste klassade intent, bokningar, affärsstatus.
+- **`bookings.attributed_*`** — vid `created` stämplar bokningsspegeln det senaste
+  skickade meddelandet till kontakten inom 90 dagar (`attributed_message_id`,
+  `attributed_enrollment_id`, `attributed_touch_at`). Skrivs bara vid ny bokning,
+  aldrig vid avbokning. Inget utskick i fönstret = ingen stämpel, inget fel.
+- **`bookings.paid_confirmed_at / paid_value_sek / commission_sek`** — operatörens
+  bekräftelse att bokningen blev betald och vilken provision som gäller (SCC-39).
+
+Endpoints (bakom global auth):
+
+| Anrop | Ger |
+|---|---|
+| `GET /api/v1/attribution/outreach?group_by=area` | Tratt per ort. `group_by`: `area`, `dm_vertical`, `dm_variant`, `sequence_name`, `score_band`, `none`. `&sequence=beauty`, `&since=2026-09-01`, `&format=csv`, `&rows=1` (råraderna). |
+| `GET /api/v1/attribution/commission/:customerId` | Provisionsunderlag per kund: varje bokning, vilket utskick som ledde dit, bekräftad betalning, provision. `&format=csv` = fakturabilaga. |
+| `POST /api/v1/attribution/bookings/:id/confirm` | `{confirmed, paid_value_sek, commission_sek}` — bekräfta betald/genomförd. |
+| `POST /api/v1/attribution/replies/:contactId/intent` | `{intent, note}` — operatörens facit på klassningen. Ambers lästes som `interested` men var ett missförstånd; sätt `other` så räknas det inte som säljsvar. Vyn tar senaste klassningen. |
+
+Snabbkoll: `SCC_API_TOKEN=… curl -s -H "Authorization: Bearer $SCC_API_TOKEN" "https://scc.skylandai.se/api/v1/attribution/outreach?group_by=area&sequence=beauty"`.
+Läget 6 sep: 23 inskrivna i Göteborg, 14 skickade, 1 svar (klassat interested — ska sättas
+till `other`), 0 bokningar, 0,37 USD i research. Beslutspunkten är 50 skickade öppnare.
+
 ## Kända skavanker
 
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.

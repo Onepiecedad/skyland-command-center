@@ -1,7 +1,7 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-09-06 (granskning: gamla uppgifter längre ned rättade så att de inte längre motsäger rättelserna högst upp)
+> Senast uppdaterad: 2026-09-06 (granskning: gamla uppgifter längre ned rättade så att de inte längre motsäger rättelserna högst upp; attribution SCC-36/39 byggd — se DRIFT.md "Attribution")
 
 > ## 🧭 BÖRJA HÄR (läs i den här ordningen)
 >
