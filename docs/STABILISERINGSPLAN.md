@@ -108,8 +108,9 @@ laptopen gör det.
       verkligheten gav var ett missförstånd: Ambers läste bumpen som en kundfråga
       och svarade med en prisoffert. Öppnaren är det enda steget som bär sin egen
       kontext, så det är där gränsen går. Mekanik: `require_approval` per steg
-      (se DRIFT.md). **Kvar: sätt `OUTBOUND_MODE=auto` och `OUTBOUND_ENABLED=true`
-      i Render** — koden och stegflaggorna är på plats och testade.
+      (se DRIFT.md). `OUTBOUND_MODE=auto`, `OUTBOUND_ENABLED=true` och
+      `OUTBOUND_DAILY_LIMIT=20` satta i Render 5 sep och verifierade med
+      `scripts/drift_check.py` 6 sep (0 drift). Inget kvar i det här steget.
 
 ## Fas 4 · Volym · PÅGÅR
 

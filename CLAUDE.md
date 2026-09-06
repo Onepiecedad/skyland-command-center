@@ -1,7 +1,7 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-09-05
+> Senast uppdaterad: 2026-09-06 (granskning: gamla uppgifter längre ned rättade så att de inte längre motsäger rättelserna högst upp)
 
 > ## 🧭 BÖRJA HÄR (läs i den här ordningen)
 >
@@ -39,7 +39,7 @@
 > **VIKTIGT — arkitekturen har ändrats sedan tidigare versioner av denna fil:**
 > - Entrypoint är `backend/src/server.ts` (klassbaserad, helmet, CORS, WebSocket-gateway, statisk SPA-servering). `backend/src/index.ts` är LEGACY och körs inte (`package.json` → `dev`/`start` pekar på server.ts).
 > - Routing ligger i ~36 modulfiler under `backend/src/routes/` — inte i en stor index.ts.
-> - Global Bearer-auth (`middleware/auth.ts`, token `SCC_API_TOKEN`) + rate limiting skyddar `/api/v1/*` sedan 2026-07-09. Öppna undantag: `/health`, `/api-docs`, legacy `/api/skills` + `/api/activities`, samt `/api/v1/leads` (egen token: `LEADS_INTAKE_TOKEN`), `/api/v1/webhooks/openwork` och `/api/v1/voice` (externa anropare — TODO: egen auth).
+> - Global Bearer-auth (`middleware/auth.ts`, token `SCC_API_TOKEN`, alternativt `?token=` för SSE eller operatörens httpOnly-sessioncookie) + rate limiting skyddar `/api/v1/*` sedan 2026-07-09. **Monterat FÖRE den globala auth:en i `server.ts`, var och en med egen token/signatur (inget är öppet sedan SEC-02..06, 2026-08-10):** `/health`, `/api-docs` (auth-krav i prod), `/api/v1/leads` (`LEADS_INTAKE_TOKEN`), `/api/v1/webhooks/openwork` (`OPENWORK_WEBHOOK_TOKEN`), `/api/v1/voice` (`VOICE_WEBHOOK_TOKEN`), `/api/v1/webhooks/{email,ig-dm,whatsapp,marinmekaniker,site,calcom}` (egna tokens/Meta-signatur), `/api/v1/auth` (login). **Allt annat under `/api/v1`, inklusive `/api/v1/claw/task-result` som Alex callback-skill anropar, kräver `Authorization: Bearer SCC_API_TOKEN`** — det var det som saknades i callback.sh fram till 6 sep.
 > - **NULÄGET FÖR DRIFT: läs `docs/DRIFT.md` först.** Den är den enda sanningen om tjänster, konton, flaggor och vad som är avvecklat. Stabiliseringsplan med nästa steg: artefakten "Skyland stabiliseringsplan" (claude.ai) + `docs/HANDOVER_2026-08-30.md`.
 > - Lead-intake (sedan 2026-08-30): hemsidan skylandai.se (Netlify `skyland-ai-os`) → **SCC direkt** `/api/v1/webhooks/site/*` (session, telemetri, The Void, röst) → `ingestLead()` in-process. **n8n är avvecklat**, alla workflows portade (`docs/SITE_FLOWS.md`, arkiv i `docs/n8n-archive/`). Röstagenterna ligger i SCC:s ElevenLabs-konto och anropar SCC `/site/agent-tools/*`.
 > - **DEPLOYAD (2026-07-14):** Backend kör i produktion på Render — tjänst `scc`, Frankfurt, Starter, Docker via `backend/Dockerfile` — på `https://scc.skylandai.se` (CNAME → scc-e8x1.onrender.com, TLS via Render). ngrok-tunneln är AVVECKLAD. Auto-deploy vid push till main. Env hanteras i Render-dashboarden. Kill switch för utgående mail: `OUTBOUND_ENABLED=false`. Se `docs/RENDER_DEPLOY.md` + `docs/HANDOVER_2026-07-14.md`.
@@ -173,8 +173,10 @@ LLM_PROVIDER env → adapter.ts factory → OpenAI / DeepSeek / OpenRouter adapt
 skyland-command-center/
 ├── backend/
 │   └── src/
-│       ├── index.ts              # Express-app, alla routes
-│       ├── services/supabase.ts  # Supabase-klient
+│       ├── server.ts             # Express-app (entrypoint). index.ts är legacy, körs inte
+│       ├── routes/               # ~57 modulfiler, en per API-område (sequences, dispatch, whatsappWebhook …)
+│       ├── middleware/auth.ts    # Global Bearer/cookie-auth för /api/v1/*
+│       ├── services/             # supabase.ts, sequenceRunner.ts, outreach.ts, comms.ts, email.ts …
 │       └── llm/
 │           ├── adapter.ts        # Provider-interface + factory
 │           ├── openaiAdapter.ts
@@ -184,17 +186,12 @@ skyland-command-center/
 │           └── tools.ts          # Tool definitions + handlers
 ├── frontend/
 │   └── src/
-│       ├── App.tsx               # Huvud-layout
+│       ├── App.tsx               # Huvud-layout: Alex, Försäljning, Kunder, Innehåll, System
 │       ├── api.ts                # API-klient + typer
-│       └── components/
-│           ├── Realm3D.tsx       # 3D-hexagondisk
-│           ├── CustomerList.tsx
-│           ├── ActivityLog.tsx
-│           ├── MasterBrainChat.tsx
-│           ├── PendingApprovals.tsx
-│           ├── TaskDetail.tsx
-│           ├── TaskProgressSection.tsx
-│           └── RunLogPanel.tsx
+│       ├── pages/                # Vyer: CrmView, ShadowReviewView (Skuggvecka), SequencesView,
+│       │                         #   CalendarView, TodoView, LeadsView, SystemDashboard …
+│       └── components/           # Realm3D (3D-disken, en del av UI:t — inte hela),
+│                                 #   PipelineBoard, ConversationInbox, PendingApprovals …
 ├── database/
 │   ├── schema.sql
 │   ├── seed.sql
@@ -296,7 +293,7 @@ lägg nya test-env-vars DÄR, inte i `.env`. **Bryt aldrig gröna tester; CI gat
 
 ## Att tänka på när du jobbar med koden
 
-1. **Backend-filen `index.ts` är stor (~2300 rader)** — all routing ligger i en fil. Hantera med omsorg.
+1. **Entrypoint är `server.ts`, routing ligger i `routes/`** — en modul per område. `index.ts` är en 127-raders legacy-fil som inte körs; rör den inte, bygg inte på den. (Gammal not sa "index.ts ~2300 rader" — det var före uppdelningen.)
 2. **Tester finns nu (~190 st) + CI** — kör `npm test` i `backend/` och `frontend/` innan du pushar; GitHub Actions kör dem vid varje push. Se avsnittet "Testning & CI". Bryt inte gröna tester.
 3. **Inga node_modules i repot** — kör `npm install` i både `backend/` och `frontend/` först.
 4. **Supabase-credentials krävs** — utan `.env` med rätt nycklar startar inte backend.
