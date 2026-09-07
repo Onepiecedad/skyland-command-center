@@ -37,6 +37,9 @@ interface TrattConfig {
     slug: string;
     engage: Set<string>;
     lead: Set<string>;
+    avslut: Set<string>;
+    /** Kortnamn kunden vill se. Tom = allt, som för Skyland. */
+    visa: string[];
 }
 
 async function loadTratt(slugQuery: unknown): Promise<TrattConfig | null> {
@@ -51,7 +54,7 @@ async function loadTratt(slugQuery: unknown): Promise<TrattConfig | null> {
     if (!data) return null;
 
     const webb = (data.config as Record<string, unknown> | null)?.webb as
-        | { engagemang?: string[]; lead?: string[] }
+        | { engagemang?: string[]; lead?: string[]; avslut?: string[]; visa?: string[] }
         | undefined;
 
     return {
@@ -59,6 +62,8 @@ async function loadTratt(slugQuery: unknown): Promise<TrattConfig | null> {
         slug: data.slug as string,
         engage: new Set(webb?.engagemang?.length ? webb.engagemang : SKYLAND_ENGAGE),
         lead: new Set(webb?.lead?.length ? webb.lead : SKYLAND_LEAD),
+        avslut: new Set(webb?.avslut ?? []),
+        visa: webb?.visa ?? [],
     };
 }
 
@@ -110,6 +115,7 @@ router.get('/stats', async (req: Request, res: Response) => {
         const engaged = new Set<string>();
         const leads = new Set<string>();
         const bookingClicks = new Set<string>();
+        const avslut = new Set<string>();
         const counts: Record<string, number> = {};
         const langSplit: Record<string, number> = {};
         const daily: Record<string, Set<string>> = {};
@@ -124,6 +130,8 @@ router.get('/stats', async (req: Request, res: Response) => {
             if (ENGAGE_TYPES.has(ev.type)) engaged.add(ev.session_uuid);
             if (LEAD_TYPES.has(ev.type)) leads.add(ev.session_uuid);
             if (ev.type === 'cta_book_click') bookingClicks.add(ev.session_uuid);
+            if (ENGAGE_TYPES.has(ev.type) || LEAD_TYPES.has(ev.type)) { /* redan räknad ovan */ }
+            if (tratt.avslut.has(ev.type)) avslut.add(ev.session_uuid);
             if (ev.type === 'lang' && typeof ev.data?.lang === 'string') {
                 langSplit[ev.data.lang as string] = (langSplit[ev.data.lang as string] || 0) + 1;
             }
@@ -177,6 +185,7 @@ router.get('/stats', async (req: Request, res: Response) => {
                 voice_calls: calls.length,
                 avg_call_seconds: avgCallSeconds,
                 booking_clicks: bookingClicks.size,
+                avslut: avslut.size,
                 conversion_pct: sessions.size
                     ? Math.min(Math.round(((tratt.slug === 'skyland' ? prospects.length : leads.size) / sessions.size) * 100), 100)
                     : 0,
@@ -186,7 +195,9 @@ router.get('/stats', async (req: Request, res: Response) => {
                 engaged: engaged.size,
                 leads: leads.size,
                 booking_clicks: bookingClicks.size,
+                avslut: avslut.size,
             },
+            visa: tratt.visa,
             event_counts: counts,
             lang_split: langSplit,
             roi_signals: Object.entries(roiBySession)

@@ -112,22 +112,30 @@ export default function WebsiteView({ tenant, visaWorkflows = true }: WebsiteVie
         return () => clearInterval(t);
     }, [load]);
 
+    // Kunden bestämmer vilka kort som är meningsfulla. Tom lista = allt, vilket
+    // är Skylands eget läge. En marinmekaniker har varken röstagent eller
+    // bokningsflöde, och då ska rutorna inte stå där och visa noll för evigt.
+    const visa = stats?.visa ?? [];
+    const vill = (kort: string) => visa.length === 0 || visa.includes(kort);
+
     const kpis = stats ? [
-        { label: 'Sessioner', value: stats.kpis.sessions },
-        { label: 'Engagerade', value: stats.kpis.engaged },
-        { label: 'Leads', value: stats.kpis.leads },
-        { label: 'Konvertering', value: `${stats.kpis.conversion_pct}%` },
-        { label: 'Röstsamtal', value: stats.kpis.voice_calls, sub: stats.kpis.avg_call_seconds ? `⌀ ${Math.round(stats.kpis.avg_call_seconds / 60 * 10) / 10} min` : undefined },
-        { label: 'Boknings-klick', value: stats.kpis.booking_clicks },
-    ] : [];
+        { kort: 'besok', label: 'Sessioner', value: stats.kpis.sessions },
+        { kort: 'engagemang', label: 'Engagerade', value: stats.kpis.engaged },
+        { kort: 'lead', label: 'Leads', value: stats.kpis.leads },
+        { kort: 'besok', label: 'Konvertering', value: `${stats.kpis.conversion_pct}%` },
+        { kort: 'avslut', label: 'Betalningar', value: stats.kpis.avslut },
+        { kort: 'rost', label: 'Röstsamtal', value: stats.kpis.voice_calls, sub: stats.kpis.avg_call_seconds ? `⌀ ${Math.round(stats.kpis.avg_call_seconds / 60 * 10) / 10} min` : undefined },
+        { kort: 'bokning', label: 'Boknings-klick', value: stats.kpis.booking_clicks },
+    ].filter((k) => vill(k.kort)) : [];
 
     const funnelMax = stats ? Math.max(stats.funnel.sessions, 1) : 1;
     const funnelSteps = stats ? [
-        { label: 'Besök', value: stats.funnel.sessions },
-        { label: 'Engagemang', value: stats.funnel.engaged },
-        { label: 'Lead-händelse', value: stats.funnel.leads },
-        { label: 'Bokningsklick', value: stats.funnel.booking_clicks },
-    ] : [];
+        { kort: 'besok', label: 'Besök', value: stats.funnel.sessions },
+        { kort: 'engagemang', label: 'Engagemang', value: stats.funnel.engaged },
+        { kort: 'lead', label: 'Lead-händelse', value: stats.funnel.leads },
+        { kort: 'avslut', label: 'Betalning', value: stats.funnel.avslut },
+        { kort: 'bokning', label: 'Bokningsklick', value: stats.funnel.booking_clicks },
+    ].filter((s) => vill(s.kort)) : [];
 
     return (
         <div className="website-view-root" style={{ padding: 24, maxWidth: 1200, margin: '0 auto' }}>
@@ -157,7 +165,7 @@ export default function WebsiteView({ tenant, visaWorkflows = true }: WebsiteVie
             {stats && (
                 <>
                     {/* KPI-rad */}
-                    <div className="website-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12, marginBottom: 16 }}>
+                    <div className="website-kpis" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(kpis.length, 1)}, 1fr)`, gap: 12, marginBottom: 16 }}>
                         {kpis.map((k) => (
                             <div key={k.label} style={{ ...cardStyle, textAlign: 'center', padding: '14px 8px' }}>
                                 <div style={{ fontSize: 26, fontWeight: 800 }}>{k.value}</div>
@@ -167,7 +175,7 @@ export default function WebsiteView({ tenant, visaWorkflows = true }: WebsiteVie
                         ))}
                     </div>
 
-                    <div className="website-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div className="website-grid" style={{ display: 'grid', gridTemplateColumns: (vill('roi') || vill('sprak')) ? '1.2fr 1fr' : '1fr', gap: 16, marginBottom: 16 }}>
                         {/* Tratt */}
                         <div style={cardStyle}>
                             <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', opacity: 0.5, marginBottom: 12 }}>
@@ -192,8 +200,11 @@ export default function WebsiteView({ tenant, visaWorkflows = true }: WebsiteVie
                             ))}
                         </div>
 
-                        {/* ROI-signaler + språk */}
+                        {/* ROI-signaler + språk. Båda är Skyland-specifika: ROI-kalkylatorn
+                            och språkväxlaren finns inte på kundernas sajter. */}
+                        {(vill('roi') || vill('sprak')) && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {vill('roi') && (
                             <div style={{ ...cardStyle, flex: 1 }}>
                                 <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', opacity: 0.5, marginBottom: 10 }}>
                                     🧮 ROI-signaler — besökarnas egna siffror
@@ -208,6 +219,8 @@ export default function WebsiteView({ tenant, visaWorkflows = true }: WebsiteVie
                                     </div>
                                 ))}
                             </div>
+                            )}
+                            {vill('sprak') && (
                             <div style={cardStyle}>
                                 <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', opacity: 0.5, marginBottom: 8 }}>Språk</div>
                                 <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
@@ -217,7 +230,9 @@ export default function WebsiteView({ tenant, visaWorkflows = true }: WebsiteVie
                                     {Object.keys(stats.lang_split).length === 0 && <span style={{ opacity: 0.5 }}>—</span>}
                                 </div>
                             </div>
+                            )}
                         </div>
+                        )}
                     </div>
 
                     {/* Workflow-hälsa */}

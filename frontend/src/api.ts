@@ -1203,9 +1203,12 @@ export interface WebsiteStats {
         voice_calls: number;
         avg_call_seconds: number;
         booking_clicks: number;
+        avslut: number;
         conversion_pct: number;
     };
-    funnel: { sessions: number; engaged: number; leads: number; booking_clicks: number };
+    funnel: { sessions: number; engaged: number; leads: number; booking_clicks: number; avslut: number };
+    /** Kortnamn kunden vill se. Tom lista = visa allt (Skyland). */
+    visa?: string[];
     event_counts: Record<string, number>;
     lang_split: Record<string, number>;
     roi_signals: Array<{ session_uuid: string; hours: number; rate: number; at: string }>;
