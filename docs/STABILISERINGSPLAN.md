@@ -87,7 +87,7 @@ laptopen gör det.
 - [x] **3.4** Alex flyttad till VPS: Hetzner CPX22 i Helsingfors, Ubuntu 26.04, gateway
       och poller som systemd-tjänster med linger. WhatsApp-sessionen överlevde utan
       omparning. Macen kan stängas *(31 aug natt)*
-- [~] **3.5** Inventering och städning utförda: `docs/OPENCLAW_CONFIG_INVENTERING.md`.
+- [x] **3.5** Inventering och städning utförda: `docs/OPENCLAW_CONFIG_INVENTERING.md`.
       Roten visar det som lever, spec-eran ligger i `_arkiv/`, Macens daily-ops
       avstängd, kvällssammanfattningen och morgonbriefen läser SCC:s
       `/reports/digest` i stället för Mac-verktyg, morgonjobben hopslagna till ett
@@ -97,8 +97,22 @@ laptopen gör det.
       Beslut om de nio VPS-verktygen fattat 1 sep: åtta arkiverade (fyra
       självklara + fyra "kan behövas framöver"), walkie-talkie-mode behålls.
       Macens spegel arkiverad 1 sep.
-      **Kvar:** kör arkiveringsblocket på VPS:en (HANDOVER_2026-09-01) och
-      installera TTS om walkie-talkie ska fungera
+      **Avslutat 7 sep.** Båda kvarpunkterna visade sig vara något annat än
+      de såg ut som, kontrollerat mot gatewayn i stället för mot dokumenten:
+      *(a)* arkiveringen 1 sep flyttade åtta verktyg till `_archived/` men
+      stängde inte av något — gatewayn scannar skills-roten rekursivt och
+      laddade dem vidare därifrån, `competitive-intelligence` med
+      `always: true` inkluderad. Det är `openclaw.json` som stänger av en
+      skill, inte katalogen. Nu avstängd; ingen alltid-påslagen skill kvar.
+      *(b)* TTS var aldrig problemet. SCC-endpointerna svarade, skillen låg
+      på VPS:en, ffmpeg fanns — `walkie-talkie` stod `enabled: false` i
+      configen och bar gammal ClawHub-metadata som gjorde den ogiltig. Båda
+      rättade, röstloopen verifierad skarpt på WhatsApp.
+      Sidofynd: repots `openclaw.json` är MACENS config (tailscale `off` mot
+      VPS:ens `serve`, Mac-sökvägar, inget tts-block). Att deploya den till
+      VPS:en hade brutit tailnet-anslutningen, hooks, plugins och röstsvaren
+      på en gång. `deploy_vps.sh` rör den aldrig; enskilda inställningar
+      ändras med `scripts/set_skill_enabled.sh`. Se `vps/README.md`
 - [x] **3.7** *(tillagd 1 sep)* Skyddsnät mot tysta flyttfel: preflight som eget
       cronjobb 06:30 med WhatsApp-larm efter ETT fel (sex kontroller, larmvägen
       skarptestad), och schemakontroll överst i morgonbriefen. Bakgrund: fem
