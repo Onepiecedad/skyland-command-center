@@ -139,6 +139,8 @@ export const ALLOWED_EVENTS = new Set([
     'roi_input', 'cta_book_click',
     // MarinMekaniker.nu (SCC-51)
     'bestall_start', 'kit_valt', 'egen_del_valt', 'tel_klick', 'swish_start', 'swish_betald',
+    // coldexperience.se (SCC-52)
+    'upplevelse_visad',
 ]);
 
 export function sanitizeEvents(body: Record<string, unknown>): Array<{ session_uuid: string; type: string; data: Record<string, unknown> }> | null {
@@ -162,6 +164,8 @@ export function sanitizeEvents(body: Record<string, unknown>): Array<{ session_u
         if (typeof d.kit === 'string') clean.kit = d.kit.slice(0, 80);
         if (typeof d.typ === 'string') clean.typ = d.typ.slice(0, 30);
         if (typeof d.plats === 'string') clean.plats = d.plats.slice(0, 30);
+        if (typeof d.upplevelse === 'string') clean.upplevelse = d.upplevelse.slice(0, 60);
+        if (typeof d.formular === 'string') clean.formular = d.formular.slice(0, 30);
         rows.push({ session_uuid: sid.toLowerCase(), type: ev.type, data: clean });
     }
     return rows.length ? rows : null;

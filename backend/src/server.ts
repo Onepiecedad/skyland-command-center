@@ -68,6 +68,7 @@ import adminRouter from './routes/admin.js';
 import openworkWebhookRouter from './routes/openworkWebhook.js';
 import leadsRouter from './routes/leads.js';
 import contactsRouter from './routes/contacts.js';
+import ceLeadsRouter from './routes/ceLeads.js';
 import studioAssetsRouter from './routes/studioAssets.js';
 import pipelinesRouter from './routes/pipelines.js';
 import activitiesDbRouter from './routes/activitiesDb.js';
@@ -144,6 +145,8 @@ class Server {
         // avgörs av site_key + allowed_origins i resolveTenant, inte av CORS.
         'https://marinmekaniker.nu',
         'https://www.marinmekaniker.nu',
+        'https://coldexperience.se',
+        'https://www.coldexperience.se',
         ...(process.env.EXTRA_CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
     ];
     this.app.use(cors({
@@ -263,6 +266,7 @@ class Server {
     this.app.use('/api/v1/bookings', bookingsRouter);      // Cal.com-spegel → kalendern (SCC-45)
     this.app.use('/api/v1/customers', customersRouter);
     this.app.use('/api/v1/contacts', contactsRouter);
+    this.app.use('/api/v1/ce/leads', ceLeadsRouter);  // Cold Experience: leads, tradar, handelselogg
     this.app.use('/api/v1/whatsapp', whatsappRouter);       // operatörens WhatsApp-svar + 24h-fönstret
     this.app.use('/api/v1/studio-assets', studioAssetsRouter); // Studio-material-arkiv (Storage-backat)
     this.app.use('/api/v1/pipelines', pipelinesRouter);

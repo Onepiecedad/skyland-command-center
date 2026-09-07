@@ -29,6 +29,7 @@ const EVENT_LABELS: Record<string, string> = {
     roi_input: 'ROI-kalkyl',
     cta_book_click: 'Bokningsklick',
     // MarinMekaniker.nu
+    upplevelse_visad: 'Upplevelse visad',
     bestall_start: 'Beställning påbörjad',
     kit_valt: 'Servicekit valt',
     egen_del_valt: 'Söker egna delar',
@@ -42,7 +43,7 @@ const EVENT_ICONS: Record<string, string> = {
     voice_start: '🎙', voice_end: '🎙', voice_error: '⚠️',
     form_start: '✏️', form_submit: '📨', form_error: '⚠️',
     roi_input: '🧮', cta_book_click: '📅', lang: '🌐',
-    bestall_start: '🛒', kit_valt: '📦', egen_del_valt: '🔍',
+    upplevelse_visad: '🏔', bestall_start: '🛒', kit_valt: '📦', egen_del_valt: '🔍',
     tel_klick: '📞', swish_start: '💳', swish_betald: '✅',
 };
 
@@ -65,6 +66,10 @@ function eventSummary(ev: { type: string; data: Record<string, unknown> }): stri
     if (ev.type === 'lang') return `${label}: ${String(ev.data.lang || '').toUpperCase()}`;
     if (ev.type === 'video_play' || ev.type === 'video_complete') return `${label} (${ev.data.video || ''})`;
     if (ev.type === 'kit_valt') return `${label}: ${ev.data.kit || '?'}`;
+    if (ev.type === 'upplevelse_visad') return `${label}: ${ev.data.upplevelse || '?'}`;
+    if (ev.type === 'form_start' || ev.type === 'form_submit') {
+        return ev.data.formular ? `${label} (${ev.data.formular})` : label;
+    }
     if (ev.type === 'bestall_start') return `${label}: ${ev.data.motor_typ || '?'}`;
     return label;
 }
