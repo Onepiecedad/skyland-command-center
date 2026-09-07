@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config';
 import { COOKIE_NAME, parseCookie, verifySessionToken } from '../services/session';
+import type { Principal } from './principal';
 
 const SCC_API_TOKEN = config.SCC_API_TOKEN;
 
@@ -9,6 +10,11 @@ const SCC_API_TOKEN = config.SCC_API_TOKEN;
  *  1. `Authorization: Bearer <SCC_API_TOKEN>` (integrationer, lokal dev)
  *  2. `?token=<SCC_API_TOKEN>` query param (SSE/EventSource)
  *  3. httpOnly-sessioncookie från operatörslogin (SCC-36)
+ *
+ * Sätter req.principal på den som släpps igenom. Idag blir alla tre vägarna
+ * operatören — det finns ingen kundinloggning ännu. Poängen är att anroparen
+ * HAR en identitet, så requireOperator kan stänga allt som inte uttryckligen
+ * gjorts kundsäkert innan en kundvy byggs.
  */
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
     const header = req.headers.authorization;
@@ -33,6 +39,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
         const cookieHeader = req.headers.cookie;
         const session = cookieHeader ? parseCookie(cookieHeader, COOKIE_NAME) : null;
         if (session && verifySessionToken(session)) {
+            req.principal = { kind: 'operator', source: 'session' } satisfies Principal;
             next();
             return;
         }
@@ -45,5 +52,6 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
         return;
     }
 
+    req.principal = { kind: 'operator', source: 'token' } satisfies Principal;
     next();
 }
