@@ -13,6 +13,7 @@ dotenv.config();
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { authMiddleware } from './middleware/auth.js';
+import { requireOperator } from './middleware/principal.js';
 import { globalLimiter, chatLimiter, adminLimiter } from './middleware/rateLimiter.js';
 
 // Import routes
@@ -204,8 +205,8 @@ class Server {
     // Legacy API routes (used by Alex tab via axiosConfig baseURL: '/api')
     // SEC-04: dessa returnerade data helt oautentiserat. Nu bakom samma
     // authMiddleware som /api/v1 (Bearer, ?token= eller sessionscookie).
-    this.app.use('/api/skills', authMiddleware, skillsRouter);
-    this.app.use('/api/activities', authMiddleware, activitiesRouter);
+    this.app.use('/api/skills', authMiddleware, requireOperator, skillsRouter);
+    this.app.use('/api/activities', authMiddleware, requireOperator, activitiesRouter);
 
     // ================================================================
     // Routes with their OWN auth or external callers — mounted BEFORE
@@ -235,6 +236,18 @@ class Server {
     this.app.use('/api/v1/auth', authRouter);
 
     this.app.use('/api/v1', authMiddleware);
+
+    // ================================================================
+    // Tenant-isolering: neka som default.
+    //
+    // Allt under /api/v1 kräver operatörsbehörighet. Idag blir varje
+    // autentiserad anropare operatör, så det här ändrar ingenting i drift —
+    // men när en kundinloggning byggs kan en kundsession inte råka nå en rutt
+    // som aldrig granskats för det. En kundsäker router monteras MELLAN
+    // authMiddleware ovan och den här raden, och läser data via
+    // services/tenantScope. Ta aldrig bort grinden för att öppna en rutt.
+    // ================================================================
+    this.app.use('/api/v1', requireOperator);
 
     // ================================================================
     // API v1 routes (used by frontend api.ts with API_BASE /api/v1)
