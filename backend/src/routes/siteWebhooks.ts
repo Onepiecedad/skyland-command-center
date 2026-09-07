@@ -90,6 +90,19 @@ export async function resolveTenant(req: Request): Promise<string | null> {
 }
 
 async function upsertSession(row: { session_uuid: string; tenant_id: string; user_agent?: string | null; entry_module?: string | null }) {
+    // session_uuid är unikt globalt, inte per kund. Utan den här kontrollen
+    // flyttar en upsert tyst en befintlig session till en annan tenant om
+    // samma uuid dyker upp igen — kollision, påhittat id eller ett testanrop.
+    const { data: befintlig } = await db()
+        .from('sessions')
+        .select('tenant_id')
+        .eq('session_uuid', row.session_uuid)
+        .maybeSingle();
+
+    if (befintlig && befintlig.tenant_id && befintlig.tenant_id !== row.tenant_id) {
+        throw new Error('session_uuid tillhör redan en annan tenant');
+    }
+
     const { data, error } = await db().from('sessions').upsert(row, { onConflict: 'session_uuid' }).select().single();
     if (error) throw new Error(`sessions upsert: ${error.message}`);
     return data;
