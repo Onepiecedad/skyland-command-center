@@ -80,6 +80,8 @@ export interface Customer {
     open_tasks: number;
     failed_tasks_24h: number;
     last_activity: string | null;
+    /** Tenant-slug för kundens egen webbspårning. Null = ingen sajt kopplad. */
+    site_tenant_slug?: string | null;
 }
 
 export interface Activity {
@@ -1226,14 +1228,16 @@ export interface WorkflowHealth {
     last_run: string;
 }
 
-export async function fetchWebsiteStats(days = 7): Promise<WebsiteStats> {
-    const res = await fetchWithAuth(`${API_BASE}/website/stats?days=${days}`);
+export async function fetchWebsiteStats(days = 7, tenant?: string): Promise<WebsiteStats> {
+    const q = tenant ? `&tenant=${encodeURIComponent(tenant)}` : '';
+    const res = await fetchWithAuth(`${API_BASE}/website/stats?days=${days}${q}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
 }
 
-export async function fetchWebsiteSessions(limit = 25): Promise<WebsiteSession[]> {
-    const res = await fetchWithAuth(`${API_BASE}/website/sessions?limit=${limit}`);
+export async function fetchWebsiteSessions(limit = 25, tenant?: string): Promise<WebsiteSession[]> {
+    const q = tenant ? `&tenant=${encodeURIComponent(tenant)}` : '';
+    const res = await fetchWithAuth(`${API_BASE}/website/sessions?limit=${limit}${q}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return data.sessions || [];

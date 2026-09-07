@@ -28,6 +28,13 @@ const EVENT_LABELS: Record<string, string> = {
     form_error: 'Formulärfel',
     roi_input: 'ROI-kalkyl',
     cta_book_click: 'Bokningsklick',
+    // MarinMekaniker.nu
+    bestall_start: 'Beställning påbörjad',
+    kit_valt: 'Servicekit valt',
+    egen_del_valt: 'Söker egna delar',
+    tel_klick: 'Ringde',
+    swish_start: 'Swish startad',
+    swish_betald: 'Swish betald',
 };
 
 const EVENT_ICONS: Record<string, string> = {
@@ -35,6 +42,8 @@ const EVENT_ICONS: Record<string, string> = {
     voice_start: '🎙', voice_end: '🎙', voice_error: '⚠️',
     form_start: '✏️', form_submit: '📨', form_error: '⚠️',
     roi_input: '🧮', cta_book_click: '📅', lang: '🌐',
+    bestall_start: '🛒', kit_valt: '📦', egen_del_valt: '🔍',
+    tel_klick: '📞', swish_start: '💳', swish_betald: '✅',
 };
 
 const cardStyle: React.CSSProperties = {
@@ -55,10 +64,23 @@ function eventSummary(ev: { type: string; data: Record<string, unknown> }): stri
     if (ev.type === 'roi_input') return `${label}: ${ev.data.hours} h/v × ${ev.data.rate} kr`;
     if (ev.type === 'lang') return `${label}: ${String(ev.data.lang || '').toUpperCase()}`;
     if (ev.type === 'video_play' || ev.type === 'video_complete') return `${label} (${ev.data.video || ''})`;
+    if (ev.type === 'kit_valt') return `${label}: ${ev.data.kit || '?'}`;
+    if (ev.type === 'bestall_start') return `${label}: ${ev.data.motor_typ || '?'}`;
     return label;
 }
 
-export default function WebsiteView() {
+/**
+ * Vilken sajt vyn visar. Utan prop svarar backend för skylandai.se, precis
+ * som innan kunderna kunde ha egen spårning (SCC-51).
+ */
+export interface WebsiteViewProps {
+    /** Tenant-slug, t.ex. "marinmekaniker". Utelämnad = Skyland. */
+    tenant?: string;
+    /** n8n-hälsan hör bara till Skyland och göms för kundvyer. */
+    visaWorkflows?: boolean;
+}
+
+export default function WebsiteView({ tenant, visaWorkflows = true }: WebsiteViewProps = {}) {
     const [stats, setStats] = useState<WebsiteStats | null>(null);
     const [sessions, setSessions] = useState<WebsiteSession[]>([]);
     const [workflows, setWorkflows] = useState<WorkflowHealth[]>([]);
@@ -69,9 +91,11 @@ export default function WebsiteView() {
     const load = useCallback(async () => {
         try {
             const [s, sess, wf] = await Promise.all([
-                fetchWebsiteStats(days),
-                fetchWebsiteSessions(30),
-                fetchWebsiteWorkflows().catch(() => [] as WorkflowHealth[]),
+                fetchWebsiteStats(days, tenant),
+                fetchWebsiteSessions(30, tenant),
+                visaWorkflows
+                    ? fetchWebsiteWorkflows().catch(() => [] as WorkflowHealth[])
+                    : Promise.resolve([] as WorkflowHealth[]),
             ]);
             setStats(s);
             setSessions(sess);
@@ -80,7 +104,7 @@ export default function WebsiteView() {
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Kunde inte hämta data');
         }
-    }, [days]);
+    }, [days, tenant, visaWorkflows]);
 
     useEffect(() => {
         void load();

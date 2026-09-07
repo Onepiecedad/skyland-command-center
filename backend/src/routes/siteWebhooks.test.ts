@@ -1,13 +1,21 @@
 /** SCC-48 — sajt-webhookarnas rena logik (validering, poäng, språk, röstnormalisering). Inga nätanrop. */
 import { describe, it, expect, vi } from 'vitest';
 
-vi.mock('../services/supabase', () => ({ supabase: { from: () => ({}) }, websiteSupabase: null }));
+const tenantSvar = vi.hoisted(() => ({ data: null as unknown }));
+vi.mock('../services/supabase', () => ({
+    supabase: {
+        from: () => ({
+            select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve(tenantSvar) }) }),
+        }),
+    },
+    websiteSupabase: null,
+}));
 vi.mock('../config', () => ({ config: { SCC_API_TOKEN: 't', OPENAI_API_KEY: undefined } }));
 vi.mock('../services/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock('./leads', () => ({ ingestLead: vi.fn() }));
 vi.mock('../services/siteRag', () => ({ ragQuery: vi.fn() }));
 
-import { sanitizeEvents, scoreLead, detectLanguage, normalizeVoicePayload } from './siteWebhooks';
+import { sanitizeEvents, scoreLead, detectLanguage, normalizeVoicePayload, resolveTenant, SKYLAND_TENANT_ID } from './siteWebhooks';
 
 const SID = '3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b';
 
@@ -71,5 +79,41 @@ describe('normalizeVoicePayload', () => {
         expect(r.extracted_data.pain_points).toEqual(['bokningar', 'fakturor', 'uppföljning']);
         expect(r.extracted_data.meeting_requested).toBe(true);
         expect(r.summary).toContain('Hej! Vad heter du?');
+    });
+});
+
+describe('resolveTenant', () => {
+    const req = (body: Record<string, unknown>, origin?: string) =>
+        ({ body, headers: origin ? { origin } : {} }) as never;
+
+    it('utan sajtnyckel svarar Skyland, så skylandai.se fortsätter oförändrat', async () => {
+        tenantSvar.data = null;
+        await expect(resolveTenant(req({ session_uuid: SID }))).resolves.toBe(SKYLAND_TENANT_ID);
+    });
+
+    it('okänd nyckel nekas', async () => {
+        tenantSvar.data = null;
+        await expect(resolveTenant(req({ site_key: 'sk_hittepa' }, 'https://marinmekaniker.nu'))).resolves.toBeNull();
+    });
+
+    it('pausad tenant nekas', async () => {
+        tenantSvar.data = { id: 'a', slug: 'x', status: 'paused', allowed_origins: ['https://x.se'] };
+        await expect(resolveTenant(req({ site_key: 'sk_pausad' }, 'https://x.se'))).resolves.toBeNull();
+    });
+
+    it('fel avsändaradress nekas även med giltig nyckel', async () => {
+        tenantSvar.data = { id: 'mm', slug: 'marinmekaniker', status: 'active', allowed_origins: ['https://marinmekaniker.nu'] };
+        await expect(resolveTenant(req({ site_key: 'sk_ok' }, 'https://elak.example'))).resolves.toBeNull();
+        await expect(resolveTenant(req({ site_key: 'sk_ok' }))).resolves.toBeNull();
+    });
+
+    it('tenant utan tillåtna adresser nekas även med rätt nyckel', async () => {
+        tenantSvar.data = { id: 'tom', slug: 'tom', status: 'active', allowed_origins: [] };
+        await expect(resolveTenant(req({ site_key: 'sk_tom' }, 'https://vadsomhelst.se'))).resolves.toBeNull();
+    });
+
+    it('rätt nyckel och rätt adress ger tenantens id', async () => {
+        tenantSvar.data = { id: 'mm', slug: 'marinmekaniker', status: 'active', allowed_origins: ['https://marinmekaniker.nu'] };
+        await expect(resolveTenant(req({ site_key: 'sk_ok2' }, 'https://marinmekaniker.nu'))).resolves.toBe('mm');
     });
 });

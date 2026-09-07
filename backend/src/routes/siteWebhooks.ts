@@ -44,7 +44,52 @@ function tokenAuth(envName: string) {
 
 const str = (v: unknown, max = 500): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
-async function upsertSession(row: { session_uuid: string; user_agent?: string | null; entry_module?: string | null }) {
+// ---------------------------------------------------------------------------
+// Tenant per sajt (SCC-51). skylandai.se skickar ingen nyckel och landar därför
+// på skyland, precis som förr. Andra sajter skickar site_key och måste dessutom
+// komma från en adress som står i tenantens allowed_origins — nyckeln ligger i
+// webbläsaren och är alltså ingen hemlighet i sig.
+// ---------------------------------------------------------------------------
+export const SKYLAND_TENANT_ID = '8270706f-5bf8-4996-804b-a30fba20831d';
+
+type TenantRad = { id: string; slug: string; status: string; allowed_origins: string[] | null };
+const tenantCache = new Map<string, { rad: TenantRad; till: number }>();
+const CACHE_MS = 60_000;
+
+async function tenantFromKey(siteKey: string): Promise<TenantRad | null> {
+    const cachad = tenantCache.get(siteKey);
+    if (cachad && cachad.till > Date.now()) return cachad.rad;
+
+    const { data } = await supabase
+        .from('tenants')
+        .select('id, slug, status, allowed_origins')
+        .eq('site_key', siteKey)
+        .maybeSingle();
+
+    if (!data) return null;
+    tenantCache.set(siteKey, { rad: data as TenantRad, till: Date.now() + CACHE_MS });
+    return data as TenantRad;
+}
+
+/** Returnerar tenant_id, eller null om nyckeln/avsändaren inte duger. */
+export async function resolveTenant(req: Request): Promise<string | null> {
+    const siteKey = str(req.body?.site_key, 64);
+    if (!siteKey) return SKYLAND_TENANT_ID;
+
+    const tenant = await tenantFromKey(siteKey);
+    if (!tenant || tenant.status !== 'active') return null;
+
+    // Tom lista betyder INTE fritt fram. En tenant utan tillåtna adresser får
+    // inte spåra alls — annars vore en läckt nyckel helt oskyddad.
+    const origin = req.headers.origin;
+    const tillatna = tenant.allowed_origins ?? [];
+    if (tillatna.length === 0) return null;
+    if (!origin || !tillatna.includes(origin)) return null;
+
+    return tenant.id;
+}
+
+async function upsertSession(row: { session_uuid: string; tenant_id: string; user_agent?: string | null; entry_module?: string | null }) {
     const { data, error } = await db().from('sessions').upsert(row, { onConflict: 'session_uuid' }).select().single();
     if (error) throw new Error(`sessions upsert: ${error.message}`);
     return data;
@@ -58,8 +103,10 @@ router.post('/session-init', publicLimiter, async (req: Request, res: Response) 
     const b = req.body || {};
     const sid = str(b.session_uuid, 64).toLowerCase();
     if (!UUID_V4.test(sid)) return res.status(400).json([{ error: 'invalid session_uuid' }]);
+    const tenantId = await resolveTenant(req);
+    if (!tenantId) return res.status(403).json([{ error: 'unknown site_key or origin' }]);
     try {
-        const row = await upsertSession({ session_uuid: sid, user_agent: str(b.user_agent, 400) || null, entry_module: str(b.entry_module, 40) || 'core' });
+        const row = await upsertSession({ session_uuid: sid, tenant_id: tenantId, user_agent: str(b.user_agent, 400) || null, entry_module: str(b.entry_module, 40) || 'core' });
         return res.json([row]);
     } catch (e) {
         logger.error('site.session', 'session-init failed', { error: String(e) });
@@ -77,6 +124,8 @@ export const ALLOWED_EVENTS = new Set([
     'voice_start', 'voice_end', 'voice_error',
     'form_start', 'form_submit', 'form_error',
     'roi_input', 'cta_book_click',
+    // MarinMekaniker.nu (SCC-51)
+    'bestall_start', 'kit_valt', 'egen_del_valt', 'tel_klick', 'swish_start', 'swish_betald',
 ]);
 
 export function sanitizeEvents(body: Record<string, unknown>): Array<{ session_uuid: string; type: string; data: Record<string, unknown> }> | null {
@@ -95,6 +144,11 @@ export function sanitizeEvents(body: Record<string, unknown>): Array<{ session_u
         if (typeof d.hours === 'number' && Number.isFinite(d.hours)) clean.hours = Math.max(0, Math.min(200, d.hours));
         if (typeof d.rate === 'number' && Number.isFinite(d.rate)) clean.rate = Math.max(0, Math.min(10000, d.rate));
         if (typeof d.seconds === 'number' && Number.isFinite(d.seconds)) clean.seconds = Math.max(0, Math.min(86400, Math.round(d.seconds)));
+        if (typeof d.sida === 'string') clean.sida = d.sida.slice(0, 120);
+        if (typeof d.motor_typ === 'string') clean.motor_typ = d.motor_typ.slice(0, 30);
+        if (typeof d.kit === 'string') clean.kit = d.kit.slice(0, 80);
+        if (typeof d.typ === 'string') clean.typ = d.typ.slice(0, 30);
+        if (typeof d.plats === 'string') clean.plats = d.plats.slice(0, 30);
         rows.push({ session_uuid: sid.toLowerCase(), type: ev.type, data: clean });
     }
     return rows.length ? rows : null;
@@ -103,7 +157,9 @@ export function sanitizeEvents(body: Record<string, unknown>): Array<{ session_u
 router.post('/track-event', publicLimiter, async (req: Request, res: Response) => {
     const rows = sanitizeEvents(req.body || {});
     if (!rows) return res.status(400).json({ ok: false });
-    const { error } = await db().from('events').insert(rows);
+    const tenantId = await resolveTenant(req);
+    if (!tenantId) return res.status(403).json({ ok: false });
+    const { error } = await db().from('events').insert(rows.map(r => ({ ...r, tenant_id: tenantId })));
     if (error) { logger.warn('site.track', 'events insert failed', { error: error.message }); return res.status(500).json({ ok: false }); }
     return res.json({ ok: true });
 });
@@ -239,7 +295,7 @@ router.post('/void-submission', formLimiter, async (req: Request, res: Response)
     const fallbackText = `Tack för ditt meddelande, ${name}. Joakim återkommer personligen inom 24 timmar med ett konkret förslag baserat på det du beskrivit.`;
 
     try {
-        await upsertSession({ session_uuid: sid });
+        await upsertSession({ session_uuid: sid, tenant_id: SKYLAND_TENANT_ID });
         const { data: prospect, error: pErr } = await db().from('prospects')
             .insert({ ...lead, consent_given: true, score: 0 }).select('id,session_uuid').single();
         if (pErr || !prospect) throw new Error(`prospects insert: ${pErr?.message}`);
@@ -338,7 +394,7 @@ export async function handleVoiceCallEnded(raw: Record<string, any>): Promise<{ 
     const n = normalizeVoicePayload(raw || {});
     if (!n.ok) return { code: 400, body: { status: 'error', message: n.message } };
     try {
-        await upsertSession({ session_uuid: n.session_uuid });
+        await upsertSession({ session_uuid: n.session_uuid, tenant_id: SKYLAND_TENANT_ID });
         const { data: prospects } = await db().from('prospects').select('id,customer_id').eq('session_uuid', n.session_uuid).order('created_at', { ascending: false }).limit(1);
         const prospect_id = prospects?.[0]?.id ?? null;
         const customer_id = prospects?.[0]?.customer_id ?? null;

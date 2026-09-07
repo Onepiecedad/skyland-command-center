@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { websiteSupabase } from '../services/supabase';
+import { websiteSupabase, supabase } from '../services/supabase';
 
 /**
  * Website analytics — aggregates the anonymous telemetry from
@@ -22,6 +22,46 @@ function daysAgoIso(days: number): string {
     return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
+// ---------------------------------------------------------------------------
+// Tenant + tratt per sajt (SCC-51).
+//
+// Utan ?tenant= svarar endpointen för skylandai.se, precis som förr. Vad som
+// räknas som engagemang och lead skiljer sig per kund och läses från
+// tenants.config.webb; saknas den gäller Skylands egen uppsättning.
+// ---------------------------------------------------------------------------
+const SKYLAND_ENGAGE = ['video_play', 'starter_click', 'form_start', 'voice_start', 'roi_input'];
+const SKYLAND_LEAD = ['form_submit', 'voice_end'];
+
+interface TrattConfig {
+    tenantId: string;
+    slug: string;
+    engage: Set<string>;
+    lead: Set<string>;
+}
+
+async function loadTratt(slugQuery: unknown): Promise<TrattConfig | null> {
+    const slug = typeof slugQuery === 'string' && slugQuery ? slugQuery : 'skyland';
+
+    const { data } = await supabase
+        .from('tenants')
+        .select('id, slug, config')
+        .eq('slug', slug)
+        .maybeSingle();
+
+    if (!data) return null;
+
+    const webb = (data.config as Record<string, unknown> | null)?.webb as
+        | { engagemang?: string[]; lead?: string[] }
+        | undefined;
+
+    return {
+        tenantId: data.id as string,
+        slug: data.slug as string,
+        engage: new Set(webb?.engagemang?.length ? webb.engagemang : SKYLAND_ENGAGE),
+        lead: new Set(webb?.lead?.length ? webb.lead : SKYLAND_LEAD),
+    };
+}
+
 // ============================================================================
 // GET /stats?days=7 — KPIs, funnel, ROI signals, language split, daily series
 // ============================================================================
@@ -34,26 +74,36 @@ router.get('/stats', async (req: Request, res: Response) => {
         const days = Math.min(Math.max(parseInt(String(req.query.days || '7'), 10) || 7, 1), 90);
         const since = daysAgoIso(days);
 
+        const tratt = await loadTratt(req.query.tenant);
+        if (!tratt) return res.status(404).json({ error: 'Okänd tenant' });
+
         const [eventsRes, prospectsRes, callsRes] = await Promise.all([
             websiteSupabase
                 .from('events')
                 .select('session_uuid, type, data, created_at')
+                .eq('tenant_id', tratt.tenantId)
                 .gte('created_at', since)
                 .order('created_at', { ascending: true })
                 .limit(10000),
-            websiteSupabase
-                .from('prospects')
-                .select('id, session_uuid, created_at')
-                .gte('created_at', since),
-            websiteSupabase
-                .from('voice_calls')
-                .select('id, session_uuid, duration_seconds, created_at')
-                .gte('created_at', since),
+            // prospects och voice_calls saknar tenant_id och tillhör bara Skyland.
+            // För andra kunder är de tomma, annars hade deras tratt fått våra leads.
+            tratt.slug === 'skyland'
+                ? websiteSupabase
+                    .from('prospects')
+                    .select('id, session_uuid, created_at')
+                    .gte('created_at', since)
+                : Promise.resolve({ data: [] }),
+            tratt.slug === 'skyland'
+                ? websiteSupabase
+                    .from('voice_calls')
+                    .select('id, session_uuid, duration_seconds, created_at')
+                    .gte('created_at', since)
+                : Promise.resolve({ data: [] }),
         ]);
 
         const events = (eventsRes.data || []) as EventRow[];
-        const prospects = prospectsRes.data || [];
-        const calls = callsRes.data || [];
+        const prospects = (prospectsRes.data || []) as Array<{ session_uuid?: string }>;
+        const calls = (callsRes.data || []) as Array<{ session_uuid?: string; duration_seconds?: number }>;
 
         // Aggregate
         const sessions = new Set<string>();
@@ -65,8 +115,8 @@ router.get('/stats', async (req: Request, res: Response) => {
         const daily: Record<string, Set<string>> = {};
         const roiBySession: Record<string, { hours: number; rate: number; at: string }> = {};
 
-        const ENGAGE_TYPES = new Set(['video_play', 'starter_click', 'form_start', 'voice_start', 'roi_input']);
-        const LEAD_TYPES = new Set(['form_submit', 'voice_end']);
+        const ENGAGE_TYPES = tratt.engage;
+        const LEAD_TYPES = tratt.lead;
 
         for (const ev of events) {
             sessions.add(ev.session_uuid);
@@ -119,14 +169,17 @@ router.get('/stats', async (req: Request, res: Response) => {
 
         return res.json({
             days,
+            tenant: tratt.slug,
             kpis: {
                 sessions: sessions.size,
                 engaged: engaged.size,
-                leads: prospects.length,
+                leads: tratt.slug === 'skyland' ? prospects.length : leads.size,
                 voice_calls: calls.length,
                 avg_call_seconds: avgCallSeconds,
                 booking_clicks: bookingClicks.size,
-                conversion_pct: sessions.size ? Math.min(Math.round((prospects.length / sessions.size) * 100), 100) : 0,
+                conversion_pct: sessions.size
+                    ? Math.min(Math.round(((tratt.slug === 'skyland' ? prospects.length : leads.size) / sessions.size) * 100), 100)
+                    : 0,
             },
             funnel: {
                 sessions: sessions.size,
@@ -161,9 +214,13 @@ router.get('/sessions', async (req: Request, res: Response) => {
     try {
         const limit = Math.min(parseInt(String(req.query.limit || '25'), 10) || 25, 100);
 
+        const tratt = await loadTratt(req.query.tenant);
+        if (!tratt) return res.status(404).json({ error: 'Okänd tenant' });
+
         const { data: recent, error } = await websiteSupabase
             .from('events')
             .select('session_uuid, type, data, created_at')
+            .eq('tenant_id', tratt.tenantId)
             .order('created_at', { ascending: false })
             .limit(1500);
 
@@ -180,7 +237,7 @@ router.get('/sessions', async (req: Request, res: Response) => {
         }
 
         const uuids = [...bySession.keys()];
-        const { data: prospects } = uuids.length
+        const { data: prospects } = uuids.length && tratt.slug === 'skyland'
             ? await websiteSupabase
                 .from('prospects')
                 .select('session_uuid, name, company, score')

@@ -140,6 +140,10 @@ class Server {
         'https://skylandai.se',
         'https://www.skylandai.se',
         'https://skyland-ai-os.netlify.app',
+        // Kundsajter med egen spårning (SCC-51). Vilken tenant de skriver som
+        // avgörs av site_key + allowed_origins i resolveTenant, inte av CORS.
+        'https://marinmekaniker.nu',
+        'https://www.marinmekaniker.nu',
         ...(process.env.EXTRA_CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean),
     ];
     this.app.use(cors({

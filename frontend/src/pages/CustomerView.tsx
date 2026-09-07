@@ -41,14 +41,18 @@ const FILTER_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = 
 };
 
 type ViewMode = 'cards' | '3d';
-type DetailTab = 'overview' | 'contact' | 'agreements' | 'documents';
+type DetailTab = 'overview' | 'contact' | 'website' | 'agreements' | 'documents';
 
 const DETAIL_TABS: { key: DetailTab; icon: React.ReactNode; label: string }[] = [
     { key: 'overview', icon: <LayoutGrid size={14} />, label: 'Översikt' },
     { key: 'contact', icon: <Mail size={14} />, label: 'Kontakt' },
+    // Visas bara för kunder som har en spårad sajt (SCC-51).
+    { key: 'website', icon: <Globe size={14} />, label: 'Hemsida' },
     { key: 'agreements', icon: <Handshake size={14} />, label: 'Avtal' },
     { key: 'documents', icon: <FileText size={14} />, label: 'Dokument' },
 ];
+
+const WebsiteView = lazy(() => import('./WebsiteView'));
 
 interface Props {
     onTaskCreated: () => void;
@@ -229,7 +233,7 @@ export function CustomerView({ onTaskCreated }: Props) {
 
                             {/* Tab Navigation */}
                             <div className="cv-detail-tabs">
-                                {DETAIL_TABS.map(tab => (
+                                {DETAIL_TABS.filter(tab => tab.key !== 'website' || selectedCustomer?.site_tenant_slug).map(tab => (
                                     <button
                                         key={tab.key}
                                         className={`cv-detail-tab ${detailTab === tab.key ? 'active' : ''}`}
@@ -308,6 +312,19 @@ export function CustomerView({ onTaskCreated }: Props) {
                                         </div>
                                         <p className="cv-placeholder-note">Kontaktuppgifter hämtas från CRM</p>
                                     </div>
+                                )}
+
+                                {detailTab === 'website' && (
+                                    selectedCustomer?.site_tenant_slug ? (
+                                        <Suspense fallback={<div className="cv-detail-empty-tab"><p>Laddar hemsidedata…</p></div>}>
+                                            <WebsiteView tenant={selectedCustomer.site_tenant_slug} visaWorkflows={false} />
+                                        </Suspense>
+                                    ) : (
+                                        <div className="cv-detail-empty-tab">
+                                            <Globe size={24} strokeWidth={1.5} />
+                                            <p>Ingen sajt kopplad till kunden</p>
+                                        </div>
+                                    )
                                 )}
 
                                 {detailTab === 'agreements' && (
