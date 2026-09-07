@@ -15,7 +15,7 @@ vi.mock('../services/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), e
 vi.mock('./leads', () => ({ ingestLead: vi.fn() }));
 vi.mock('../services/siteRag', () => ({ ragQuery: vi.fn() }));
 
-import { sanitizeEvents, scoreLead, detectLanguage, normalizeVoicePayload, resolveTenant, SKYLAND_TENANT_ID } from './siteWebhooks';
+import { sanitizeEvents, scoreLead, detectLanguage, normalizeVoicePayload, resolveTenant, ceLeadFields, SKYLAND_TENANT_ID } from './siteWebhooks';
 
 const SID = '3f2a1b4c-5d6e-4f70-8a9b-0c1d2e3f4a5b';
 
@@ -115,5 +115,33 @@ describe('resolveTenant', () => {
     it('rätt nyckel och rätt adress ger tenantens id', async () => {
         tenantSvar.data = { id: 'mm', slug: 'marinmekaniker', status: 'active', allowed_origins: ['https://marinmekaniker.nu'] };
         await expect(resolveTenant(req({ site_key: 'sk_ok2' }, 'https://marinmekaniker.nu'))).resolves.toBe('mm');
+    });
+});
+
+describe('ceLeadFields', () => {
+    it('kastar skräp i e-post och telefon i stället för att spara det', () => {
+        const f = ceLeadFields({ name: '  Sarah  ', email: 'inte-en-adress', phone: '07' });
+        expect(f.name).toBe('Sarah');
+        expect(f.email).toBe('');
+        expect(f.phone).toBe('');
+    });
+
+    it('normaliserar e-post och behåller plus i landsnumret', () => {
+        const f = ceLeadFields({ name: 'Paul', email: '  Paul@Example.COM ', phone: '+46 (0)73 181 45 68' });
+        expect(f.email).toBe('paul@example.com');
+        expect(f.phone).toBe('+460731814568');
+    });
+
+    it('gruppstorlek läses även från adults och avvisas när den är orimlig', () => {
+        expect(ceLeadFields({ name: 'A', adults: 3 }).group_size).toBe(3);
+        expect(ceLeadFields({ name: 'A', group_size: 0 }).group_size).toBeNull();
+        expect(ceLeadFields({ name: 'A', group_size: 500 }).group_size).toBeNull();
+        expect(ceLeadFields({ name: 'A', group_size: 'tva' }).group_size).toBeNull();
+    });
+
+    it('språk faller tillbaka på en, och meddelandet kapas', () => {
+        expect(ceLeadFields({ name: 'A' }).language).toBe('en');
+        expect(ceLeadFields({ name: 'A', language: 'PL' }).language).toBe('pl');
+        expect(ceLeadFields({ name: 'A', message: 'x'.repeat(3000) }).message).toHaveLength(2000);
     });
 });

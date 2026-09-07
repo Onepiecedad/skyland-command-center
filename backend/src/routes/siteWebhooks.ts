@@ -591,6 +591,119 @@ agentTools.post('/book_meeting', async (req: Request, res: Response) => {
     return res.json({ ok: false, error: booking.error });
 });
 
+
+// ---------------------------------------------------------------------------
+// POST /ce-lead — formulär från en kundsajt (Cold Experience först ut, SCC-52).
+//
+// Går samma väg som Meta-leadsen: raden hamnar i ce_leads och speglas därifrån
+// av databasens egna triggers ut i CRM:et. Ingen egen spegling här, ingen egen
+// vy. Notera att ce_leads ligger i huvudprojektet, alltså `supabase` och inte
+// `db()` som pekar på webbprojektet när det är konfigurerat.
+//
+// Gästen finns ofta redan, för hen har skrivit på WhatsApp eller fyllt i ett
+// Meta-formulär först. (tenant_id, phone) och (tenant_id, email) är unika, så vi
+// slår upp och kompletterar i stället för att låta insert:en krocka.
+// ---------------------------------------------------------------------------
+
+/** Plockar ut de fält vi vill ha i klartext på leadet. Resten sparas som formulärsvar. */
+export function ceLeadFields(b: Record<string, unknown>) {
+    const email = str(b.email, 200).toLowerCase();
+    const phone = str(b.phone, 40).replace(/[^\d+]/g, '');
+    const group = Number(b.group_size ?? b.adults);
+    return {
+        name: str(b.name, 120),
+        email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '',
+        phone: /\d{6,}/.test(phone) ? phone : '',
+        country: str(b.country, 60),
+        language: (str(b.language, 5) || 'en').toLowerCase(),
+        message: str(b.message, 2000),
+        group_size: Number.isFinite(group) && group > 0 && group < 100 ? Math.round(group) : null,
+    };
+}
+
+type CeLeadRad = { id: string; name: string | null; email: string | null; phone: string | null; qualification: Record<string, unknown> | null };
+
+router.post('/ce-lead', formLimiter, async (req: Request, res: Response) => {
+    const b = (req.body || {}) as Record<string, unknown>;
+
+    // Utan site_key faller resolveTenant tillbaka på Skyland, och ett gästlead
+    // från Lappland har inget där att göra. Kräv nyckeln uttryckligen.
+    if (!str(b.site_key, 64)) return res.status(400).json({ ok: false, error: 'site_key required' });
+    const tenantId = await resolveTenant(req);
+    if (!tenantId || tenantId === SKYLAND_TENANT_ID) return res.status(403).json({ ok: false, error: 'unknown site_key or origin' });
+    if (b.consent_given !== true) return res.status(400).json({ ok: false, error: 'consent_given must be true' });
+
+    const f = ceLeadFields(b);
+    if (f.name.length < 2) return res.status(400).json({ ok: false, error: 'name required' });
+    if (!f.email && !f.phone) return res.status(400).json({ ok: false, error: 'email or phone required' });
+
+    // Alla svar sparas som de kom, så detaljpanelen kan visa formuläret fråga för fråga.
+    const form = (b.form && typeof b.form === 'object' && !Array.isArray(b.form)) ? b.form as Record<string, unknown> : {};
+    const svar: Record<string, unknown> = { ...form };
+    if (f.message) svar.message = f.message;
+
+    try {
+        // Finns gästen redan? Telefon är starkaste nyckeln, e-post näst starkast.
+        let befintlig: CeLeadRad | null = null;
+        for (const [kolumn, varde] of [['phone', f.phone], ['email', f.email]] as const) {
+            if (!varde || befintlig) continue;
+            const { data } = await supabase.from('ce_leads')
+                .select('id,name,email,phone,qualification')
+                .eq('tenant_id', tenantId).eq(kolumn, varde)
+                .order('created_at', { ascending: false }).limit(1).maybeSingle();
+            if (data) befintlig = data as unknown as CeLeadRad;
+        }
+
+        if (befintlig) {
+            // Komplettera, skriv inte över. Det gästen redan lämnat är lika sant.
+            const patch: Record<string, unknown> = {
+                qualification: { ...(befintlig.qualification ?? {}), form: { ...(((befintlig.qualification ?? {}) as Record<string, unknown>).form as Record<string, unknown> ?? {}), ...svar } },
+                updated_at: new Date().toISOString(),
+            };
+            if (!befintlig.name && f.name) patch.name = f.name;
+            if (!befintlig.email && f.email) patch.email = f.email;
+            if (!befintlig.phone && f.phone) patch.phone = f.phone;
+            if (f.group_size) patch.group_size = f.group_size;
+            if (f.country) patch.country = f.country;
+            const { error } = await supabase.from('ce_leads').update(patch).eq('id', befintlig.id);
+            if (error) throw new Error(`ce_leads update: ${error.message}`);
+            await supabase.from('ce_lead_events').insert({
+                tenant_id: tenantId, lead_id: befintlig.id, event_type: 'form_received', actor: 'system',
+                payload: { source: 'website', session_uuid: str(b.session_uuid, 64) || null, kompletterade: true },
+            });
+            logger.info('site.ce', 'form merged into existing lead', { lead: befintlig.id, tenant: tenantId });
+            return res.json({ ok: true, lead_id: befintlig.id, merged: true });
+        }
+
+        const { data: skapad, error } = await supabase.from('ce_leads').insert({
+            tenant_id: tenantId,
+            name: f.name,
+            email: f.email || null,
+            phone: f.phone || null,
+            country: f.country || null,
+            language: f.language.slice(0, 2),
+            source: 'organic',
+            channel: f.phone ? 'whatsapp' : 'email',
+            status: 'new',
+            group_size: f.group_size,
+            qualification: { form: svar },
+            custom: { site: 'form', session_uuid: str(b.session_uuid, 64) || null },
+            dedupe_key: `site:${f.email || f.phone}`,
+        }).select('id').single();
+        if (error || !skapad) throw new Error(`ce_leads insert: ${error?.message}`);
+
+        await supabase.from('ce_lead_events').insert({
+            tenant_id: tenantId, lead_id: skapad.id, event_type: 'lead_created', actor: 'system',
+            payload: { source: 'website', channel: f.phone ? 'whatsapp' : 'email', session_uuid: str(b.session_uuid, 64) || null },
+        });
+        logger.info('site.ce', 'form lead created', { lead: skapad.id, tenant: tenantId });
+        return res.status(201).json({ ok: true, lead_id: skapad.id, merged: false });
+    } catch (e) {
+        logger.error('site.ce', 'ce-lead failed', { error: String(e), tenant: tenantId });
+        return res.status(500).json({ ok: false, error: 'internal' });
+    }
+});
+
 router.use('/agent-tools', agentTools);
 
 export default router;
