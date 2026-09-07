@@ -642,6 +642,14 @@ router.post('/ce-lead', formLimiter, async (req: Request, res: Response) => {
     const svar: Record<string, unknown> = { ...form };
     if (f.message) svar.message = f.message;
 
+    // ce_lead_overview läser citatet ur qualification.message och reseavsikten ur
+    // qualification.winter_intent. Skriver vi dem inte står kortet tomt där Meta-
+    // leadsen har text. Avsikten gissas aldrig här: sajten får säga vad den vet.
+    const intent = str(b.intent, 10);
+    const kval: Record<string, unknown> = { form: svar };
+    if (f.message) kval.message = f.message;
+    if (['yes', 'info', 'later'].includes(intent)) kval.winter_intent = intent;
+
     try {
         // Finns gästen redan? Telefon är starkaste nyckeln, e-post näst starkast.
         let befintlig: CeLeadRad | null = null;
@@ -657,7 +665,12 @@ router.post('/ce-lead', formLimiter, async (req: Request, res: Response) => {
         if (befintlig) {
             // Komplettera, skriv inte över. Det gästen redan lämnat är lika sant.
             const patch: Record<string, unknown> = {
-                qualification: { ...(befintlig.qualification ?? {}), form: { ...(((befintlig.qualification ?? {}) as Record<string, unknown>).form as Record<string, unknown> ?? {}), ...svar } },
+                qualification: {
+                    ...(befintlig.qualification ?? {}),
+                    ...(f.message ? { message: f.message } : {}),
+                    ...(kval.winter_intent ? { winter_intent: kval.winter_intent } : {}),
+                    form: { ...(((befintlig.qualification ?? {}) as Record<string, unknown>).form as Record<string, unknown> ?? {}), ...svar },
+                },
                 updated_at: new Date().toISOString(),
             };
             if (!befintlig.name && f.name) patch.name = f.name;
@@ -686,7 +699,7 @@ router.post('/ce-lead', formLimiter, async (req: Request, res: Response) => {
             channel: f.email ? 'email' : 'other',
             status: 'new',
             group_size: f.group_size,
-            qualification: { form: svar },
+            qualification: kval,
             custom: { site: 'form', session_uuid: str(b.session_uuid, 64) || null },
             dedupe_key: `site:${f.email || f.phone}`,
         }).select('id').single();
