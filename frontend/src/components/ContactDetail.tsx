@@ -426,31 +426,104 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
                 </div>
             )}
 
-            <Row label="Betyg">{custom.rating ? `${custom.rating} ★${custom.reviews ? ` (${custom.reviews})` : ''}` : '—'}</Row>
-            <Row label="Bokningsflöde">{custom.booking_flow ? (flowLabel[custom.booking_flow] ?? custom.booking_flow) : '—'}</Row>
-            <Row label="Kanal">{channel}</Row>
-            <Row label="Instagram">
-                {custom.instagram
-                    ? <a href={`https://instagram.com/${custom.instagram}`} target="_blank" rel="noreferrer" style={linkStyle}>@{custom.instagram}</a>
-                    : '—'}
-            </Row>
+            {/* Cold Experience-leads är gäster. Betyg, bokningsflöde, Instagram och adress
+                finns inte för dem, och "Kanal: email + IG DM" är direkt missvisande. */}
+            {custom.ce_lead_id ? (
+                <>
+                    <Row label="Vill">
+                        {custom.ce_intent === 'yes' ? '🔥 Komma i vinter'
+                            : custom.ce_intent === 'info' ? 'Ha mer information'
+                            : custom.ce_intent === 'later' ? 'Resa om 1–2 år' : '—'}
+                    </Row>
+                    <Row label="Kanal">
+                        {custom.ce_channel === 'whatsapp' ? '💬 WhatsApp'
+                            : custom.ce_channel === 'messenger' ? '📨 Messenger'
+                            : custom.ce_channel === 'email' ? '✉️ Mejl' : (custom.ce_channel ?? '—')}
+                        {custom.ce_country ? ` · ${custom.ce_country}` : ''}
+                    </Row>
+                    <Row label="Inkom">
+                        {custom.ce_received_at ? new Date(custom.ce_received_at).toLocaleString('sv-SE').slice(0, 16) : '—'}
+                    </Row>
+                    <Row label="Svarad">
+                        {custom.ce_answered
+                            ? `ja · ${custom.ce_messages_in ?? 0} in, ${custom.ce_messages_out ?? 0} ut`
+                            : <span style={{ color: '#FF9F0A' }}>nej</span>}
+                    </Row>
+                    {(custom.ce_adults || custom.ce_travel_when || custom.ce_days || custom.ce_departure) && (
+                        <Row label="Resan">
+                            {[custom.ce_adults ? `${custom.ce_adults} vuxna` : null,
+                              custom.ce_travel_when,
+                              custom.ce_days ? `${custom.ce_days} dagar` : null,
+                              custom.ce_departure ? `flyg: ${custom.ce_departure}` : null,
+                              custom.ce_price_eur ? `sett €${custom.ce_price_eur}` : null,
+                             ].filter(Boolean).join(' · ')}
+                        </Row>
+                    )}
+                    {custom.ce_callback && <Row label="Ring">{custom.ce_callback}</Row>}
+                    {custom.ce_ad_name && <Row label="Annons">{custom.ce_ad_name}</Row>}
+                </>
+            ) : (
+                <>
+                    <Row label="Betyg">{custom.rating ? `${custom.rating} ★${custom.reviews ? ` (${custom.reviews})` : ''}` : '—'}</Row>
+                    <Row label="Bokningsflöde">{custom.booking_flow ? (flowLabel[custom.booking_flow] ?? custom.booking_flow) : '—'}</Row>
+                    <Row label="Kanal">{channel}</Row>
+                    <Row label="Instagram">
+                        {custom.instagram
+                            ? <a href={`https://instagram.com/${custom.instagram}`} target="_blank" rel="noreferrer" style={linkStyle}>@{custom.instagram}</a>
+                            : '—'}
+                    </Row>
+                </>
+            )}
             <Row label="Telefon">
                 {c.phone ? <a href={`tel:${c.phone.replace(/\s+/g, '')}`} style={linkStyle}>{c.phone}</a> : '—'}
             </Row>
             <Row label="Mail">
                 {c.email ? <a href={`mailto:${c.email}`} style={linkStyle}>{c.email}</a> : '—'}
             </Row>
-            <Row label="Webb">
-                {custom.website
-                    ? <a href={custom.website} target="_blank" rel="noreferrer" style={linkStyle}>{custom.website.replace(/^https?:\/\/(www\.)?/, '')}</a>
-                    : '—'}
-            </Row>
-            <Row label="Adress">
-                {custom.address
-                    ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(custom.address)}`} target="_blank" rel="noreferrer" style={linkStyle}>📍 {custom.address}</a>
-                    : '—'}
-            </Row>
+            {!custom.ce_lead_id && (
+                <>
+                    <Row label="Webb">
+                        {custom.website
+                            ? <a href={custom.website} target="_blank" rel="noreferrer" style={linkStyle}>{custom.website.replace(/^https?:\/\/(www\.)?/, '')}</a>
+                            : '—'}
+                    </Row>
+                    <Row label="Adress">
+                        {custom.address
+                            ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(custom.address)}`} target="_blank" rel="noreferrer" style={linkStyle}>📍 {custom.address}</a>
+                            : '—'}
+                    </Row>
+                </>
+            )}
             <Row label="Status">{opportunity.status}</Row>
+
+            {/* Det gästen faktiskt skrev, och hela formuläret som det fylldes i. */}
+            {custom.ce_message && (
+                <div style={{ marginTop: 14 }}>
+                    <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 5 }}>Skrev i formuläret</div>
+                    <div style={{
+                        fontSize: 12, fontStyle: 'italic', lineHeight: 1.5, padding: 10,
+                        background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
+                    }}>”{custom.ce_message}”</div>
+                </div>
+            )}
+
+            {custom.ce_form && Object.keys(custom.ce_form).length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                    <div style={{ fontSize: 11, opacity: 0.5, marginBottom: 5 }}>Formuläret, fråga för fråga</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {Object.entries(custom.ce_form)
+                            .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+                            .map(([k, v]) => (
+                                <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12 }}>
+                                    <span style={{ opacity: 0.55 }}>
+                                        {k.replace(/_/g, ' ').replace(/\?$/, '').replace(/^./, (m) => m.toUpperCase())}
+                                    </span>
+                                    <span>{String(v).replace(/_/g, ' ')}</span>
+                                </div>
+                            ))}
+                    </div>
+                </div>
+            )}
 
             {igTags.length > 0 && (
                 <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>

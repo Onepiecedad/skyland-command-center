@@ -1309,6 +1309,28 @@ export interface ContactCustom {
     reviews?: string | null;
     niche?: string | null;
     area?: string | null;
+
+    // Cold Experience — satta av speglingen från ce_leads. Gäster, inte företag,
+    // så de har inget betyg, ingen Instagram och ingen adress.
+    ce_lead_id?: string | null;
+    ce_channel?: string | null;
+    ce_intent?: string | null;
+    ce_country?: string | null;
+    ce_status?: string | null;
+    ce_message?: string | null;
+    ce_last_inbound?: string | null;
+    ce_received_at?: string | null;
+    ce_answered?: boolean | null;
+    ce_messages_in?: number | null;
+    ce_messages_out?: number | null;
+    ce_travel_when?: string | null;
+    ce_days?: number | null;
+    ce_adults?: number | null;
+    ce_departure?: string | null;
+    ce_price_eur?: number | null;
+    ce_callback?: string | null;
+    ce_ad_name?: string | null;
+    ce_form?: Record<string, string> | null;
 }
 
 export interface OpportunityContact {

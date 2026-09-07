@@ -18,8 +18,30 @@ interface PipelineBoardProps {
 
 function matchesSearch(opp: Opportunity, q: string): boolean {
     const cu = opp.contact?.custom;
-    return [opp.title, opp.contact?.name, opp.contact?.email, opp.contact?.phone, cu?.instagram, cu?.website, cu?.address]
+    return [opp.title, opp.contact?.name, opp.contact?.email, opp.contact?.phone,
+            cu?.instagram, cu?.website, cu?.address, cu?.ce_message, cu?.ce_country]
         .some((v) => typeof v === 'string' && v.toLowerCase().includes(q));
+}
+
+/**
+ * Cold Experience-leads är gäster, inte företag. De har inga betyg, ingen
+ * Instagram och ingen adress. Korten visar i stället vad gästen vill, när,
+ * och vad hon skrev. Fälten kommer ur contacts.custom (ce_*), satta av
+ * speglingen från ce_leads.
+ */
+const CE_INTENT: Record<string, string> = {
+    yes: '🔥 Vill komma i vinter', info: 'Vill ha info', later: 'Om 1–2 år',
+};
+const CE_KANAL: Record<string, string> = {
+    whatsapp: '💬 WhatsApp', messenger: '📨 Messenger', email: '✉️ Mejl', other: 'okänd kanal',
+};
+
+function ceTid(iso?: string): string {
+    if (!iso) return '';
+    const m = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return `${d.getDate()} ${m[d.getMonth()]} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
 const glassCol: React.CSSProperties = {
@@ -359,6 +381,48 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                                     </span>
                                 )}
                             </div>
+                            {opp.contact?.custom?.ce_lead_id && (() => {
+                                const ce = opp.contact.custom;
+                                const resan = [
+                                    ce.ce_adults ? `${ce.ce_adults} vuxna` : null,
+                                    ce.ce_travel_when || null,
+                                    ce.ce_days ? `${ce.ce_days} dagar` : null,
+                                    ce.ce_departure ? `flyg: ${ce.ce_departure}` : null,
+                                    ce.ce_price_eur ? `sett €${ce.ce_price_eur}` : null,
+                                ].filter(Boolean).join(' · ');
+                                const skrev = ce.ce_message || ce.ce_last_inbound;
+                                return (
+                                    <>
+                                        <div style={{ fontSize: 11, marginTop: 4, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                            {ce.ce_intent && (
+                                                <span style={{ color: ce.ce_intent === 'yes' ? '#FF9F0A' : 'rgba(255,255,255,0.6)' }}>
+                                                    {CE_INTENT[ce.ce_intent] ?? ce.ce_intent}
+                                                </span>
+                                            )}
+                                            <span style={{ opacity: 0.35 }}>·</span>
+                                            <span style={{ opacity: 0.6 }}>{(ce.ce_channel && CE_KANAL[ce.ce_channel]) || ce.ce_channel || 'okänd kanal'}</span>
+                                            {ce.ce_country && <><span style={{ opacity: 0.35 }}>·</span><span style={{ opacity: 0.6 }}>{ce.ce_country}</span></>}
+                                        </div>
+                                        {resan && (
+                                            <div style={{ fontSize: 11, opacity: 0.75, marginTop: 3 }}>{resan}</div>
+                                        )}
+                                        {skrev && (
+                                            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4, fontStyle: 'italic', lineHeight: 1.4 }}>
+                                                ”{String(skrev).slice(0, 110)}{String(skrev).length > 110 ? '…' : ''}”
+                                            </div>
+                                        )}
+                                        <div style={{ fontSize: 10.5, marginTop: 5, display: 'flex', gap: 6, alignItems: 'center' }}>
+                                            <span style={{ opacity: 0.45 }}>{ceTid(ce.ce_received_at ?? undefined)}</span>
+                                            {ce.ce_answered === false && (
+                                                <><span style={{ opacity: 0.3 }}>·</span><span style={{ color: '#FF9F0A' }}>ej svarad</span></>
+                                            )}
+                                            {ce.ce_callback && (
+                                                <><span style={{ opacity: 0.3 }}>·</span><span style={{ opacity: 0.6 }}>ring {ce.ce_callback}</span></>
+                                            )}
+                                        </div>
+                                    </>
+                                );
+                            })()}
                             {opp.contact?.custom?.rating && (
                                 <div style={{ fontSize: 12, opacity: 0.6, marginTop: 3 }}>
                                     {opp.contact.custom.rating} ★{opp.contact?.custom?.reviews ? ` (${opp.contact.custom.reviews})` : ''}
