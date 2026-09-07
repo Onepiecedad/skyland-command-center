@@ -39,6 +39,20 @@ interface Skill {
 
 type SidebarTab = 'chat' | 'tasks' | 'skills' | 'costs';
 
+/* Gatewayn kategoriserar inte skills — den har namn och beskrivning. Enkel
+   nyckelordsgissning så ikonerna i listan blir rimliga; 'system' är default
+   och betyder "okategoriserad", inte "systemskill". */
+function categorizeSkill(name: string): Skill['category'] {
+  const n = name.toLowerCase();
+  if (/search|lookup|research|find|scrape|crawl/.test(n)) return 'search';
+  if (/mail|calendar|schedul|pipeline|batch|auto|poller|cron/.test(n)) return 'automation';
+  if (/content|writer|post|copy|caption|video|image|design|ad-/.test(n)) return 'content';
+  if (/monitor|watch|check|health|drift|report|analytic/.test(n)) return 'monitor';
+  if (/db|sql|supabase|data|csv|sheet|crm/.test(n)) return 'data';
+  if (/api|apify|apollo|slack|whatsapp|notion|github|connect/.test(n)) return 'integration';
+  return 'system';
+}
+
 /* ─── Config ─── */
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   search: <Globe size={14} />,
@@ -108,16 +122,39 @@ export default function AlexView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gateway.status]);
 
-  /* ─── Fetch real skills from backend ─── */
+  /* ─── Skills: gatewayn först, backendet som fallback ───
+     Katalogen bor på maskinen där OpenClaw kör. Molnbackendet kan inte läsa
+     den och svarade därför 0 — därav "Capabilities 0" med grön gateway.
+     WebSocket:en frontenden redan har öppen kan läsa den, så den får gå först
+     och backendet blir fallback för lokal körning utan gateway. */
+  const [backendSkills, setBackendSkills] = useState<Skill[]>([]);
+  const [backendSkillsAvailable, setBackendSkillsAvailable] = useState(true);
+
   useEffect(() => {
     fetchWithAuth(SKILLS_API)
       .then(r => r.json())
       .then(data => {
-        setSkills(data.skills || []);
-        setSkillsAvailable(data.available !== false);
+        setBackendSkills(data.skills || []);
+        setBackendSkillsAvailable(data.available !== false);
       })
       .catch(err => console.error('Failed to fetch skills:', err));
   }, []);
+
+  useEffect(() => {
+    if (gateway.skills.length > 0) {
+      setSkills(gateway.skills.map(g => ({
+        id: g.name,
+        name: g.name,
+        description: g.description || '',
+        category: categorizeSkill(g.name),
+        source: g.bundled ? ('standalone' as const) : ('workspace' as const),
+      })));
+      setSkillsAvailable(true);
+    } else {
+      setSkills(backendSkills);
+      setSkillsAvailable(backendSkillsAvailable);
+    }
+  }, [gateway.skills, backendSkills, backendSkillsAvailable]);
 
   /* ─── Rollformulär (ersätter gamla Rollfiler-modalen som läste filer
      från disk — de finns bara på operatörens dator, aldrig på Render) ─── */
@@ -203,7 +240,7 @@ export default function AlexView() {
             </div>
             <div className="alex-stat">
               <Layers size={10} />
-              <span title={skillsAvailable ? undefined : 'Skills-katalogen bor på maskinen där OpenClaw kör och kan inte läsas härifrån.'}>
+              <span title={skillsAvailable ? undefined : 'Skills-katalogen bor på maskinen där OpenClaw kör. Anslut gatewayn för att se den.'}>
                 {skillsAvailable ? `${skills.length} skills` : 'skills: ej läsbart här'}
               </span>
             </div>
@@ -284,7 +321,7 @@ export default function AlexView() {
                   <Puzzle size={13} />
                   <span>Capabilities</span>
                   <span className="alex-section-count"
-                        title={skillsAvailable ? undefined : 'Kan inte läsas från molnbackendet.'}>
+                        title={skillsAvailable ? undefined : 'Kan inte läsas från molnbackendet — kräver gateway-anslutning.'}>
                     {skillsAvailable ? skills.length : '?'}
                   </span>
                 </button>
