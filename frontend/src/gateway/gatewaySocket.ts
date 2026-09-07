@@ -87,6 +87,23 @@ export interface GatewayNode {
     capabilities?: string[];
 }
 
+/**
+ * En skill så som gatewayn rapporterar den (skills.status).
+ * Skills-katalogen bor på maskinen där OpenClaw kör, så molnbackendet kan
+ * aldrig läsa den — men WebSocket:en frontenden redan har öppen kan.
+ */
+export interface GatewaySkill {
+    name: string;
+    description?: string;
+    baseDir?: string;
+    emoji?: string;
+    homepage?: string;
+    source?: string;
+    bundled?: boolean;
+    disabled?: boolean;
+    eligible?: boolean;
+}
+
 export interface GatewaySession {
     key: string;
     label?: string;
@@ -247,6 +264,31 @@ export class GatewaySocket {
         const data = result as { messages?: unknown[] };
         const messages = (data.messages || []).map((m) => sanitizeMessage(m as Record<string, unknown>));
         return { messages };
+    }
+
+    /** Skills som gatewayn faktiskt har laddade. Tom lista om metoden saknas. */
+    async getSkills(): Promise<GatewaySkill[]> {
+        try {
+            const result = await this.request('skills.status', {});
+            const data = result as { skills?: unknown[] };
+            return (data.skills || []).map((raw) => {
+                const s = raw as Record<string, unknown>;
+                return {
+                    name: String(s.name || ''),
+                    description: s.description as string | undefined,
+                    baseDir: s.baseDir as string | undefined,
+                    emoji: s.emoji as string | undefined,
+                    homepage: s.homepage as string | undefined,
+                    source: s.source as string | undefined,
+                    bundled: s.bundled === true,
+                    disabled: s.disabled === true,
+                    eligible: s.eligible !== false,
+                } as GatewaySkill;
+            }).filter(s => s.name);
+        } catch {
+            console.warn('[GW] skills.status stöds inte');
+            return [];
+        }
     }
 
     async getNodes(): Promise<GatewayNode[]> {

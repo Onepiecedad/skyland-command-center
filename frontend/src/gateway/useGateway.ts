@@ -10,6 +10,7 @@ import {
     type GatewayMessage,
     type GatewayNode,
     type GatewaySession,
+    type GatewaySkill,
     type MemoryEntry,
     type ChatAttachment,
     type ChatStreamChunk,
@@ -57,6 +58,7 @@ export interface UseGatewayResult {
     isStreaming: boolean;
     nodes: GatewayNode[];
     sessions: GatewaySession[];
+    skills: GatewaySkill[];
     threadPreviews: Record<string, ThreadPreview>;
     memoryEntries: MemoryEntry[];
     sessionKey: string;
@@ -78,6 +80,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
     const [isStreaming, setIsStreaming] = useState(false);
     const [nodes, setNodes] = useState<GatewayNode[]>([]);
     const [sessions, setSessions] = useState<GatewaySession[]>([]);
+    const [skills, setSkills] = useState<GatewaySkill[]>([]);
     const [threadPreviews, setThreadPreviews] = useState<Record<string, ThreadPreview>>({});
     const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
     const [sessionKey, setSessionKey] = useState(initialSessionKey);
@@ -245,6 +248,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                 setStatus(s);
                 if (s === 'disconnected') {
                     setAlexState('unknown');
+                    setSkills([]);
                 } else if (s === 'connected') {
                     setAlexState('idle');
                 }
@@ -267,6 +271,11 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
                 try {
                     const s = await socket.getSessions('main');
                     setSessions(s.filter(keepUserSession));
+                } catch { /* ignore */ }
+                try {
+                    // Skills-katalogen finns bara där OpenClaw kör. Backendet på
+                    // Render kan inte läsa den, gatewayn kan.
+                    setSkills(await socket.getSkills());
                 } catch { /* ignore */ }
             },
             onError: (err) => {
@@ -435,6 +444,7 @@ export function useGateway(initialSessionKey = 'agent:skyland:main', options?: {
         isStreaming,
         nodes,
         sessions,
+        skills,
         threadPreviews,
         memoryEntries,
         sessionKey,
