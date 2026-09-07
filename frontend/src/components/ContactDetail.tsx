@@ -438,6 +438,7 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
                     <Row label="Kanal">
                         {custom.ce_channel === 'whatsapp' ? '💬 WhatsApp'
                             : custom.ce_channel === 'messenger' ? '📨 Messenger'
+                            : custom.ce_channel === 'web' ? '🌐 Webbformulär'
                             : custom.ce_channel === 'email' ? '✉️ Mejl' : (custom.ce_channel ?? '—')}
                         {custom.ce_country ? ` · ${custom.ce_country}` : ''}
                     </Row>

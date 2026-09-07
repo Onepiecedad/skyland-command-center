@@ -33,7 +33,8 @@ const CE_INTENT: Record<string, string> = {
     yes: '🔥 Vill komma i vinter', info: 'Vill ha info', later: 'Om 1–2 år',
 };
 const CE_KANAL: Record<string, string> = {
-    whatsapp: '💬 WhatsApp', messenger: '📨 Messenger', email: '✉️ Mejl', other: 'okänd kanal',
+    whatsapp: '💬 WhatsApp', messenger: '📨 Messenger', email: '✉️ Mejl',
+    web: '🌐 Webbformulär', other: 'okänd kanal',
 };
 
 function ceTid(iso?: string): string {

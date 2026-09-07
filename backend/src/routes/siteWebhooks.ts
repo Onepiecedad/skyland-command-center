@@ -696,7 +696,7 @@ router.post('/ce-lead', formLimiter, async (req: Request, res: Response) => {
             country: f.country || null,
             language: f.language.slice(0, 2),
             source: 'organic',
-            channel: f.email ? 'email' : 'other',
+            channel: 'web',
             status: 'new',
             group_size: f.group_size,
             qualification: kval,
@@ -707,7 +707,7 @@ router.post('/ce-lead', formLimiter, async (req: Request, res: Response) => {
 
         await supabase.from('ce_lead_events').insert({
             tenant_id: tenantId, lead_id: skapad.id, event_type: 'lead_created', actor: 'system',
-            payload: { source: 'website', channel: f.email ? 'email' : 'other', session_uuid: str(b.session_uuid, 64) || null },
+            payload: { source: 'website', channel: 'web', session_uuid: str(b.session_uuid, 64) || null },
         });
         logger.info('site.ce', 'form lead created', { lead: skapad.id, tenant: tenantId });
         return res.status(201).json({ ok: true, lead_id: skapad.id, merged: false });
