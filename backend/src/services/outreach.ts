@@ -122,7 +122,7 @@ const STOCKHOLM = 'Europe/Stockholm';
 
 /** (veckodag 1=mån..7=sön, timme, minut) i Stockholm för en tidpunkt. */
 /**
- * Dagens faktiska utskick — underlag för OUTBOUND_DAILY_LIMIT.
+ * Dagens faktiska utskick i EN hink — underlag för dagsbudgeten.
  *
  * Räknas på NÄR MEJLET GICK, inte när raden skapades. För maskinens egna
  * utskick är det samma ögonblick, men ett godkänt skuggmejl behåller sitt
@@ -137,24 +137,87 @@ const STOCKHOLM = 'Europe/Stockholm';
  *
  * Jämförelsen mot metadata->>approved_at är textuell, vilket är korrekt så
  * länge värdet skrivs med toISOString() — UTC, fast bredd, sorterbart.
+ *
+ * BUDGETEN ÄR INTE GLOBAL (8 sep). Trappan i docs/EMAIL_INFRA.md finns för att
+ * värma en avsändardomän, och rykte byggs per domän. Före det här delade Cold
+ * Experience och beautykampanjen på samma fem platser, och Gustav-robotens
+ * Messenger-svar räknades som kall utkorg fast de varken är mejl eller utkorg.
+ * Nu bär varje utskick sin hink i `metadata.budget_key` och räkningen filtrerar
+ * på den. Kanalfiltret ligger kvar som andra spärr: rader från spegeln
+ * (channel='messenger') kan aldrig hamna i en mejlhink oavsett metadata.
  */
-export async function countSentToday(now: Date = new Date()): Promise<number> {
+export async function countSentToday(key: string, now: Date = new Date()): Promise<number> {
     const start = new Date(now); start.setHours(0, 0, 0, 0);
     const startIso = start.toISOString();
-    const base = () => supabase.from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('direction', 'outbound');
+    const channel = key.startsWith('email:') ? 'email' : 'sms';
 
-    const [maskin, operator] = await Promise.all([
-        base().eq('status', 'sent').is('metadata->>approved_at', null).gte('created_at', startIso),
+    // Rader skrivna före hinkarna saknar budget_key. De gick alla från
+    // EMAIL_FROM, så bara standarddomänen ärver dem — skulle de räknas i varje
+    // hink startade en ny domän med någon annans historik. Att fråga två gånger
+    // och lägga ihop är avsiktligt i stället för en `or`: mängderna är disjunkta
+    // (null respektive exakt nyckeln), och `eq`/`is` är samma filterytor som
+    // resten av filen redan vilar på.
+    const nycklar: (string | null)[] = key === defaultBudgetKey(channel) ? [key, null] : [key];
+
+    const base = (nyckel: string | null) => {
+        const q = supabase.from('messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('direction', 'outbound')
+            .eq('channel', channel);
+        return nyckel === null
+            ? q.is('metadata->>budget_key', null)
+            : q.eq('metadata->>budget_key', nyckel);
+    };
+
+    const fragor = nycklar.flatMap(nyckel => [
+        base(nyckel).eq('status', 'sent').is('metadata->>approved_at', null).gte('created_at', startIso),
         // Operatörens "Skicka nu": sent ELLER queued (claimad, på väg) med
         // approved_at i dag. queued räknas så att platsen är reserverad medan
         // providern anropas — annars kunde två klick dela på sista platsen.
-        base().in('status', ['sent', 'queued']).gte('metadata->>approved_at', startIso),
+        base(nyckel).in('status', ['sent', 'queued']).gte('metadata->>approved_at', startIso),
     ]);
-    if (maskin.error) throw new Error(`Kunde inte räkna dagens utskick: ${maskin.error.message}`);
-    if (operator.error) throw new Error(`Kunde inte räkna dagens utskick: ${operator.error.message}`);
-    return (maskin.count ?? 0) + (operator.count ?? 0);
+
+    let summa = 0;
+    for (const svar of await Promise.all(fragor)) {
+        if (svar.error) throw new Error(`Kunde inte räkna dagens utskick: ${svar.error.message}`);
+        summa += svar.count ?? 0;
+    }
+    return summa;
+}
+
+/**
+ * Domändelen av en avsändare. Tål både "a@b.se" och "Namn <a@b.se>".
+ * Tom sträng om adressen är obrukbar — anropare får då hinken 'email:okand',
+ * som har standardtaket. Att gissa en domän vore värre än att vara tydlig.
+ */
+export function domainOfAddress(from: string | null | undefined): string {
+    const vinkel = /<([^>]+)>/.exec(from ?? '');
+    const adress = (vinkel ? vinkel[1] : (from ?? '')).trim();
+    const snabel = adress.lastIndexOf('@');
+    if (snabel === -1) return '';
+    return adress.slice(snabel + 1).trim().toLowerCase().replace(/[>,;\s]+$/, '');
+}
+
+/** Hinken ett utskick dras från. Mejl per avsändardomän, SMS för sig. */
+export function budgetKey(channel: 'email' | 'sms', from?: string | null): string {
+    if (channel === 'sms') return 'sms';
+    return `email:${domainOfAddress(from || config.EMAIL_FROM) || 'okand'}`;
+}
+
+/** Hinken som gamla rader utan budget_key tillhör. */
+export function defaultBudgetKey(channel: 'email' | 'sms'): string {
+    return budgetKey(channel, null);
+}
+
+/**
+ * Taket för en hink. OUTBOUND_DAILY_LIMITS får sätta ett eget värde per nyckel;
+ * saknas det gäller OUTBOUND_DAILY_LIMIT. En ny domän ärver alltså den
+ * försiktiga siffran tills någon medvetet höjer den, vilket är rätt håll att
+ * fela åt.
+ */
+export function dailyLimitFor(key: string): number {
+    const eget = config.OUTBOUND_DAILY_LIMITS?.[key];
+    return typeof eget === 'number' ? eget : config.OUTBOUND_DAILY_LIMIT;
 }
 
 export function stockholmParts(d: Date): { dow: number; hour: number; minute: number } {

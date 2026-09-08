@@ -42,20 +42,30 @@ vi.mock('./supabase', () => {
             from(table: string) {
                 if (table === 'messages') {
                     return {
-                        // countSentToday gör TVÅ frågor och summerar dem:
+                        // countSentToday frågar per hink och summerar:
                         //   maskinens sändningar  .is('metadata->>approved_at', null).gte(created_at)
                         //   operatörens knapptryck .gte('metadata->>approved_at', ...)
                         // Mocken måste skilja på dem, annars dubbelräknas
                         // outboundCount och dagsbudgettesterna mäter fel sak.
+                        //
+                        // Sedan 8 sep frågar den dessutom två gånger för
+                        // standarddomänen: en gång på budget_key = nyckeln och en
+                        // gång på budget_key IS NULL. Mängderna är disjunkta i
+                        // databasen, och mocken måste vara det också. Raderna här
+                        // föreställer historik från före hinkarna, alltså null.
                         select() {
                             let operator = false;
+                            let namngivenHink = false;
                             const chain = {
-                                eq: () => chain,
+                                eq: (col: string) => { if (col.includes('budget_key')) namngivenHink = true; return chain; },
                                 in: () => chain,   // countSentToday: status in (sent, queued) för operatörsdelen
                                 is: () => chain,
                                 gte: (col: string) => { if (col.includes('approved_at')) operator = true; return chain; },
                                 then: (resolve: (v: unknown) => void) =>
-                                    resolve({ count: operator ? 0 : state.outboundCount, error: state.countError }),
+                                    resolve({
+                                        count: operator || namngivenHink ? 0 : state.outboundCount,
+                                        error: state.countError,
+                                    }),
                             };
                             return chain;
                         },

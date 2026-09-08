@@ -7,7 +7,7 @@
 import { supabase } from './supabase';
 import { config } from '../config';
 import { getEmailProvider } from './email';
-import { countSentToday, isSuppressed } from './outreach';
+import { countSentToday, isSuppressed, budgetKey, dailyLimitFor } from './outreach';
 
 export interface CommsResult {
     success: boolean;
@@ -20,6 +20,8 @@ interface EmailTaskInput {
     subject?: string;
     body?: string;
     reply_to?: string;
+    /** Avsändare för just den här uppgiften. Utan den gäller EMAIL_FROM. */
+    from?: string;
 }
 
 export async function executeCommsEmail(
@@ -31,14 +33,18 @@ export async function executeCommsEmail(
         return { success: false, error: 'Utskick avstängda (OUTBOUND_ENABLED=false). Se SCC-35-checklistan innan aktivering.' };
     }
 
-    // 2. Daglig budget
-    const sentToday = await countSentToday();
-    if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
-        return { success: false, error: `Daglig utskicksbudget nådd (${sentToday}/${config.OUTBOUND_DAILY_LIMIT}). Se volymtrappan i docs/EMAIL_INFRA.md.` };
+    // 2. Daglig budget — per avsändardomän, inte global. Inputen läses före
+    // budgeten just därför: hinken beror på vem mejlet kommer från.
+    const input = (task.input ?? {}) as EmailTaskInput;
+    const from = typeof input.from === 'string' && input.from.trim() ? input.from.trim() : undefined;
+    const budget = budgetKey('email', from);
+    const limit = dailyLimitFor(budget);
+    const sentToday = await countSentToday(budget);
+    if (sentToday >= limit) {
+        return { success: false, error: `Daglig utskicksbudget för ${budget} nådd (${sentToday}/${limit}). Se volymtrappan i docs/EMAIL_INFRA.md.` };
     }
 
     // 3. Validera input + slå upp kontakt
-    const input = (task.input ?? {}) as EmailTaskInput;
     if (!input.contact_id) return { success: false, error: 'task.input.contact_id krävs' };
     if (!input.subject || !input.body) return { success: false, error: 'task.input.subject och body krävs' };
 
@@ -71,6 +77,7 @@ export async function executeCommsEmail(
             to,
             subject: input.subject,
             text: input.body,
+            from,
             replyTo: input.reply_to,
         });
         providerMessageId = result.providerMessageId;
@@ -84,7 +91,7 @@ export async function executeCommsEmail(
             direction: 'outbound',
             status: 'failed',
             content: `[MISSLYCKAT UTSKICK] ${input.subject}\n\n${input.body}`,
-            metadata: { contact_id: contact.id, task_id: task.id, run_id: runId, to, error: message },
+            metadata: { contact_id: contact.id, task_id: task.id, run_id: runId, to, from: from ?? null, error: message },
         });
         return { success: false, error: message };
     }
@@ -99,7 +106,7 @@ export async function executeCommsEmail(
             direction: 'outbound',
             status: 'sent',
             content: `${input.subject}\n\n${input.body}`,
-            metadata: { contact_id: contact.id, task_id: task.id, run_id: runId, to },
+            metadata: { contact_id: contact.id, task_id: task.id, run_id: runId, to, from: from ?? null, budget_key: budget },
             provider_message_id: providerMessageId,
         })
         .select('id')
@@ -124,7 +131,8 @@ export async function executeCommsEmail(
             to,
             contact_name: contact.name,
             sent_today: sentToday + 1,
-            daily_limit: config.OUTBOUND_DAILY_LIMIT,
+            budget_key: budget,
+            daily_limit: limit,
         },
     };
 }

@@ -2,9 +2,9 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('./supabase', () => ({ supabase: {} }));
-vi.mock('../config', () => ({ config: { OUTBOUND_ENABLED: false, OUTBOUND_MODE: 'auto', OUTREACH_WINDOW_ENABLED: true, OUTREACH_WINDOW_START_HOUR: 8, OUTREACH_WINDOW_END_HOUR: 17, OUTREACH_JITTER_MINUTES: 90 } }));
+vi.mock('../config', () => ({ config: { OUTBOUND_ENABLED: false, OUTBOUND_MODE: 'auto', OUTREACH_WINDOW_ENABLED: true, OUTREACH_WINDOW_START_HOUR: 8, OUTREACH_WINDOW_END_HOUR: 17, OUTREACH_JITTER_MINUTES: 90, EMAIL_FROM: 'Joakim — Skyland AI <joakim@send.skylandai.se>', OUTBOUND_DAILY_LIMIT: 5, OUTBOUND_DAILY_LIMITS: {} } }));
 
-import { splitDm, normalizeSuppressionValue, domainOf, outboundMode, suppressionApplies, normalizePolicy, stockholmParts, insideOutreachWindow, msUntilWindowOpen, outreachJitterMs } from './outreach';
+import { splitDm, normalizeSuppressionValue, domainOf, outboundMode, suppressionApplies, normalizePolicy, stockholmParts, insideOutreachWindow, msUntilWindowOpen, outreachJitterMs, domainOfAddress, budgetKey, defaultBudgetKey, dailyLimitFor } from './outreach';
 import { config } from '../config';
 
 describe('splitDm', () => {
@@ -120,5 +120,62 @@ describe('arbetstidsfönster (plan 2.5) — Europe/Stockholm', () => {
     it('outreachJitterMs: inom 0..JITTER minuter', () => {
         expect(outreachJitterMs(() => 0)).toBe(0);
         expect(outreachJitterMs(() => 0.999)).toBeLessThanOrEqual(90 * 60_000);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Dagsbudget per hink (8 sep). Bakgrund: taket var en enda global hink, så
+// Cold Experience och beautykampanjen delade på samma fem platser och
+// Gustav-robotens Messenger-svar räknades som kall mejlutkorg.
+// ---------------------------------------------------------------------------
+
+describe('domainOfAddress', () => {
+    it('naken adress', () => expect(domainOfAddress('gustav@coldexperience.se')).toBe('coldexperience.se'));
+    it('med visningsnamn och vinkelparenteser', () =>
+        expect(domainOfAddress('Gustav & Julia <Gustav@ColdExperience.SE>')).toBe('coldexperience.se'));
+    it('visningsnamn som självt innehåller snabel-a', () =>
+        expect(domainOfAddress('"kontakt@ os" <info@coldexperience.se>')).toBe('coldexperience.se'));
+    it('skräp ger tom sträng i stället för gissning', () => {
+        expect(domainOfAddress('ingen adress')).toBe('');
+        expect(domainOfAddress('')).toBe('');
+        expect(domainOfAddress(null)).toBe('');
+        expect(domainOfAddress(undefined)).toBe('');
+    });
+});
+
+describe('budgetKey', () => {
+    it('mejl utan avsändare faller tillbaka på EMAIL_FROM', () =>
+        expect(budgetKey('email')).toBe('email:send.skylandai.se'));
+    it('mejl med egen avsändare får egen hink', () =>
+        expect(budgetKey('email', 'gustav@coldexperience.se')).toBe('email:coldexperience.se'));
+    it('de två hinkarna är skilda — det är hela poängen', () =>
+        expect(budgetKey('email', 'gustav@coldexperience.se')).not.toBe(budgetKey('email')));
+    it('SMS är sin egen hink oavsett avsändare', () => {
+        expect(budgetKey('sms')).toBe('sms');
+        expect(budgetKey('sms', 'gustav@coldexperience.se')).toBe('sms');
+    });
+    it('obrukbar avsändare hamnar i okand, inte i standarddomänen', () =>
+        expect(budgetKey('email', 'trasig')).toBe('email:okand'));
+    it('defaultBudgetKey är hinken gamla rader utan budget_key ärver', () =>
+        expect(defaultBudgetKey('email')).toBe('email:send.skylandai.se'));
+});
+
+describe('dailyLimitFor', () => {
+    it('okänd hink ärver det försiktiga globala taket', () => {
+        (config as unknown as { OUTBOUND_DAILY_LIMITS: Record<string, number> }).OUTBOUND_DAILY_LIMITS = {};
+        expect(dailyLimitFor('email:coldexperience.se')).toBe(5);
+    });
+    it('egen siffra per hink slår igenom', () => {
+        (config as unknown as { OUTBOUND_DAILY_LIMITS: Record<string, number> }).OUTBOUND_DAILY_LIMITS =
+            { 'email:coldexperience.se': 20, sms: 3 };
+        expect(dailyLimitFor('email:coldexperience.se')).toBe(20);
+        expect(dailyLimitFor('sms')).toBe(3);
+        expect(dailyLimitFor('email:send.skylandai.se')).toBe(5);
+    });
+    it('noll är ett giltigt tak och betyder stopp, inte "använd default"', () => {
+        (config as unknown as { OUTBOUND_DAILY_LIMITS: Record<string, number> }).OUTBOUND_DAILY_LIMITS =
+            { 'email:coldexperience.se': 0 };
+        expect(dailyLimitFor('email:coldexperience.se')).toBe(0);
+        (config as unknown as { OUTBOUND_DAILY_LIMITS: Record<string, number> }).OUTBOUND_DAILY_LIMITS = {};
     });
 });

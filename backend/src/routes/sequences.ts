@@ -11,8 +11,7 @@ import { enrollContact } from '../services/sequenceEvents';
 import { runDueEnrollments } from '../services/sequenceRunner';
 import { getEmailProvider } from '../services/email';
 import { getSmsProvider } from '../services/sms';
-import { isSuppressed, countSentToday } from '../services/outreach';
-import { config } from '../config';
+import { isSuppressed, countSentToday, budgetKey, dailyLimitFor } from '../services/outreach';
 
 const router = Router();
 
@@ -200,9 +199,16 @@ router.post('/shadow-review/:messageId/send', async (req: Request, res: Response
     const hit = await isSuppressed(channel === 'sms' ? 'phone' : 'email', to);
     if (hit) return res.status(409).json({ error: `Mottagaren är spärrad (${hit.kind}: ${hit.reason ?? 'okänd orsak'})` });
 
-    const sentToday = await countSentToday();
-    if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
-        return res.status(429).json({ error: `Dagsbudgeten är nådd (${sentToday}/${config.OUTBOUND_DAILY_LIMIT}). Försök igen i morgon eller höj OUTBOUND_DAILY_LIMIT.` });
+    // Hinken står på skuggraden sedan 8 sep. Äldre utkast saknar den och hör då
+    // till standarddomänen, precis som countSentToday räknar dem.
+    const from = typeof meta.from === 'string' && meta.from.trim() ? meta.from.trim() : undefined;
+    const budget = typeof meta.budget_key === 'string' && meta.budget_key
+        ? meta.budget_key : budgetKey(channel, from);
+    const limit = dailyLimitFor(budget);
+
+    const sentToday = await countSentToday(budget);
+    if (sentToday >= limit) {
+        return res.status(429).json({ error: `Dagsbudgeten för ${budget} är nådd (${sentToday}/${limit}). Försök igen i morgon eller höj taket för den hinken i OUTBOUND_DAILY_LIMITS.` });
     }
 
     // Granskning 6 sep: atomisk claim. Två samtidiga klick läste båda status=shadow,
@@ -211,7 +217,7 @@ router.post('/shadow-review/:messageId/send', async (req: Request, res: Response
     // raden räknas i dagsbudgeten (countSentToday räknar queued+approved_at) —
     // det är reservationen av platsen.
     const now = new Date().toISOString();
-    const claimedMeta = { ...meta, shadow: false, sent_from_shadow: true, approved_at: now };
+    const claimedMeta = { ...meta, shadow: false, sent_from_shadow: true, approved_at: now, budget_key: budget };
     const { data: claimed, error: clErr } = await supabase.from('messages')
         .update({ status: 'queued', metadata: claimedMeta })
         .eq('id', m.id).eq('status', 'shadow')
@@ -227,10 +233,10 @@ router.post('/shadow-review/:messageId/send', async (req: Request, res: Response
 
     // Budgeten kontrolleras igen EFTER reservationen: två anrop som båda passerade
     // första kontrollen på plats 19/20 kan inte båda bli skickade.
-    const afterClaim = await countSentToday();
-    if (afterClaim > config.OUTBOUND_DAILY_LIMIT) {
+    const afterClaim = await countSentToday(budget);
+    if (afterClaim > limit) {
         await release();
-        return res.status(429).json({ error: `Dagsbudgeten är nådd (${afterClaim - 1}/${config.OUTBOUND_DAILY_LIMIT}).` });
+        return res.status(429).json({ error: `Dagsbudgeten för ${budget} är nådd (${afterClaim - 1}/${limit}).` });
     }
 
     let providerMessageId: string;
@@ -240,7 +246,7 @@ router.post('/shadow-review/:messageId/send', async (req: Request, res: Response
         } else {
             const [subject, ...rest] = String(m.content).split('\n');
             const text = rest.join('\n').replace(/^\n+/, '');
-            providerMessageId = (await getEmailProvider().send({ to, subject, text })).providerMessageId;
+            providerMessageId = (await getEmailProvider().send({ to, subject, text, from })).providerMessageId;
         }
     } catch (err) {
         const message = err instanceof Error ? err.message : 'okänt utskicksfel';

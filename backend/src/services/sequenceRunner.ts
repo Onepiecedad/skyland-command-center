@@ -30,7 +30,7 @@ import { supabase } from './supabase';
 import { config } from '../config';
 import { getEmailProvider } from './email';
 import { getSmsProvider } from './sms';
-import { outboundMode, splitDm, isSuppressed, suppressionApplies, normalizePolicy, msUntilWindowOpen, outreachJitterMs, countSentToday, type OutboundPolicy, type OutboundMode } from './outreach';
+import { outboundMode, splitDm, isSuppressed, suppressionApplies, normalizePolicy, msUntilWindowOpen, outreachJitterMs, countSentToday, budgetKey, dailyLimitFor, type OutboundPolicy, type OutboundMode } from './outreach';
 import { logger } from './logger';
 
 const MAX_STEPS_PER_TICK = 50;      // skydd mot oändliga loopar
@@ -298,7 +298,20 @@ async function execSendEmail(
         return { status: 'skipped', control: 'advance', detail: { reason: 'empty_email' } };
     }
 
-    if (mode === 'shadow') return logShadow('email', step, enr, contact, to, `${subject}\n\n${body}`, { subject });
+    // Avsändaren är en sekvensinställning, inte en global. Cold Experience-mejl
+    // måste komma från gustav@coldexperience.se; utan step.config.from gick de
+    // ut som joakim@send.skylandai.se, vilket är fel avsändare till fel gäst.
+    const from = typeof step.config.from === 'string' && step.config.from.trim()
+        ? step.config.from.trim() : undefined;
+    const budget = budgetKey('email', from);
+
+    // Skuggraden bär avsändaren och hinken vidare. Operatörens "Skicka nu"
+    // läser metadata rakt av, så utan dem gick ett godkänt utkast iväg från fel
+    // adress och drogs från fel budget.
+    if (mode === 'shadow') {
+        return logShadow('email', step, enr, contact, to, `${subject}\n\n${body}`,
+                         { subject, from: from ?? null, budget_key: budget, policy });
+    }
 
     const deferEmail = outreachDeferMs(enr, step.position, policy, mode);
     if (deferEmail > 0) {
@@ -308,27 +321,30 @@ async function execSendEmail(
 
     // Dagsbudgeten är en outreach-broms. Transaktionell post är volymbegränsad av
     // sig själv (en påminnelse per bokning) och får inte fastna bakom kalla mejl.
+    // Den RÄKNAS ändå i hinken: mottagarens brevlåda ser ingen skillnad på
+    // bokningsbekräftelse och utkorg, så volymen mot domänen är densamma.
     if (policy !== 'transactional') {
-        const sentToday = await countSentToday();
-        if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
+        const sentToday = await countSentToday(budget);
+        const limit = dailyLimitFor(budget);
+        if (sentToday >= limit) {
             // Fullt dagstak = vänta tills räknaren nollställs, inte ett fel att räkna upp.
-            return hold(POLICY_HOLD_MS, { reason: 'daily_limit', sentToday, limit: config.OUTBOUND_DAILY_LIMIT });
+            return hold(POLICY_HOLD_MS, { reason: 'daily_limit', budget_key: budget, sentToday, limit });
         }
     }
 
     try {
         const result = await getEmailProvider().send({
-            to, subject, text: body,
+            to, subject, text: body, from,
             replyTo: typeof step.config.reply_to === 'string' ? step.config.reply_to : undefined,
         });
         await supabase.from('messages').insert({
             customer_id: contact.customer_id ?? null,
             role: 'assistant', channel: 'email', direction: 'outbound', status: 'sent',
             content: `${subject}\n\n${body}`,
-            metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to, policy },
+            metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to, policy, from: from ?? null, budget_key: budget },
             provider_message_id: result.providerMessageId,
         });
-        return { status: 'success', control: 'advance', detail: { to, provider_message_id: result.providerMessageId, policy } };
+        return { status: 'success', control: 'advance', detail: { to, provider_message_id: result.providerMessageId, policy, budget_key: budget } };
     } catch (err) {
         const message = err instanceof Error ? err.message : 'okänt utskicksfel';
         return { status: 'failed', control: 'retry', detail: { error: message } };
@@ -363,7 +379,7 @@ async function execSendSms(
         await logSkip(contact, enr.sequence_id, 'sms', 'empty_sms');
         return { status: 'skipped', control: 'advance', detail: { reason: 'empty_sms' } };
     }
-    if (mode === 'shadow') return logShadow('sms', step, enr, contact, phone, text);
+    if (mode === 'shadow') return logShadow('sms', step, enr, contact, phone, text, { budget_key: budgetKey('sms'), policy });
 
     const deferSms = outreachDeferMs(enr, step.position, policy, mode);
     if (deferSms > 0) {
@@ -371,11 +387,13 @@ async function execSendSms(
                  detail: { reason: 'outreach_window', resume_at: new Date(Date.now() + deferSms).toISOString() } };
     }
 
+    const smsBudget = budgetKey('sms');
     if (policy !== 'transactional') {
-        const sentToday = await countSentToday();
-        if (sentToday >= config.OUTBOUND_DAILY_LIMIT) {
+        const sentToday = await countSentToday(smsBudget);
+        const limit = dailyLimitFor(smsBudget);
+        if (sentToday >= limit) {
             // Fullt dagstak = vänta tills räknaren nollställs, inte ett fel att räkna upp.
-            return hold(POLICY_HOLD_MS, { reason: 'daily_limit', sentToday, limit: config.OUTBOUND_DAILY_LIMIT });
+            return hold(POLICY_HOLD_MS, { reason: 'daily_limit', budget_key: smsBudget, sentToday, limit });
         }
     }
     try {
@@ -384,7 +402,7 @@ async function execSendSms(
             customer_id: contact.customer_id ?? null,
             role: 'assistant', channel: 'sms', direction: 'outbound',
             content: text,
-            metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to: phone, policy },
+            metadata: { contact_id: contact.id, enrollment_id: enr.id, sequence_id: enr.sequence_id, to: phone, policy, budget_key: smsBudget },
             provider_message_id: result.providerMessageId,
         });
         return { status: 'success', control: 'advance', detail: { to: phone, provider_message_id: result.providerMessageId, policy } };

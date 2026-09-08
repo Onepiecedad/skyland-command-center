@@ -89,6 +89,37 @@ const envSchema = z.object({
         .default('false')
         .transform((v) => v === 'true'),
     OUTBOUND_DAILY_LIMIT: z.coerce.number().default(5),
+    // Dagsbudgeten är per hink, inte global: 'email:<avsändardomän>' respektive
+    // 'sms'. Rykte byggs per domän, så Cold Experience och Skyland ska inte dela
+    // trappa. JSON, t.ex. {"email:coldexperience.se":20,"sms":10}. Saknas nyckeln
+    // gäller OUTBOUND_DAILY_LIMIT. Trasig JSON = tyst global gräns, så den
+    // avvisas hellre högt vid uppstart.
+    OUTBOUND_DAILY_LIMITS: z
+        .string()
+        .optional()
+        .transform((v, ctx) => {
+            if (!v || !v.trim()) return {} as Record<string, number>;
+            try {
+                const parsed = JSON.parse(v);
+                if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                    throw new Error('måste vara ett JSON-objekt');
+                }
+                const out: Record<string, number> = {};
+                for (const [k, n] of Object.entries(parsed)) {
+                    if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) {
+                        throw new Error(`värdet för "${k}" måste vara ett tal >= 0`);
+                    }
+                    out[k] = n;
+                }
+                return out;
+            } catch (err) {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: `OUTBOUND_DAILY_LIMITS gick inte att läsa: ${err instanceof Error ? err.message : String(err)}`,
+                });
+                return z.NEVER;
+            }
+        }),
     // 'shadow' = logga vad som skulle skickats (messages.status='shadow'), skicka inget.
     // Kan bara göra systemet försiktigare: live kräver fortfarande OUTBOUND_ENABLED=true.
     OUTBOUND_MODE: z.enum(['auto', 'shadow']).default('auto'),

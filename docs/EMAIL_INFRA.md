@@ -41,6 +41,33 @@
 Regler: alltid personligt innehåll (inga massutskick från denna domän), stoppa direkt
 vid bounce-rate > 5 % eller spam-klagomål, pausa hellre en vecka än att bränna domänen.
 
+### 3.1 Trappan gäller per avsändardomän (8 sep 2026)
+
+Budgeten var global fram till den 8 september: en enda hink som alla kunder och
+alla kanaler drog från. Två fel följde av det. Cold Experience och
+beautykampanjen konkurrerade om samma fem platser trots att de skickar från
+skilda domäner med skilda rykten, och Gustav-robotens Messenger-svar räknades
+som kall mejlutkorg eftersom räkningen bara tittade på `direction='outbound'`.
+Med autopiloten påslagen hade robotens prat strypt beautykampanjen tyst.
+
+Nu bär varje utskick sin hink i `metadata.budget_key`:
+
+| Hink | Vad som dras från den |
+|------|------------------------|
+| `email:send.skylandai.se` | Skylands egen utkorg (och all mejlhistorik från före 8 sep) |
+| `email:coldexperience.se` | Cold Experience-mejl från Gustav |
+| `sms` | Alla SMS, oavsett kund |
+
+Meddelanden på Messenger och WhatsApp har ingen hink alls och räknas inte:
+de går inte över någon mejldomän och har sina egna gränser hos Meta.
+
+Transaktionell post *räknas* i hinken men *blockeras* aldrig av den. En
+brevlåda ser ingen skillnad på bokningsbekräftelse och utkorg, så volymen mot
+domänen är densamma, men en påminnelse ska aldrig fastna bakom kalla mejl.
+
+Varje ny domän startar på `OUTBOUND_DAILY_LIMIT` och får gå sin egen trappa.
+Höj den medvetet, en hink i taget, i `OUTBOUND_DAILY_LIMITS`.
+
 ## 4. Backend-env (nya variabler, SCC-30)
 
 ```bash
@@ -49,7 +76,10 @@ RESEND_API_KEY=<hemlig>
 EMAIL_FROM="Joakim — Skyland AI <joakim@send.skylandai.se>"
 EMAIL_REPLY_TO=joakim@skylandai.se
 OUTBOUND_ENABLED=false        # kill switch — sätts till true först efter SCC-35-checklistan
-OUTBOUND_DAILY_LIMIT=5        # följ volymtrappan
+OUTBOUND_DAILY_LIMIT=5        # taket en hink får om inget annat sägs
+# Egna tak per hink. JSON. Nyckeln är 'email:<avsändardomän>' eller 'sms'.
+# Trasig JSON gör att backenden vägrar starta — hellre det än ett tyst globalt tak.
+OUTBOUND_DAILY_LIMITS={"email:coldexperience.se":10,"sms":5}
 ```
 
 ## 5. Verifiering (innan första skarpa utskicket)
