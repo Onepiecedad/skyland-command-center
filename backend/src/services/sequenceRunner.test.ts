@@ -173,6 +173,38 @@ describe('execStep — send_email grindar (samma som comms)', () => {
             expect.objectContaining({ to: 'anna@example.se', subject: 'Hej Anna', text: 'Hörde av dig, Anna Berg' })
         );
     });
+
+    // {{custom.nyckel}} — Cold Experience behöver en ämnesrad per avsikt.
+    it('custom-variabler renderas ur kortet', async () => {
+        const medCustom = { ...contact, custom: { ...contact.custom, ce_subject: 'The information you asked for ❄️', ce_days: 7 } };
+        const res = await execStep(
+            step('send_email', { subject: '{{custom.ce_subject}}', body: '{{first_name}}, {{custom.ce_days}} dagar' }),
+            enr, medCustom, ENROLLED_AT
+        );
+        expect(res.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledWith(expect.objectContaining({
+            subject: 'The information you asked for ❄️', text: 'Anna, 7 dagar',
+        }));
+    });
+
+    it('saknad custom-nyckel blir tom sträng, inte literalen', async () => {
+        const res = await execStep(
+            step('send_email', { subject: 'Hej{{custom.finns_inte}}', body: 'kropp' }),
+            enr, contact, ENROLLED_AT
+        );
+        expect(res.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledWith(expect.objectContaining({ subject: 'Hej' }));
+    });
+
+    it('objekt i custom läcker inte ut som [object Object]', async () => {
+        const medObjekt = { ...contact, custom: { ...contact.custom, ce_form: { adults: 2 } } };
+        const res = await execStep(
+            step('send_email', { subject: 'A{{custom.ce_form}}B', body: 'kropp' }),
+            enr, medObjekt, ENROLLED_AT
+        );
+        expect(res.status).toBe('success');
+        expect(h.emailSend).toHaveBeenCalledWith(expect.objectContaining({ subject: 'AB' }));
+    });
 });
 
 describe('execStep — outbound_policy=transactional (bokningspåminnelser går ut trots kill switch)', () => {

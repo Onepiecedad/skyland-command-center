@@ -121,7 +121,17 @@ function render(text: string, contact: ContactRow): string {
         .replace(/\{\{\s*name\s*\}\}/gi, contact.name || '')
         .replace(/\{\{\s*email\s*\}\}/gi, contact.email || '')
         .replace(/\{\{\s*dm_opener\s*\}\}/gi, dm?.opener ?? '')
-        .replace(/\{\{\s*dm_followup\s*\}\}/gi, dm?.followup ?? '');
+        .replace(/\{\{\s*dm_followup\s*\}\}/gi, dm?.followup ?? '')
+        // {{custom.nyckel}} — läser contact.custom. Behövs för att ämnesraden ska
+        // kunna variera per kort: Cold Experience-leads har tre olika avsikter
+        // (vill boka, vill veta mer, reser senare) och en gemensam ämnesrad hade
+        // passat ingen av dem. Bara strängar och tal släpps igenom; ett objekt
+        // eller en array skulle bli "[object Object]" i gästens inkorg, och
+        // saknad nyckel ger tom sträng precis som variablerna ovan.
+        .replace(/\{\{\s*custom\.([a-zA-Z0-9_]+)\s*\}\}/g, (_helaTraffen, nyckel: string) => {
+            const v = contact.custom?.[nyckel];
+            return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '';
+        });
 }
 
 /** Personaliserat innehåll (databasreaktivering): source='contact_dm' hämtar
