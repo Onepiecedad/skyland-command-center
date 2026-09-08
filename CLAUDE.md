@@ -1,7 +1,7 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-09-06 (granskning: gamla uppgifter längre ned rättade så att de inte längre motsäger rättelserna högst upp; attribution SCC-36/39 byggd — se DRIFT.md "Attribution")
+> Senast uppdaterad: 2026-09-08 (Cold Experience: mejlsekvensen i draft, dagsbudget per avsändardomän, tre tysta datafel — se HANDOVER_2026-09-08.md)
 
 > ## 🧭 BÖRJA HÄR (läs i den här ordningen)
 >
@@ -10,8 +10,14 @@
 >    drift.** Motsäger något annat dokument den här filen, är det andra gammalt.
 > 2. **`docs/STABILISERINGSPLAN.md`** — var i planen vi står. Fas 0–3 klara,
 >    Fas 4 (volym) pågår.
-> 3. **`docs/HANDOVER_2026-09-05.md`** — senaste arbetsdagboken (3–5 sep):
->    autosend-beslutet, den nattliga påfyllnaden, doktrin- och stadiegrinden.
+> 3. **`docs/HANDOVER_2026-09-08.md`** — senaste arbetsdagboken (8 sep): Cold Experience-
+>    mejlsekvensen, dagsbudget per avsändardomän, tre tysta datafel, och två saker jag hade
+>    fel om. Föregående: `HANDOVER_2026-09-07.md` (webbspårning per kund),
+>    `HANDOVER_2026-09-05.md` (autosend-beslutet, nattlig påfyllnad, doktringrinden).
+> 4. **Jobbar du med Cold Experience:** läs `~/.openclaw/skills/scc-crm/references/` FÖRE du
+>    kallar något för en bugg. `crm-spegling.md` förklarar varför Het är en ringlista och inte
+>    en fas, `mejl-stil-coldexperience.md` varför de mejlen inte är kall utkorg, `gustav-ton.md`
+>    rösten. Jag ändrade stegregeln 8 sep utan att ha läst den första, och fick backa.
 >
 > Behöver du Alex-konfigurationen: `docs/OPENCLAW_CONFIG_INVENTERING.md`.
 > Sajtflödena: `docs/SITE_FLOWS.md`. Mejlinfran: `docs/EMAIL_INFRA.md`.
@@ -42,6 +48,7 @@
 > - Global Bearer-auth (`middleware/auth.ts`, token `SCC_API_TOKEN`, alternativt `?token=` för SSE eller operatörens httpOnly-sessioncookie) + rate limiting skyddar `/api/v1/*` sedan 2026-07-09. **Monterat FÖRE den globala auth:en i `server.ts`, var och en med egen token/signatur (inget är öppet sedan SEC-02..06, 2026-08-10):** `/health`, `/api-docs` (auth-krav i prod), `/api/v1/leads` (`LEADS_INTAKE_TOKEN`), `/api/v1/webhooks/openwork` (`OPENWORK_WEBHOOK_TOKEN`), `/api/v1/voice` (`VOICE_WEBHOOK_TOKEN`), `/api/v1/webhooks/{email,ig-dm,whatsapp,marinmekaniker,site,calcom}` (egna tokens/Meta-signatur), `/api/v1/auth` (login). **Allt annat under `/api/v1`, inklusive `/api/v1/claw/task-result` som Alex callback-skill anropar, kräver `Authorization: Bearer SCC_API_TOKEN`** — det var det som saknades i callback.sh fram till 6 sep.
 > - **NULÄGET FÖR DRIFT: läs `docs/DRIFT.md` först.** Den är den enda sanningen om tjänster, konton, flaggor och vad som är avvecklat. Stabiliseringsplan med nästa steg: artefakten "Skyland stabiliseringsplan" (claude.ai) + `docs/HANDOVER_2026-08-30.md`.
 > - Lead-intake (sedan 2026-08-30): hemsidan skylandai.se (Netlify `skyland-ai-os`) → **SCC direkt** `/api/v1/webhooks/site/*` (session, telemetri, The Void, röst) → `ingestLead()` in-process. **n8n är avvecklat**, alla workflows portade (`docs/SITE_FLOWS.md`, arkiv i `docs/n8n-archive/`). Röstagenterna ligger i SCC:s ElevenLabs-konto och anropar SCC `/site/agent-tools/*`.
+> - **Webbspårningen är flerkundsstöttad sedan 2026-09-07 (SCC-51).** Samma `/api/v1/webhooks/site/*` tar emot från kundsajter; `sessions` och `events` bär `tenant_id`, tenanten avgörs av `site_key` + `allowed_origins` i `resolveTenant()`. Utan nyckel landar raden som skyland, vilket är varför skylandai.se är oförändrad. `website.ts` tar `?tenant=<slug>` och läser tratten ur `tenants.config.webb`; kundkortet har en Hemsida-flik. **Rör inte `customers.tenant_id` för att peka ut en sajt** — den betyder ägare och används av RLS; sajtkopplingen heter `site_tenant_id`. Anslutna: marinmekaniker.nu, coldexperience.se. Läs `docs/SITE_FLOWS.md` innan du ändrar något i intaget.
 > - **DEPLOYAD (2026-07-14):** Backend kör i produktion på Render — tjänst `scc`, Frankfurt, Starter, Docker via `backend/Dockerfile` — på `https://scc.skylandai.se` (CNAME → scc-e8x1.onrender.com, TLS via Render). ngrok-tunneln är AVVECKLAD. Auto-deploy vid push till main. Env hanteras i Render-dashboarden. Kill switch för utgående mail: `OUTBOUND_ENABLED=false`. Se `docs/RENDER_DEPLOY.md` + `docs/HANDOVER_2026-07-14.md`.
 > - **AUTH-LÄGET (SEC-02..06, 2026-08-10) — läs innan du rör en endpoint.** Fem hål stängdes samma kväll, verifierade mot prod med curl innan fixen:
 >   - **`/api/v1/voice/*`** låg HELT oautentiserat mot internet. `POST /voice/tools` når `ask_alex` → gateway `/hooks/agent` med full skill-access + direkta Supabase-frågor. Nu: `VOICE_WEBHOOK_TOKEN` via ny `middleware/sharedSecret.ts`. ElevenLabs skickar headern `x-voice-token`. Escape hatch `VOICE_WEBHOOK_TOKEN_ENFORCED=false` (WARN-logg per anrop, tillfälligt).

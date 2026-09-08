@@ -2,7 +2,7 @@
 
 > **Den enda sanningen om driften.** Uppdateras i samma commit som ändrar något.
 > Handover-filerna under `docs/HANDOVER_*.md` är historik, inte nuläge.
-> Senast verifierad: **2026-09-01** (Claude + Joakim, live-tester mot prod).
+> Senast verifierad: **2026-09-08** (Claude + Joakim: Cold Experience-mejlsekvensen, dagsbudget per avsändardomän).
 > Maskinell koll: `SCC_API_TOKEN=… python3 scripts/drift_check.py` jämför prod (`/health`,
 > `/api/v1/integrations/health`, `/api/v1/integrations/flags`) mot tabellen nedan. Exit 1 = drift.
 
@@ -11,7 +11,7 @@
 | Lager | Vad | Var | Status |
 |---|---|---|---|
 | SCC backend + frontend | Express + Supabase + React-SPA i en container. CRM, sekvensmotor, inbound-mejl, sajt-webhookar, röst-proxy, bokningar, integrationshälsa. | Render, arbetsyta **"Joakim's workspace"**, tjänst `scc`, Starter, autodeploy från `main`, `scc.skylandai.se` (CNAME → scc-e8x1.onrender.com) | uppe |
-| Supabase | Postgres, projekt `skyland-command-center` (`wfwqjxsuvbacvcmpiesl`), eu-north-1. SCC-tabeller **och** sajtens tabeller (`sessions`, `events`, `prospects`, `interactions`, `voice_calls`, `knowledge_base`) i samma projekt. | supabase.com | uppe |
+| Supabase | Postgres, projekt `skyland-command-center` (`wfwqjxsuvbacvcmpiesl`), eu-north-1. SCC-tabeller **och** webbspårningens tabeller (`sessions`, `events`, `prospects`, `interactions`, `voice_calls`, `knowledge_base`) i samma projekt. `sessions`/`events` bär `tenant_id` sedan 7 sep och rymmer flera kunders sajter — se `docs/SITE_FLOWS.md`. | supabase.com | uppe |
 | Hemsidan skylandai.se | Netlify-projekt **`skyland-ai-os`** (repo `Onepiecedad/Skyland_AI_System`, lokal kopia `~/Downloads/stitch_skyland_ai_operating_system`, publish dir `app/`). Domänen flyttad hit 2026-08-30 från det gamla statiska projektet `skylandai`. | Netlify (konto joakim123@gmail.com), DNS på One.com (apex A 75.2.60.5, www CNAME → skyland-ai-os.netlify.app). **Apex-raden på One.com har TOMT hostname-fält — skriv aldrig något i det.** | uppe |
 | Sajtens backend | Allt som förr gick via n8n går nu till SCC: `/api/v1/webhooks/site/*`. Se `docs/SITE_FLOWS.md`. | SCC | uppe, testat |
 | Röst på sajten | ElevenLabs Conversational AI, **två agenter i SCC:s ElevenLabs-konto**: `Alex (skylandai.se)` sv `agent_8301m19fffmqfcv96zgryg5ey3k5`, `Alex (skylandai.se, EN)` en `agent_4501m19h1g8zfq7v6k6hqh642p32`. Signerad URL + call-ended via SCC. Verktyg mot SCC `/site/agent-tools/*`. Återskapas med `backend/scripts/create_site_agent.py`. | ElevenLabs (nyckel = `ELEVENLABS_API_KEY` i Render) | uppe |
@@ -20,6 +20,8 @@
 | Mejl in | Resend Inbound (MX på One.com) → `POST /api/v1/webhooks/email/inbound?token=EMAIL_INBOUND_TOKEN`. received → inbox + sekvensstopp + kopia till `EMAIL_FORWARD_TO`; bounced/complained → suppression. **Sedan 31 aug klassas varje matchat svar** (plan 3.1): regler fångar autosvar utan LLM-anrop, resten går till orkestrerarmodellen, och över `REPLY_CLASSIFIER_MIN_CONFIDENCE` flyttas kortet (intresse/fråga → Replied, nej → No Fit) och ett nej spärrar adressen. Klassificeringen är best-effort och kan aldrig fälla inmatningen. | Resend-webhook | uppe, testat 30 aug |
 | Bokningar | Cal.com äger bokningen (event type 15 min, `CALCOM_EVENT_TYPE_ID`). Webhook → `/api/v1/webhooks/calcom?token=` → speglas i `bookings`. Kalenderfliken visar dem med detaljkort. | Cal.com + SCC | uppe |
 | MarinMekaniker ordernotis | marinmekaniker.nu (Netlify `marin-mekaniker`) → `POST /api/v1/webhooks/marinmekaniker/order?token=` → två mejl via Resend. | SCC | uppe, testat |
+| Webbspårning marinmekaniker.nu | Tracker `frontend/src/utils/spar.js` → `/api/v1/webhooks/site/{session-init,track-event}` med sajtnyckel. Syns i Thomas kundkort, fliken Hemsida. Autodeploy från `main` fungerar. | SCC + Netlify `marin-mekaniker` | uppe, verifierat 7 sep |
+| Webbspårning coldexperience.se | Samma tracker i `Onepiecedad/ColdExperience` (`Projekt/ColdExperience-4`). Syns i Gustavs kundkort. **Sajten bygger inte om vid push** — se skavanker. | SCC + Netlify `coldexperience` | uppe, verifierat 7 sep |
 | Alex / OpenClaw | **Gateway på VPS sedan 31 aug** (Hetzner CPX22, Helsingfors, 62.238.113.151, användare `alex`, systemd user-units med linger). Poller `~/openclaw-config/scripts/scc_poller.py`. Gatewayn nås över Tailscale på `https://alex.tail8a8e79.ts.net` (tailnet-only, loopback-bunden, inga öppna portar) — Kontoret i SCC pratar med den därifrån. Macens launchd-jobb ligger som `.plist.disabled` — starta dem aldrig igen, två pollers gör dubbelt arbete. Kimi K2.5 orkestrerare (fallback gemini-2.5-flash; claude-sonnet-4-20250514 rensad 31 aug, leverantören avvisar den). Researchern kör Kimi K2.5 sedan 30 aug (fallback DeepSeek V4 Flash) — se 2.3-jämförelsen i HANDOVER_2026-08-30: 10/10 mot 5/10 godkända på första försöket. Övriga underagenter DeepSeek V4 Flash. **WhatsApp** som kanal. | Hetzner CPX22 hel1 | uppe dygnet runt |
 | Skills | `~/.openclaw/skills`, kärnan `scc-crm` (discover, prospect, dm, bump, ads). Nycklar via `scripts/env.py` (se Konfiguration). Research-steget gör en omkörning med skärpt brief vid format/timeout (plan 2.2, 30 aug); `custom.research_attempts` på kortet visar hur många försök det tog. | Joakims Mac | fungerar; bortfallet ska mätas efter nästa batch (var ~50 % före 2.2) |
 | Apify | Google Maps (discover), Meta Ad Library (ads), Instagram (target). | Betald plan sedan 28 aug | uppe |
@@ -44,7 +46,8 @@
 | `TRANSACTIONAL_OUTBOUND_ENABLED` | ej satt (default `true`) | Kill switch för `outbound_policy='transactional'` (Strategisamtal-påminnelserna). Transaktionell post går ut OAVSETT `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudget; suppression gäller utom orsaken `existing_customer`. Fynd 4 åtgärdat 30 aug. |
 | `OUTBOUND_MODE` | `auto` (5 sep) | Steg med `require_approval: true` går ändå i skugga. Utskick i skugga loggas som `messages.status='shadow'`. Granskas i Försäljning → Skuggvecka; "Skicka nu" skickar manuellt. |
 | `SEQUENCE_RUNNER_ENABLED` | `true` | Motorn tickar varje minut. **Verifiera dessa tre innan du enrollar något med `next_run_at=now()`.** |
-| `OUTBOUND_DAILY_LIMIT` | `20` (höjt 5 sep från 5) | Tak för riktiga utskick/dag, gäller även "Skicka nu". Nattjobbet skriver in högst 12 öppnare/dygn; resten av taket är utrymme för bump och avslut. Vid 12 utskick/dag når du 50 skickade öppnare på fyra dagar — det är först då copyn går att bedöma. |
+| `OUTBOUND_DAILY_LIMIT` | `20` (höjt 5 sep från 5) | Tak per **hink** och dygn, gäller även "Skicka nu". Nattjobbet skriver in högst 12 öppnare/dygn; resten av taket är utrymme för bump och avslut. Vid 12 utskick/dag når du 50 skickade öppnare på fyra dagar — det är först då copyn går att bedöma. |
+| `OUTBOUND_DAILY_LIMITS` | **ej satt** | JSON med eget tak per hink, t.ex. `{"email:coldexperience.se":5,"sms":10}`. Saknas nyckeln gäller `OUTBOUND_DAILY_LIMIT`. **Sätt den innan Cold Experience-sekvensen aktiveras** — annars ärver en domän utan uppvärmningshistorik hos Resend taket 20. Trasig JSON gör att backenden vägrar starta, med flit. |
 | `EMAIL_FROM` / `EMAIL_REPLY_TO` / `EMAIL_FORWARD_TO` | `Skyland AI <joakim@send.skylandai.se>` / `joakim@send.skylandai.se` / `joakim@skylandai.se` | Avsändare, svar till Inbound, kopia till inkorgen. |
 | `EMAIL_INBOUND_TOKEN` | satt | Token i Resend-webhookens URL. |
 | `RESEND_API_KEY` | satt | Mejl ut + integrationshälsan. |
@@ -661,18 +664,72 @@ Snabbkoll: `SCC_API_TOKEN=… curl -s -H "Authorization: Bearer $SCC_API_TOKEN" 
 Läget 6 sep: 23 inskrivna i Göteborg, 14 skickade, 1 svar (klassat interested — ska sättas
 till `other`), 0 bokningar, 0,37 USD i research. Beslutspunkten är 50 skickade öppnare.
 
+## Dagsbudgeten är per avsändardomän, inte global (8 sep)
+
+`countSentToday` räknade varje rad med `direction='outbound'` sedan midnatt, utan filter på kund,
+kanal eller avsändare. Två fel följde: Cold Experience och beautykampanjen delade tak trots skilda
+avsändardomäner, och Gustav-robotens Messenger-svar räknades som kall mejlutkorg eftersom de
+speglas som outbound-rader. Med autopiloten påslagen hade robotens prat strypt beautykampanjen
+tyst.
+
+Varje utskick bär nu sin hink i `metadata.budget_key`:
+
+| Hink | Vad som dras från den |
+|---|---|
+| `email:send.skylandai.se` | Skylands egen utkorg, plus **all mejlhistorik från före 8 sep** (rader utan `budget_key` ärvs bara av standarddomänen) |
+| `email:coldexperience.se` | Cold Experience-mejl från Gustav |
+| `sms` | Alla SMS, oavsett kund |
+
+Räkningen filtrerar på hink **plus kanal**, så en spegelrad (`channel='messenger'`) kan aldrig
+hamna i en mejlhink oavsett metadata. Messenger och WhatsApp har ingen hink alls och räknas inte:
+de går inte över någon mejldomän och har egna gränser hos Meta. Transaktionell post *räknas* i
+hinken men *blockeras* aldrig av den — en brevlåda ser ingen skillnad på bokningsbekräftelse och
+utkorg, men en påminnelse ska aldrig fastna bakom kalla mejl.
+
+**Avsändare per steg.** `step.config.from` går hela vägen genom sekvensmotorn, skuggraden och
+operatörens Skicka nu. Utan den gick allt från `EMAIL_FROM`, alltså hade ett Cold Experience-mejl
+lämnat systemet som `joakim@send.skylandai.se`.
+
+**Utanför räkningen:** `meta-leads-webhook` anropar Resend direkt och rör aldrig budgeten. Rimligt
+för ett direktsvar på ett inskickat formulär, men volymen mot coldexperience.se räknas ingenstans.
+
+## Cold Experience: mejlsekvensen till de befintliga trettio (8 sep)
+
+Sekvens `dca1fb3f-6486-45dd-bbf2-b96c8211e206`, **status `draft`**, `trigger_type = manual`,
+noll inskrivna. Mejl 1 ur kortets `custom.dm_hook` → 3 dagars uppehåll → avhopp vid svar → mejl 2
+→ slut. Avsändare `Gustav Hedman <gustav@coldexperience.se>`, `require_approval` på båda utskicken.
+Ämnesrad ur `custom.ce_subject` via `{{custom.nyckel}}` i `render()`.
+
+Tre spärrar mellan här och en riktig gäst: sekvensen är draft, varje mejl kräver ett klick i
+Skuggvecka, och dagsbudgeten gäller.
+
+**Nya leads går inte hit.** Dem svarar `functions/meta-leads-webhook/email.ts` på direkt vid
+formulärinlämning när `ce_settings.autopilot` slås på. `trigger_type = manual` gör att de två
+flödena inte kan krocka. Flödena delar ämnesrader men inte avsändare (`gustav@` respektive
+`info@`), eftersom breven är skrivna i olika röst.
+
+**Speglingen skriver fortfarande över `contacts.tags` helt.** `custom` slås ihop sedan 8 sep, men
+tags gör det inte. Därför använder sekvensen varken `add_tag` eller `move_stage` — stegen i
+pipelinen ägs av speglingen och hade dragit åt olika håll.
+
 ## Kända skavanker
 
+- **`coldexperience` på Netlify bygger inte om vid push till `main` (7 sep).** Allt på Netlify-sidan är kontrollerat och rätt: repot kopplat till `Onepiecedad/ColdExperience`, Build status Active, produktionsgren `main`, base `frontend`, publish `frontend/build`, functions `frontend/netlify/functions`, inget `ignore`-kommando i `frontend/netlify.toml`, inget skip i commit-meddelandet. Manuell "Trigger deploy" hämtar rätt commit och fungerar. Kvarstående misstanke: Netlifys GitHub-app saknar tillgång till just det repot (github.com/settings/installations), eller att webhooken hos GitHub tappats. Tills det är löst kräver varje deploy ett klick. MarinMekaniker och SCC autodeployar normalt.
+- **Edge-funktionen `web-ingest` i Supabase är död kod (7 sep).** Byggdes som ett första försök till flerkundsintag innan det visade sig att `/api/v1/webhooks/site/*` redan fanns och skulle användas. Inget pekar på den. Radera den i dashboarden; två ingest-vägar för samma sak är samma felklass som `ce_*`.
+- **Sajtnyckel + origin är inget lås.** Kontrollen stoppar andra webbplatsers besökare, inte curl med egen `Origin`-header. Konsekvens: någon kan skriva in påhittad telemetri. Ingen data läcker, och att skicka helt utan nyckel landar som skyland precis som förut — endpointen var publik redan innan. Riktig åtgärd är signerade anrop, eget ticket.
+- **CORS-avslag ger 500, inte 403.** `server.ts` kastar ett `Error` i origin-callbacken, felhanteraren gör 500 av det. Blockerar korrekt men bullrar i loggen och kan maskera riktiga fel. Gäller alla endpoints, inte bara sajtintaget.
+- **Git via en monterad mapp från en molnsession fungerar inte (8 sep).** Linux-VM:en som `device_bash` kör i får inte radera filer, så varje skrivande git-kommando lämnar en `.lock` som blockerar nästa. Kör git mot repot genom Desktop Commander i stället — det skalet kör som användaren på macOS och har fulla rättigheter.
+- **`send.coldexperience.se` tillhör en annan leverantör.** CNAME till `send.forge.rmta.net` med egen MX och SPF, alltså en färdig Return-Path för något Cold Experience redan använder. Rör den inte. Konsekvensen är att Resend använder sin delade Return-Path: DKIM på `resend._domainkey.coldexperience.se` bär DMARC-alignmenten ensamt. Håller på `p=none`, men det är ett ben i stället för två. Vill man ha det andra krävs en Return-Path-subdomän med en annan etikett än `send`.
 - `backend/src/routes/skills.test.ts`: två tester röda på main (slår mot riktig DB). Inte relaterat till sajt/reaktivering.
 - Frontendens `*.test.tsx` saknar jest-dom-typer (tsc rött bara i testfiler; `vite build` grönt).
 - Commit `b1cda98` fick med tre lokala ändringar som låg okommittade (`backend/src/index.ts` legacy, `docs/HANDOVER_2026-07-27.md`, `docs/IG_DM_AUTOMATION.md`).
 - Integrationshälsan: `n8n:*`-checkarna är borta (2.1b, 30 aug). Nya: `site:skylandai.se`, `site:lang.js` (båda agent-id:na), `site:agent-tools` (självtest över publika adressen med X-Skyland-Key), `elevenlabs:site-agents`. Agent-id:n är hårdkodade i `services/integrationHealth.ts` — byter du agent, byt där + `lang.js` + SITE_FLOWS.
-- `GET /api/v1/website/workflows` (Sajt-fliken, "n8n Workflow-hälsa") pekar fortfarande på n8n:s API. Död — visar tomt. Riv eller byt mot `activities` från sajt-webhookarna.
+- `GET /api/v1/website/workflows` (Sajt-fliken, "n8n Workflow-hälsa") pekar fortfarande på n8n:s API. Död — visar tomt. Riv eller byt mot `activities` från sajt-webhookarna. Sedan 7 sep anropas den inte alls från kundkortens Hemsida-flik (`visaWorkflows={false}`), bara från Skylands egen vy.
 - Engelska röstagenten är otestad i skarpt samtal.
 - **Deploy till VPS:en: nyckel + ett kommando (7 sep 2026).** Verktyget finns i repot; själva nyckeln sätts upp en gång enligt `openclaw-config/vps/DEPLOY_NYCKEL.md` (ed25519 på VPS:en → skrivskyddad deploy key på GitHub → origin över SSH). Därefter är deploy `ssh alex@62.238.113.151 '~/openclaw-config/scripts/deploy_vps.sh'`: hämtar main, synkar skills till `~/.openclaw/skills`, startar om gateway och poller, verifierar att båda är `active`. Vägrar om en pipeline kör eller om VPS-repot har lokala ändringar. `sync_skills.sh` härleder numera repot ur sin egen plats, så `REPO_SKILLS=` behövs inte längre. **Är nyckeln inte uppsatt felar pullen med "could not read Username" — gör uppsättningen då, återgå inte till rsync.** Bakgrunden: rsync-deployen lät repot tyst driva isär från GitHub, och bump-doktrinen plus `channel: email` (commit 47b96b1, 4 sep) hade aldrig nått maskinen som kör, upptäckt först 5 sep.
 - **`GET /api/v1/skills` läser en katalog som bara finns där OpenClaw kör.** På Render finns den inte, och tom katalog rapporterades som `0`. Dashboarden visade "0 skills" och "Capabilities 0" medan gatewayn hade 73 laddade. Endpointen svarar nu `available:false` med skäl och dashboarden visar `?`. Den riktiga fixen är att läsa skills över gateway-anslutningen som frontend redan har öppen. Samma familj som rollfils-modalen: filer på operatörens dator finns inte i molnet.
 - `/api/v1/skills-db` pekar på tabellen `skills` i Supabase. **Den tabellen finns inte.**
-- **`ce_*`-schemat (8 tabeller, applicerat 10 aug) är vilande.** Noll rader, ingen kod läser eller skriver det. Cold Experience-intaget byggdes 5 sep på det vanliga CRM:et i stället — två datamodeller för "en lead med en konversation" är samma felklass som två räknesätt för samma kö. Det som var bra i `ce_*` (24h/72h-fönstren, opt-out på fyra språk, GDPR-radering) tas in som fält och funktioner på de vanliga tabellerna när det behövs. Riv tabellerna i en städning; låt ingen bygga på dem.
+- ~~**`ce_*`-schemat är vilande, riv det.**~~ **Överspelat 7 sep.** `ce_leads` och `ce_messages` ÄR nu källan för Cold Experience, och CRM-raderna är en projektion av dem via `ce_mirror_lead`/`ce_mirror_message`. Riv ingenting. Mekaniken står i `~/.openclaw/skills/scc-crm/references/crm-spegling.md` — läs den innan du rör speglingen.
 - **Macen kör fortfarande `com.skyland.daily-ops`** i launchd (senast 31 aug 05:05) och skriver in i `openclaw-config/runs/inbox/`. Pollerns plist är avstängd, men inte den här. Två maskiner skriver in i samma katalog.
 - **Repots `openclaw.json` är Mac-formad.** En körning av `deploy_openclaw_config.sh` skulle sätta `gateway.tailscale.mode=off` och peka arbetsytan på `/Users/onepiecedad/clawd`. Kör det inte förrän configen är VPS-formad.
 - ~~Hemsidans boka-knapp länkade till Calendly~~ **åtgärdad**: knappen pekar på `cal.com/joakim-landqvist-yrcioq/15min` (Skyland_AI_System `18dfd61`), verifierad live 1 sep. Sajtens mobilbuggar (röstdemot avklippt, tangentbordsnav, död policylänk) fixade 1 sep i `05a523e` — se det repots logg.
