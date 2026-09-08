@@ -24,6 +24,7 @@
 | Webbspårning coldexperience.se | Samma tracker i `Onepiecedad/ColdExperience` (`Projekt/ColdExperience-4`). Syns i Gustavs kundkort. **Sajten bygger inte om vid push** — se skavanker. | SCC + Netlify `coldexperience` | uppe, verifierat 7 sep |
 | Alex / OpenClaw | **Gateway på VPS sedan 31 aug** (Hetzner CPX22, Helsingfors, 62.238.113.151, användare `alex`, systemd user-units med linger). Poller `~/openclaw-config/scripts/scc_poller.py`. Gatewayn nås över Tailscale på `https://alex.tail8a8e79.ts.net` (tailnet-only, loopback-bunden, inga öppna portar) — Kontoret i SCC pratar med den därifrån. Macens launchd-jobb ligger som `.plist.disabled` — starta dem aldrig igen, två pollers gör dubbelt arbete. Kimi K2.5 orkestrerare (fallback gemini-2.5-flash; claude-sonnet-4-20250514 rensad 31 aug, leverantören avvisar den). Researchern kör Kimi K2.5 sedan 30 aug (fallback DeepSeek V4 Flash) — se 2.3-jämförelsen i HANDOVER_2026-08-30: 10/10 mot 5/10 godkända på första försöket. Övriga underagenter DeepSeek V4 Flash. **WhatsApp** som kanal. | Hetzner CPX22 hel1 | uppe dygnet runt |
 | Skills | `~/.openclaw/skills`, kärnan `scc-crm` (discover, prospect, dm, bump, ads). Nycklar via `scripts/env.py` (se Konfiguration). Research-steget gör en omkörning med skärpt brief vid format/timeout (plan 2.2, 30 aug); `custom.research_attempts` på kortet visar hur många försök det tog. | Joakims Mac | fungerar; bortfallet ska mätas efter nästa batch (var ~50 % före 2.2) |
+| Dualhook | **Meta Tech Partner som kopplar in Cold Experiences WhatsApp-nummer.** Vald 8 sep i stället för egen App Review (väg 1) eller 360dialog (väg 2b). Embedded Signup körs på Dualhooks Meta-app, så vi behöver ingen egen App Review. **Webhook Override:** inkommande går från Meta rakt till `ce-agent-webhook`, aldrig via dem, och de lagrar inga meddelanden. WABA:n står kvar hos Cold Experience. Utgående via API-nyckel som ska ligga i Supabase; sändvägen är inte verifierad än. Developer-planen 12 €/mån, en anslutning. **Provperioden slutar 22 sep, då startar debiteringen automatiskt.** Joakim äger kontot, Gustav inbjuden som Admin. | dualhook.com | konto uppsatt 8 sep, **numret ännu inte inkopplat** |
 | Apify | Google Maps (discover), Meta Ad Library (ads), Instagram (target). | Betald plan sedan 28 aug | uppe |
 
 ## Avvecklat (peka inte på dessa)
@@ -569,14 +570,22 @@ räknas ur tråden: fritext går bara inom 24 h från kundens senaste inkommande
 annars 409 med skälet. Utanför fönstret måste det vara en godkänd mall — inte
 byggt än. Fönstret behöver ingen egen tabell.
 
+**Vägvalet gjordes 8 sep: Dualhook.** Meta-sidan görs INTE för hand längre. Numret
+kunde inte registreras direkt på Cloud API utan att Gustav förlorar WhatsApp
+Business-appen, och egen App Review (Tech Provider) tar dagar till veckor.
+Dualhook kör Embedded Signup med coexistence på sin egen Meta-app. Se raden i
+Tjänster och `~/.openclaw/skills/scc-crm/references/tekniska-forutsattningar.md`,
+avsnittet "Vägvalet: Dualhook".
+
 **Kvar, i den här ordningen:**
 
-1. **Meta-sidan (Joakim).** WhatsApp Business-konto och nummer i Cold
-   Experiences Business Manager, permanent system-user-token, app-hemlighet,
-   webhook-prenumeration på `messages` mot
-   `https://scc.skylandai.se/api/v1/webhooks/whatsapp` med verify-token.
-   Sätt de fyra WHATSAPP-variablerna i Render. Sätt
-   `tenants.config.whatsapp_phone_number_id` på cold-experience.
+1. **Gustav kopplar in numret** i Dualhook, på telefonen med kontantkortet.
+   Cirka tjugo minuter, han har en egen instruktion. Därefter sätter Joakim
+   webhook-adressen (`https://wfwqjxsuvbacvcmpiesl.supabase.co/functions/v1/ce-agent-webhook`)
+   och lägger API-nyckeln som hemlighet i Supabase.
+   **Obs:** inkommande går alltså till Supabase-funktionen, inte till
+   `/api/v1/webhooks/whatsapp` i SCC. Den senare finns kvar och är den väg
+   tabellen nedan beskriver; vilken som ska äga trafiken är inte avgjort.
 2. Mallar (utanför 24 h) — kräver godkända templates hos Meta.
 3. Agenten: svar på fyra språk, het-lead-detektion, överlämning till Gustav.
    Hakar i tråden när den finns.
