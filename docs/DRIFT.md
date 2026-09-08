@@ -24,7 +24,7 @@
 | Webbspårning coldexperience.se | Samma tracker i `Onepiecedad/ColdExperience` (`Projekt/ColdExperience-4`). Syns i Gustavs kundkort. **Sajten bygger inte om vid push** — se skavanker. | SCC + Netlify `coldexperience` | uppe, verifierat 7 sep |
 | Alex / OpenClaw | **Gateway på VPS sedan 31 aug** (Hetzner CPX22, Helsingfors, 62.238.113.151, användare `alex`, systemd user-units med linger). Poller `~/openclaw-config/scripts/scc_poller.py`. Gatewayn nås över Tailscale på `https://alex.tail8a8e79.ts.net` (tailnet-only, loopback-bunden, inga öppna portar) — Kontoret i SCC pratar med den därifrån. Macens launchd-jobb ligger som `.plist.disabled` — starta dem aldrig igen, två pollers gör dubbelt arbete. Kimi K2.5 orkestrerare (fallback gemini-2.5-flash; claude-sonnet-4-20250514 rensad 31 aug, leverantören avvisar den). Researchern kör Kimi K2.5 sedan 30 aug (fallback DeepSeek V4 Flash) — se 2.3-jämförelsen i HANDOVER_2026-08-30: 10/10 mot 5/10 godkända på första försöket. Övriga underagenter DeepSeek V4 Flash. **WhatsApp** som kanal. | Hetzner CPX22 hel1 | uppe dygnet runt |
 | Skills | `~/.openclaw/skills`, kärnan `scc-crm` (discover, prospect, dm, bump, ads). Nycklar via `scripts/env.py` (se Konfiguration). Research-steget gör en omkörning med skärpt brief vid format/timeout (plan 2.2, 30 aug); `custom.research_attempts` på kortet visar hur många försök det tog. | Joakims Mac | fungerar; bortfallet ska mätas efter nästa batch (var ~50 % före 2.2) |
-| Dualhook | **Meta Tech Partner som kopplar in Cold Experiences WhatsApp-nummer.** Vald 8 sep i stället för egen App Review (väg 1) eller 360dialog (väg 2b). Embedded Signup körs på Dualhooks Meta-app, så vi behöver ingen egen App Review. **Webhook Override:** inkommande går från Meta rakt till `ce-agent-webhook`, aldrig via dem, och de lagrar inga meddelanden. WABA:n står kvar hos Cold Experience. Utgående via API-nyckel som ska ligga i Supabase; sändvägen är inte verifierad än. Developer-planen 12 €/mån, en anslutning. **Provperioden slutar 22 sep, då startar debiteringen automatiskt.** Joakim äger kontot, Gustav inbjuden som Admin. | dualhook.com | konto uppsatt 8 sep, **numret ännu inte inkopplat** |
+| Dualhook | **Meta Tech Partner som kopplar in Cold Experiences WhatsApp-nummer.** Vald 8 sep i stället för egen App Review. **Numret inkopplat 8 sep 23:15 via coexistence (QR i Business-appen).** Nummer +46 73 550 71 23, WABA `1021280300798738`, Phone Number ID `1289813200882119`, Business ID `698578172315817`. Inkommande går via Webhook Override från Meta rakt till `ce-agent-webhook`; handskakningen verifierad `GET 200` 23:18:01. Utgående via `api.dualhook.com` med `dh_live_`-nyckel — **inte skapad än, vi kan ta emot men inte svara.** Developer 12 €/mån. **Provperioden slutar 22 sep.** Heartbeat: appen måste öppnas var 13:e dag, nästa förfall 21 sep. | dualhook.com |
 | Apify | Google Maps (discover), Meta Ad Library (ads), Instagram (target). | Betald plan sedan 28 aug | uppe |
 
 ## Avvecklat (peka inte på dessa)
@@ -760,6 +760,30 @@ flödena inte kan krocka. Flödena delar ämnesrader men inte avsändare (`gusta
 **Speglingen skriver fortfarande över `contacts.tags` helt.** `custom` slås ihop sedan 8 sep, men
 tags gör det inte. Därför använder sekvensen varken `add_tag` eller `move_stage` — stegen i
 pipelinen ägs av speglingen och hade dragit åt olika håll.
+
+## WhatsApp: signaturkontrollen kan inte fungera med Dualhook (8 sep)
+
+`ce-agent-webhook` verifierar Metas `X-Hub-Signature-256` mot `META_APP_SECRET`. Efter inkopplingen
+kom första anropet in som `POST | 401` med `bad signature` i funktionsloggen, och det går inte att
+laga genom att hämta rätt hemlighet: trafiken signeras med **Dualhooks** app-hemlighet, som är
+delad mellan alla deras kunder och aldrig lämnas ut. De lägger inte heller på någon egen signatur.
+Källa och citat: `~/.openclaw/skills/scc-crm/references/tekniska-forutsattningar.md`, avsnittet
+"Det som återstår: signaturkontrollen kan inte fungera som den är byggd".
+
+**Tills detta är gjort avvisas varje inkommande WhatsApp-meddelande.** Ingen gäst drabbas, för
+autopiloten är av och Gustav ser allt i appen, men fortsätter vi svara 401 stänger Meta av
+prenumerationen och inkopplingen får göras om.
+
+1. Ta bort `META_APP_SECRET` ur Supabase (koden hoppar då över kontrollen med en varning).
+2. Validera i stället `phone_number_id` = `1289813200882119` och WABA = `1021280300798738`.
+3. Byt webhook-adressen till en med gissningssäkert slumpsegment, behandlad som hemlighet.
+4. Skapa `dh_live_`-nyckeln i Dualhook för utgående.
+
+**Driftregel som följer av samma inkoppling:** länkade enheter loggas ut och kan länkas om, men
+WhatsApp för Windows och WearOS stöds inte och utlöser inga `smb_message_echoes`. Vår
+`markHumanActive` bygger på de ekona för att veta att en människa svarat. Gustav har iPhone och
+Mac; Mac står inte på listan över klienter utan stöd, men det är **otestat** och ska verifieras med
+ett riktigt meddelande innan autopiloten slås på.
 
 ## Kända skavanker
 
