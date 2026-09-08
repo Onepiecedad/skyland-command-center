@@ -126,8 +126,12 @@ function CopyBlock({ title, text, onChange }: { title: string; text: string; onC
 }
 
 /** DM-sektionen: redigerbara öppnare/uppföljning + spara tillbaka till kortet. */
-function DmSection({ contactId, dmHook, source, onSaved }: {
+function DmSection({ contactId, dmHook, source, onSaved, ceLead }: {
     contactId: string; dmHook: string; source?: string | null; onSaved?: (c: Contact) => void;
+    /** Cold Experience-kort är svar till någon som själv hört av sig, inte kall utkorg.
+     *  Etiketterna "IG DM" och "INGEN pitch" gäller tatuerare och salonger och är
+     *  direkt missvisande här: mejlet SKA innehålla pris och länk. */
+    ceLead?: boolean;
 }) {
     const [initOpener, initFollowup] = dmHook.split(/\n?---\n?/);
     const [opener, setOpener] = useState(initOpener?.trim() ?? '');
@@ -156,11 +160,25 @@ function DmSection({ contactId, dmHook, source, onSaved }: {
 
     return (
         <div style={{ marginTop: 18 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>Outreach — IG DM</div>
-            <CopyBlock title="Öppnare (skickas först — INGEN pitch)" text={opener} onChange={setOpener} />
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>
+                {ceLead ? 'Mejlutkast' : 'Outreach — IG DM'}
+            </div>
+            <CopyBlock
+                title={ceLead ? 'Mejl 1 — dag 0' : 'Öppnare (skickas först — INGEN pitch)'}
+                text={opener} onChange={setOpener}
+            />
             {followup !== '' || initFollowup ? (
-                <CopyBlock title="Uppföljning (skickas ENDAST vid svar)" text={followup} onChange={setFollowup} />
+                <CopyBlock
+                    title={ceLead ? 'Mejl 2 — dag 3, om inget svar' : 'Uppföljning (skickas ENDAST vid svar)'}
+                    text={followup} onChange={setFollowup}
+                />
             ) : null}
+            {ceLead && !initFollowup && (
+                <div style={{ fontSize: 11, opacity: 0.55, marginTop: 6 }}>
+                    Ingen uppföljning på det här kortet. Gästen har svarat att resan ligger ett till
+                    två år fram, och då skickas bara ett mejl.
+                </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 6 }}>
                 {source && <span style={{ fontSize: 11, opacity: 0.5, flex: 1 }}>källa: {source}</span>}
                 {dirty && (
