@@ -585,6 +585,17 @@ på kontantkortstelefonen måste öppnas minst var 13:e dag, historiksynken mås
 klar inom ett dygn, och avinstalleras appen bryts kopplingen permanent. Ingen av
 dem har ett larm i dag.
 
+**Jobbkön `ce_jobs` har en klocka sedan 8 sep kväll.** pg_cron + pg_net i Supabase anropar
+`ce-agent-webhook?run_jobs=1` (var 5:e min, :00) och `meta-leads-webhook?run_jobs=1` (var 5:e
+min, :02). Innan dess kördes kön bara efter nästa inkommande webhook, så ett utskick i lugn
+period låg tills nästa gäst hörde av sig. Migration `database/migrations/20260908_ce_jobs_cron.sql`.
+Kontroll: `select * from cron.job_run_details order by start_time desc limit 5`.
+
+**Leadkortets deadline i svensk lokal tid sedan 8 sep kväll** (`ce-agent-webhook` v16). Var
+hårdkodat UTC+2, hade gett en timme fel dec–apr. Funktionernas källkod ligger nu i
+`openclaw-config/skills/scc-crm/functions/` och är md5-identisk med driften; **hämta driftens
+version och diffa innan varje deploy** (lokala `prompt.ts` låg en version efter driften 7–8 sep).
+
 **Kvar, i den här ordningen:**
 
 1. **Gustav kopplar in numret** i Dualhook, på telefonen med kontantkortet.
