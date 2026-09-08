@@ -35,6 +35,7 @@ DEFAULT_BASE = "https://scc.skylandai.se"
 # Flaggor i DRIFT.md-tabellen som har ett värde att jämföra (inte bara "satt").
 VALUE_FLAGS = {
     "OUTBOUND_ENABLED", "OUTBOUND_MODE", "SEQUENCE_RUNNER_ENABLED", "OUTBOUND_DAILY_LIMIT",
+    "OUTBOUND_DAILY_LIMITS",
     "TRANSACTIONAL_OUTBOUND_ENABLED", "INTEGRATION_HEALTH_ENABLED",
     "OUTREACH_WINDOW_ENABLED", "OUTREACH_JITTER_MINUTES",
     "POLLER_WATCHDOG_ENABLED", "POLLER_STALE_MINUTES", "POLLER_WATCHDOG_INTERVAL_MS",
@@ -45,6 +46,7 @@ VALUE_FLAGS = {
 # Zod-defaults när en flagga inte är satt i Render (docs säger "ej satt").
 # Måste hållas i synk med backend/src/config.ts.
 DEFAULTS = {
+    "OUTBOUND_DAILY_LIMITS": "{}",
     "INTEGRATION_HEALTH_ENABLED": "false",
     "TRANSACTIONAL_OUTBOUND_ENABLED": "true",
     "OUTBOUND_MODE": "auto",

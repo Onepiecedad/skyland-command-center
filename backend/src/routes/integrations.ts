@@ -24,6 +24,8 @@ router.get('/flags', (_req: Request, res: Response) => {
             OUTBOUND_MODE: config.OUTBOUND_MODE,
             SEQUENCE_RUNNER_ENABLED: String(config.SEQUENCE_RUNNER_ENABLED),
             OUTBOUND_DAILY_LIMIT: String(config.OUTBOUND_DAILY_LIMIT),
+            // Per hink (8 sep). Serialiserad så drift_check kan jämföra strängen rakt av.
+            OUTBOUND_DAILY_LIMITS: JSON.stringify(config.OUTBOUND_DAILY_LIMITS ?? {}),
             TRANSACTIONAL_OUTBOUND_ENABLED: String(config.TRANSACTIONAL_OUTBOUND_ENABLED),
             INTEGRATION_HEALTH_ENABLED: String(config.INTEGRATION_HEALTH_ENABLED),
             EMAIL_FROM: config.EMAIL_FROM ?? null,
