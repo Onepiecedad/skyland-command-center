@@ -63,6 +63,7 @@ import { startDailyDigest } from './services/dailyDigest.js';
 import integrationsRouter from './routes/integrations.js';
 import attributionRouter from './routes/attribution.js';
 import mergeRouter from './routes/merge.js';
+import inboxRouter from './routes/inbox.js';
 import { startHealthMonitor } from './services/integrationHealth.js';
 import adminRouter from './routes/admin.js';
 import openworkWebhookRouter from './routes/openworkWebhook.js';
@@ -302,6 +303,7 @@ class Server {
     this.app.use('/api/v1/integrations', integrationsRouter); // Integrations-hälsa (SCC-37)
     this.app.use('/api/v1/attribution', attributionRouter);   // Attribution (SCC-36)
     this.app.use('/api/v1/merge', mergeRouter);               // Kontakt-merge (SCC-41)
+    this.app.use('/api/v1/inbox', inboxRouter);               // Inkorgen: inkommande per sort (svar/dmarc/brus), läsverktyg för Alex
     this.app.use('/api/v1/admin', adminLimiter, adminRouter);
     this.app.use('/api/v1/gateway', gatewayRouter);
     this.app.use('/api/v1/website', websiteRouter);   // Hemside-analytics (auth-skyddad)
