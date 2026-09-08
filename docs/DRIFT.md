@@ -166,15 +166,25 @@ VPS:ens `openclaw.json` stod på `ollama/llama3.1:8b`, som bara fanns på Macen.
 hjärtslag (var 2:e timme) föll sedan flytten 31 aug med "Unknown model", och ibland
 läckte felet ut i WhatsApp som "The configured model is unavailable" (00:32 den 8 sep).
 Chatten påverkades inte, den kör Kimi. Bytt till `openrouter/google/gemini-2.5-flash`,
-gateway omstartad 20:22, backup `openclaw.json.bak-heartbeat-8sep`. Preflight fångar
-inte detta: det är ett modellnamn, inte en sökväg. **Lägg gärna till kontroll av att
-varje `model` i openclaw.json finns hos sin leverantör.**
+gateway omstartad 20:22, backup `openclaw.json.bak-heartbeat-8sep`. **Preflight har sedan 8 sep kväll kontroll 7:** varje modell i `openclaw.json` och
+`agents/*/agent.json` slås upp hos sin leverantör (OpenRouter publikt, Google med nyckeln
+i configen); `ollama/` och prefixlösa namn är FAIL, nätfel är VARNING. Första körningen
+hittade **sjunde Mac-arvet**: `agents/deep-research/agent.json` bar `claude-sonnet-4-20250514`,
+modellen som rensades ur openclaw.json 31 aug men överlevde i en agentfil. Modellraden är
+borttagen (agenten ärver defaults, backup `agent.json.bak-8sep`); preflight rent, 31 av 31.
+Svep samma kväll efter andra icke-sökvägsarv (macOS-kommandon, lokala portar, Mac-tjänster
+i config): inget mer i det Alex kör. Kvar som text: `scripts/scc_poller.README.md` beskriver
+launchctl, alltså Macens sätt att starta pollern; på VPS:en heter det systemd.
 
 Samma dag städades sju agent-instruktionsfiler (`IDENTITY.md`, `HEARTBEAT.md`) från
 `/Users/onepiecedad/...`. **Mönstret att leta efter när något slutar fungera efter en
-flytt: en absolut sökväg till den gamla maskinen.** Det har nu förklarat sex separata
-fel — pollern, mejlsignalen, kalendern, schemaläggarens `store_key`, kundvakten och
-hjärtslagets modell (som är ett Mac-arv utan att vara en sökväg).
+flytt: en absolut sökväg till den gamla maskinen.** Det har nu förklarat sju separata
+fel — pollern, mejlsignalen, kalendern, schemaläggarens `store_key`, kundvakten,
+hjärtslagets modell och deep-research-agentens modell (de två sista är Mac-arv utan att
+vara sökvägar; preflight kontroll 7 täcker den klassen). **Den gemensamma roten är att
+konfigurationen skrevs för en maskin och kopierades till en annan.** Så länge repots
+`openclaw.json` är Mac-formad (se skavankerna) kan alla sju komma tillbaka på en gång
+vid en oförsiktig `deploy_openclaw_config.sh`.
 
 ## Namnbekräftelse i röstagenten (1 sep)
 
