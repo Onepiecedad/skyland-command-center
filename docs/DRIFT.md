@@ -65,10 +65,10 @@
 | `DAILY_DIGEST_ENABLED` | ej satt (default `true`) | Ett digestmejl till `EMAIL_FORWARD_TO` varje morgon med dygnets siffror. Byggd 31 aug (plan 3.2). |
 | `DAILY_DIGEST_HOUR` | ej satt (default `7`) | Timme i **svensk** tid. Containern kör UTC; digesten räknar om själv. |
 | `DAILY_DIGEST_INTERVAL_MS` | ej satt (default `900000`) | Hur ofta klockan kollas. Digesten går första kontrollen efter timslaget. |
-| `WHATSAPP_VERIFY_TOKEN` | **ej satt** | Metas prenumerationsverifiering av `/api/v1/webhooks/whatsapp` (GET). Välj en sträng, sätt den här och i Meta App Dashboard → WhatsApp → Configuration. |
+| `WHATSAPP_VERIFY_TOKEN` | **ej satt, avsiktligt** | Hör till SCC-routen `/api/v1/webhooks/whatsapp`, som är **ej i drift** sedan beslutet 8 sep (Cold Experience går Dualhook → `ce-agent-webhook` i Supabase). De fyra `WHATSAPP_*`-variablerna nedan ska förbli tomma tills en andra WhatsApp-kund eventuellt använder SCC-routen. |
 | `WHATSAPP_APP_SECRET` | **ej satt** | Appens hemlighet (Meta App Dashboard → App settings → Basic). Med den satt signaturkontrolleras varje POST (`X-Hub-Signature-256`). **Utan den accepteras bara Bearer `LEADS_INTAKE_TOKEN`** — test/manuell väg, inte produktion. |
 | `WHATSAPP_ACCESS_TOKEN` | **ej satt** | Svarsvägen ut via Graph API. Permanent system-user-token från Business Manager, inte det 24-timmars-token Meta visar i dashboarden. |
-| `WHATSAPP_PHONE_NUMBER_ID` | **ej satt** | Cold Experience-numret; sätts när intaget installeras (egen tråd, sep 2026). Utan `WHATSAPP_VERIFY_TOKEN` och Meta-prenumeration kommer inget in och därmed går inget ut. |
+| `WHATSAPP_PHONE_NUMBER_ID` | **ej satt, avsiktligt** | Skulle vara Cold Experience-numret för SCC-routen. Sätts INTE: numret kopplas via Dualhook till Supabase-funktionen (beslut 8 sep). |
 | `WHATSAPP_TENANT_SLUG` | ej satt (default `cold-experience`) | Vart inkommande hamnar när `phone_number_id` inte matchar någon `tenants.config.whatsapp_phone_number_id`. |
 | `WHATSAPP_OUTBOUND_ENABLED` | ej satt (default `true`) | Egen kill switch för WhatsApp-svar. Ett svar till någon som själv skrivit in är inte outreach och lyder därför **inte** `OUTBOUND_ENABLED`/`OUTBOUND_MODE`/dagsbudgeten. |
 | `WHATSAPP_GRAPH_VERSION` | ej satt (default `v21.0`) | Graph API-version. |
@@ -543,20 +543,25 @@ beskrivning av en bugg, och **ska inte behöva det** — ett undantagsregister
 ruttnar. Texten säger `/Users/<utvecklare>/` nu och kontrollen förblir
 undantagslös.
 
-## WhatsApp-intag för Cold Experience (byggt 5 sep, väntar på Meta-sidan)
+## WhatsApp-intag för Cold Experience (Dualhook → `ce-agent-webhook`, beslutat 8 sep)
 
-**Första externa tenanten får sina leads i det vanliga CRM:et.** Inte i det
-separata `ce_*`-schemat från 10 aug (se skavankerna). Kontakter, kort, tråd,
-todos — samma tabeller som tattoo och beauty, skilda åt av `tenant_id`.
+**Trafiken ägs av Supabase-funktionen `ce-agent-webhook`.** Beslut 8 sep kväll:
+Dualhooks Webhook Override pekar dit, agentlogiken (fyra språk, het-lead-detektion,
+`ce_leads`/`ce_messages`) bor där, och CRM-korten uppstår genom speglingen
+`ce_mirror_lead`/`ce_mirror_message` (se `crm-spegling.md`). Gustavs leads hamnar
+alltså i det vanliga CRM:et, i pipelinen `Cold Experience — leads` (id `1541531a…`,
+tenant `cold-experience`, Ny → Kvalificerad → Het → Överlämnad → Bokad → Betald →
+Avböjt), men vägen in är `ce_*`-tabellerna, inte SCC-routen.
 
-**Pipeline:** `Cold Experience — leads` (id `1541531a…`, tenant `cold-experience`):
-Ny → Kvalificerad → Het → Överlämnad → Bokad → Betald → Avböjt. Syns som en tab i
-CRM-fliken sedan 5 sep. Tom tills intaget är kopplat.
+**SCC:s `/api/v1/webhooks/whatsapp` (`routes/whatsappWebhook.ts`) är EJ I DRIFT.**
+Byggd 5 sep för den manuella Meta-vägen som lämnades 8 sep. Ingen webhook pekar på
+den, `WHATSAPP_*`-variablerna i Render är avsiktligt tomma, och de ska förbli det:
+två mottagare för samma trafik är samma felklass som två ingest-vägar för sajten.
+Koden och de 27 testerna får ligga kvar som reserv (den är tenant-generisk och kan
+bli vägen för en andra WhatsApp-kund), men rör den inte för Cold Experience.
+Tabellen nedan beskriver vad den routen *skulle* göra, som referens.
 
-**Webhook:** `/api/v1/webhooks/whatsapp` (`routes/whatsappWebhook.ts`,
-monterad före global auth).
-
-| Händelse | Vad som händer |
+| Händelse (SCC-routen, ej i drift) | Vad som händer |
 |---|---|
 | Inkommande meddelande | tenant ur `phone_number_id` (→ `tenants.config.whatsapp_phone_number_id`), annars `WHATSAPP_TENANT_SLUG`. Kontakt på `custom.wa_id`, i andra hand på telefon (plus och mellanslag tas bort, `wa_id` lärs in). Saknas den skapas den: namn ur WhatsApp-profilen, telefon `+<wa_id>`, `source` `whatsapp` eller `whatsapp_ctwa`, `dedupe_key` `wa:<tenant>:<wa_id>`. Öppet kort i tenantens pipeline (`config.whatsapp_pipeline` eller den äldsta) i första stadiet om inget finns. Rad i `messages` (`channel=whatsapp`, `provider_message_id=wamid`, `metadata.contact_id`). Auto-todo "Svara …". |
 | Bild/röst/video/dokument/plats/knapp | läsbar rad (`[bild]`, `[röstmeddelande]`, knappens text …), media-id i `metadata.media_id`. Tråden visar aldrig en tom rad. |
@@ -564,28 +569,30 @@ monterad före global auth).
 | Status (`sent`/`delivered`/`read`/`failed`) | uppdaterar vårt utgående på `provider_message_id`. `read` räknas som `delivered`. Går aldrig bakåt. Fel sparas i `metadata.error`. |
 | Omleverans | dedupe på `wamid` — Meta levererar om vid minsta tvekan. |
 
-**Svarsväg:** `POST /api/v1/whatsapp/send { contact_id, text }` (bakom vanlig
-auth) och `GET /api/v1/whatsapp/window/:contactId`. **24-timmarsfönstret**
-räknas ur tråden: fritext går bara inom 24 h från kundens senaste inkommande,
-annars 409 med skälet. Utanför fönstret måste det vara en godkänd mall — inte
-byggt än. Fönstret behöver ingen egen tabell.
+**Svarsväg (SCC-routen, ej i drift):** `POST /api/v1/whatsapp/send` och
+`GET /api/v1/whatsapp/window/:contactId` hör till samma reservkod. Utgående för
+Cold Experience går via Dualhooks API-nyckel från Supabase-funktionen; sändvägen
+är **inte verifierad** än (se Tjänster). 24-timmarsfönstret räknas ur tråden;
+utanför fönstret krävs godkänd mall, inte byggt.
 
 **Vägvalet gjordes 8 sep: Dualhook.** Meta-sidan görs INTE för hand längre. Numret
 kunde inte registreras direkt på Cloud API utan att Gustav förlorar WhatsApp
 Business-appen, och egen App Review (Tech Provider) tar dagar till veckor.
 Dualhook kör Embedded Signup med coexistence på sin egen Meta-app. Se raden i
 Tjänster och `~/.openclaw/skills/scc-crm/references/tekniska-forutsattningar.md`,
-avsnittet "Vägvalet: Dualhook".
+avsnittet "Vägvalet: Dualhook". **Tre villkor som bryter kopplingen:** Business-appen
+på kontantkortstelefonen måste öppnas minst var 13:e dag, historiksynken måste bli
+klar inom ett dygn, och avinstalleras appen bryts kopplingen permanent. Ingen av
+dem har ett larm i dag.
 
 **Kvar, i den här ordningen:**
 
 1. **Gustav kopplar in numret** i Dualhook, på telefonen med kontantkortet.
-   Cirka tjugo minuter, han har en egen instruktion. Därefter sätter Joakim
-   webhook-adressen (`https://wfwqjxsuvbacvcmpiesl.supabase.co/functions/v1/ce-agent-webhook`)
-   och lägger API-nyckeln som hemlighet i Supabase.
-   **Obs:** inkommande går alltså till Supabase-funktionen, inte till
-   `/api/v1/webhooks/whatsapp` i SCC. Den senare finns kvar och är den väg
-   tabellen nedan beskriver; vilken som ska äga trafiken är inte avgjort.
+   Cirka tjugo minuter, han har en egen instruktion. Vill han ha huvudkontot på
+   sin egen telefon ska det flyttas FÖRE inkopplingen, inte efter. Därefter sätter
+   Joakim webhook-adressen
+   (`https://wfwqjxsuvbacvcmpiesl.supabase.co/functions/v1/ce-agent-webhook`)
+   och lägger API-nyckeln som hemlighet i Supabase. Provperioden slutar 22 sep.
 2. Mallar (utanför 24 h) — kräver godkända templates hos Meta.
 3. Agenten: svar på fyra språk, het-lead-detektion, överlämning till Gustav.
    Hakar i tråden när den finns.
