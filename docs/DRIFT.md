@@ -161,10 +161,20 @@ Den hade sex fel i rad och gissningen var modelltimeout. Det var fel. Tre saker:
    layout, och dog på "SCC_API_TOKEN saknas". Den provar nu `~/.openclaw/.env`,
    `~/openclaw-config/.env` och den gamla sökvägen i tur och ordning.
 
+**Sjätte Mac-arvet (8 sep kväll): hjärtslaget pekade på Ollama.** `heartbeat.model` i
+VPS:ens `openclaw.json` stod på `ollama/llama3.1:8b`, som bara fanns på Macen. Varje
+hjärtslag (var 2:e timme) föll sedan flytten 31 aug med "Unknown model", och ibland
+läckte felet ut i WhatsApp som "The configured model is unavailable" (00:32 den 8 sep).
+Chatten påverkades inte, den kör Kimi. Bytt till `openrouter/google/gemini-2.5-flash`,
+gateway omstartad 20:22, backup `openclaw.json.bak-heartbeat-8sep`. Preflight fångar
+inte detta: det är ett modellnamn, inte en sökväg. **Lägg gärna till kontroll av att
+varje `model` i openclaw.json finns hos sin leverantör.**
+
 Samma dag städades sju agent-instruktionsfiler (`IDENTITY.md`, `HEARTBEAT.md`) från
 `/Users/onepiecedad/...`. **Mönstret att leta efter när något slutar fungera efter en
-flytt: en absolut sökväg till den gamla maskinen.** Det har nu förklarat fem separata
-fel — pollern, mejlsignalen, kalendern, schemaläggarens `store_key` och kundvakten.
+flytt: en absolut sökväg till den gamla maskinen.** Det har nu förklarat sex separata
+fel — pollern, mejlsignalen, kalendern, schemaläggarens `store_key`, kundvakten och
+hjärtslagets modell (som är ett Mac-arv utan att vara en sökväg).
 
 ## Namnbekräftelse i röstagenten (1 sep)
 
