@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { isNoiseMessage } from './chat/messageNoise';
+import { withVoiceMarker, stripVoiceMarker, wasSpoken } from './chat/voiceMarker';
 import { useWalkieTalkie, TALK_LABEL } from '../hooks/useWalkieTalkie';
 import { speechQueue } from '../voice/speechQueue';
 import '../styles/alexdock.css';   // mikrofonknappens stilar delas med panelen
@@ -177,7 +178,16 @@ const MemoMessage = memo(function ChatMessage({ msg }: { msg: { role: string; co
                     ))}
                 </div>
             )}
-            <div className="message-content markdown-body">{msg.role === 'assistant' ? <CollapsibleMarkdown content={msg.content} /> : <ReactMarkdown remarkPlugins={remarkPlugins}>{msg.content}</ReactMarkdown>}</div>
+            <div className="message-content markdown-body">
+                {msg.role === 'assistant'
+                    ? <CollapsibleMarkdown content={msg.content} />
+                    : (
+                        <>
+                            {wasSpoken(msg.content) && <Mic size={11} className="msg-spoken-icon" />}
+                            <ReactMarkdown remarkPlugins={remarkPlugins}>{stripVoiceMarker(msg.content)}</ReactMarkdown>
+                        </>
+                    )}
+            </div>
             {msg.timestamp && <span className="msg-timestamp">{formatTime(msg.timestamp)}</span>}
         </div>
     );
@@ -277,7 +287,8 @@ export function AlexChat({ gateway: externalGateway }: Props) {
         // gatewayns strömmande deltas nedan och töms när svaret är klart.
         spokenRef.current = spoken;
         if (spoken) speechQueue.start(); else speechQueue.stop();
-        gateway.sendMessage(text.trim(), atts);
+        // Talat in? Säg det till agenten — annars svarar han som på skrift.
+        gateway.sendMessage(spoken ? withVoiceMarker(text) : text.trim(), atts);
     }, [attachments, gateway]);
 
     const handleSend = () => send(input);

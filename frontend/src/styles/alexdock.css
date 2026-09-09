@@ -319,6 +319,13 @@ button.alexdock-mic--speaking {
     white-space: nowrap;
 }
 
+/* Liten mikrofon på inpratade meddelanden i tråden */
+.msg-spoken-icon {
+    opacity: 0.55;
+    margin-right: 5px;
+    vertical-align: -1px;
+}
+
 /* ── Röstläge ── */
 
 /* Håll-och-prata-knappen i inmatningsraden */
