@@ -896,3 +896,24 @@ i `gustav-ton.md` 4e som **hans**, inte robotens.
 - **Macen kör fortfarande `com.skyland.daily-ops`** i launchd (senast 31 aug 05:05) och skriver in i `openclaw-config/runs/inbox/`. Pollerns plist är avstängd, men inte den här. Två maskiner skriver in i samma katalog.
 - ~~**Repots `openclaw.json` är Mac-formad.**~~ **Åtgärdat 8 sep kväll.** Repots `openclaw.json` är nu driftens fil med hemligheter som `{{NYCKEL}}` och hemkatalogen som `{{OPENCLAW_HOME}}`, alltså maskinneutral; renderad med VPS:ens `~/.openclaw/.env` är den byte för byte identisk med live (`deploy_openclaw_config.sh --check`, körs även av preflight kontroll 8 varje morgon). Deploy-skriptet skriver inte längre `cron/jobs.json` utan `--with-cron` (gatewayen hade migrerat in Macens jobb), och dess hårdkodade Mac-sökväg till valideraren är borta. Valideraren har prefixregel i stället för en lista där `ollama/llama3.1:8b` stod som giltig. **Arbetsordning framåt: ändra i repot, `--check` visar diffen, deploya, starta om gatewayen. En handrättning direkt i live ger VARNING i preflight tills den är intagen i repot.**
 - ~~Hemsidans boka-knapp länkade till Calendly~~ **åtgärdad**: knappen pekar på `cal.com/joakim-landqvist-yrcioq/15min` (Skyland_AI_System `18dfd61`), verifierad live 1 sep. Sajtens mobilbuggar (röstdemot avklippt, tangentbordsnav, död policylänk) fixade 1 sep i `05a523e` — se det repots logg.
+
+### Mac-sökvägar i gatewayns trajectory-pekare (åtgärdat 9 sep)
+
+**Symptom:** Alex-vyn visade `Error: EACCES: permission denied, mkdir '/Users'` följt av
+`Agent run ended before producing a complete result` — körningen dog innan den svarat.
+
+**Orsak:** vid flytten till VPS:en kopierades hela `~/.openclaw`, inklusive 1 156
+`*.trajectory-path.json`. Varje sådan pekare innehöll `runtimeFile:
+/Users/onepiecedad/.openclaw/...`. Nya sessioner får rätt sökväg, men så fort en ÄLDRE
+session kördes igen (t.ex. huvudtråden `agent:main:main`, som är från Mac-tiden) försökte
+gatewayn skriva sin trajectory till Mac-sökvägen, misslyckades med EACCES och avbröt körningen.
+Åttonde instansen av samma rot som de sju i HANDOVER_2026-09-09: konfiguration skriven för
+en maskin, kopierad till en annan.
+
+**Åtgärd:** alla 1 156 pekare skrevs om till `/home/alex/.openclaw/...`
+(backup: `~/trajectory-pointers-backup-2026-09-09.tgz`). Verifierat med ett skarpt
+hook-anrop: 200 och noll EACCES i gatewayns logg efteråt.
+
+**Att veta:** `preflight.py` fångar inte det här. En kontroll 9 som letar Mac-sökvägar i
+`~/.openclaw/agents/*/sessions/*.trajectory-path.json` vore rimlig nästa gång någon rör den.
+
