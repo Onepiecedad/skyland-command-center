@@ -21,7 +21,9 @@ const h = vi.hoisted(() => {
         listFor: null as null | ((pattern: string) => { data: unknown[]; error: unknown }),
     };
     const emitSystemEvent = vi.fn();
-    return { state, emitSystemEvent };
+    const dispatchToGateway = vi.fn();
+    const pollGatewayAnswer = vi.fn();
+    return { state, emitSystemEvent, dispatchToGateway, pollGatewayAnswer };
 });
 
 vi.mock('../services/supabase', () => {
@@ -42,6 +44,11 @@ vi.mock('../services/supabase', () => {
     return { supabase: { from: () => build() } };
 });
 
+vi.mock('../services/gatewayDelegate', () => ({
+    dispatchToGateway: h.dispatchToGateway,
+    pollGatewayAnswer: h.pollGatewayAnswer,
+    readGatewayHistory: vi.fn(),
+}));
 vi.mock('../services/sequenceEvents', () => ({ enrollContact: vi.fn(async () => ({ id: 'enr-1' })) }));
 vi.mock('../routes/eventStream', () => ({ emitSystemEvent: h.emitSystemEvent }));
 
@@ -54,6 +61,8 @@ beforeEach(() => {
     h.state.listFor = null;
     h.state.lastIlike = '';
     h.emitSystemEvent.mockReset();
+    h.dispatchToGateway.mockReset().mockResolvedValue({ historyKey: 'agent:main:hook:scc-1' });
+    h.pollGatewayAnswer.mockReset().mockResolvedValue('');
 });
 
 describe('ALEX_TOOLS — schema-integritet', () => {
@@ -76,6 +85,36 @@ describe('ALEX_TOOLS — schema-integritet', () => {
             // Får returnera valideringsfel — men ALDRIG "Unknown tool".
             expect(res.error ?? '', `${tool.name} ska vara wirad`).not.toMatch(/Unknown tool/);
         }
+    });
+});
+
+describe('delegate_task — överlämning till gateway-Alex', () => {
+    it('svar inom väntetiden returneras direkt', async () => {
+        h.pollGatewayAnswer.mockResolvedValueOnce('LOA Ink drivs av Louise, tre anställda.');
+        const res = await executeToolCall('delegate_task', { uppdrag: 'Kör research på LOA Ink' });
+        expect(res.success).toBe(true);
+        expect(res.data).toMatchObject({ status: 'klart', svar: 'LOA Ink drivs av Louise, tre anställda.' });
+        expect(h.dispatchToGateway).toHaveBeenCalledWith('Kör research på LOA Ink', 'SCC-panelen');
+    });
+
+    it('inget svar i tid → status pågår, aldrig ett påhittat resultat', async () => {
+        const res = await executeToolCall('delegate_task', { uppdrag: 'Leta kliniker i Malmö' });
+        expect(res.success).toBe(true);
+        expect((res.data as { status: string }).status).toBe('pågår');
+        expect((res.data as { svar?: string }).svar).toBeUndefined();
+    });
+
+    it('gatewayen nås inte → fel, inget påstående om att uppdraget gick iväg', async () => {
+        h.dispatchToGateway.mockResolvedValueOnce(null);
+        const res = await executeToolCall('delegate_task', { uppdrag: 'Kolla inkorgen' });
+        expect(res.success).toBe(false);
+        expect(res.error).toMatch(/nås inte/i);
+    });
+
+    it('tomt uppdrag → valideringsfel, ingen dispatch', async () => {
+        const res = await executeToolCall('delegate_task', { uppdrag: '   ' });
+        expect(res.success).toBe(false);
+        expect(h.dispatchToGateway).not.toHaveBeenCalled();
     });
 });
 

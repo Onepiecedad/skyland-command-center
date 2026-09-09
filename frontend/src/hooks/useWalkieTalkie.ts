@@ -218,5 +218,13 @@ export function useWalkieTalkie({ onTranscript }: Options) {
         }
     }, [stopPlayback]);
 
-    return { state, error, supported, start, stop, hush, clearError: () => setError(null) };
+    /** Läs upp en text utifrån (t.ex. ett svar som kom in efteråt). Kö-fritt: hoppar över om något redan låter. */
+    const speakExternal = useCallback(async (text: string) => {
+        if (stateRef.current !== 'idle') return;
+        go('speaking');
+        try { await speak(text); } catch { /* tyst: texten står i tråden ändå */ }
+        go('idle');
+    }, [go, speak]);
+
+    return { state, error, supported, start, stop, hush, speak: speakExternal, clearError: () => setError(null) };
 }

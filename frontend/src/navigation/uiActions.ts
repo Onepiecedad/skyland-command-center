@@ -61,6 +61,9 @@ interface UiActionData extends UiNavigateData {
     action?: string;
     /** action 'present': Alex egen genomgång, spelas upp av voice/presenter. */
     steps?: (UiNavigateData & { say: string })[];
+    /** action 'note': ett svar som kom in efteråt (t.ex. färdig research på VPS:en). */
+    text?: string;
+    speak?: boolean;
 }
 
 /** Navigera till en logisk vy (panel + ev. undervy). Används av SSE-bryggan och presentern. */
@@ -110,6 +113,15 @@ export function applyUiNavigate(data: UiNavigateData): void {
 }
 
 function handleUiAction(data: UiActionData): void {
+    if (data.action === 'note') {
+        const text = typeof data.text === 'string' ? data.text.trim() : '';
+        if (text) {
+            window.dispatchEvent(new CustomEvent<{ text: string; speak: boolean }>('scc:alex-note', {
+                detail: { text, speak: data.speak !== false },
+            }));
+        }
+        return;
+    }
     if (data.action === 'present') {
         const steps = (data.steps ?? []).filter((s) => s && typeof s.say === 'string' && s.say.trim());
         if (steps.length) window.dispatchEvent(new CustomEvent('scc:present', { detail: { steps } }));

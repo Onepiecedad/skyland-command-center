@@ -361,6 +361,17 @@ Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — 
         }
     },
     {
+        name: 'delegate_task',
+        description: `Lämnar över ett uppdrag till Alex på VPS:en — samma agent som svarar på WhatsApp, med skills som INTE finns här: webbresearch och faktakoll, prospektering och Google Maps-sökning, DM- och annonsanalys, inkorgen (mejl, DMARC), filer på servern, cron-jobb, och långa körningar i flera steg. Använd när operatören ber om något sådant, t.ex. "kör research på X", "leta upp fler kliniker i Malmö", "vad ligger i inkorgen", "kolla annonserna för Y". Skriv uppdraget som en komplett instruktion — den som tar emot ser inte den här chatten. Korta uppdrag besvaras direkt (upp till ~40 s). Längre körningar fortsätter i bakgrunden och svaret dyker upp i panelen av sig självt när det är klart; säg då att det är igång och gå vidare, hitta ALDRIG på ett resultat. Gör inte det här för sådant du själv har verktyg för (CRM, kunder, sekvenser, skärmen, saldot) — det går fortare här.`,
+        parameters: {
+            type: 'object',
+            properties: {
+                uppdrag: { type: 'string', description: 'Fullständig instruktion till Alex på VPS:en, som ett eget meddelande.' }
+            },
+            required: ['uppdrag']
+        }
+    },
+    {
         name: 'get_site_stats',
         description: 'Webbspårning för en kunds hemsida (eller Skylands egen): antal besök, engagerade, leads under perioden, samt NÄR senaste besöket och senaste leadet kom (ISO-tid, säg den i svensk tid). Använd vid "hur går Thomas hemsida", "när var senaste besökaren på …", "hur många leads har Gustavs sajt fått". Kunder med spårad sajt: Thomas (MarinMekaniker), Gustav (Cold Experience). "skyland" = skylandai.se.',
         parameters: {
@@ -468,6 +479,8 @@ export async function executeToolCall(
                 return await handleNavigateUi(args);
             case 'get_site_stats':
                 return await handleGetSiteStats(args);
+            case 'delegate_task':
+                return await handleDelegateTask(args);
             case 'get_credits': {
                 const { openRouterCredits } = await import('../routes/integrations');
                 const c = await openRouterCredits();
@@ -1454,6 +1467,65 @@ async function findContactsForNavigate(query: string): Promise<{ id: string; nam
     if (firstWord.length < 3) return [];
     const { data: fuzzy } = await supabase.from('contacts').select('id, name').ilike('name', `%${firstWord}%`).limit(6);
     return fuzzy ?? [];
+}
+
+/** Så länge väntar panelen innan ett uppdrag lämnas till bakgrunden. */
+const DELEGATE_WAIT_MS = 40_000;
+/** Så länge bevakas ett bakgrundsuppdrag innan vi ger upp på svaret. */
+const DELEGATE_BACKGROUND_MS = 12 * 60_000;
+
+/**
+ * delegate_task — skickar uppdraget till gateway-Alex och väntar en stund.
+ * Hinner svaret fram returneras det direkt. Annars fortsätter bevakningen i
+ * bakgrunden och svaret skickas till skärmen när det kommer, så att en lång
+ * research inte tappas bort bara för att chattsvaret redan gått iväg.
+ */
+async function handleDelegateTask(args: Record<string, unknown>): Promise<ToolResult> {
+    const uppdrag = typeof args.uppdrag === 'string' ? args.uppdrag.trim() : '';
+    if (!uppdrag) return { success: false, error: 'uppdrag krävs.' };
+
+    const { dispatchToGateway, pollGatewayAnswer } = await import('../services/gatewayDelegate');
+    const handle = await dispatchToGateway(uppdrag, 'SCC-panelen');
+    if (!handle) {
+        return { success: false, error: 'Alex på VPS:en nås inte just nu (gatewayen svarar inte), så uppdraget gick inte iväg. Säg det rakt ut.' };
+    }
+
+    const answer = await pollGatewayAnswer(handle.historyKey, 0, DELEGATE_WAIT_MS);
+    if (answer) {
+        return { success: true, data: { status: 'klart', svar: answer.slice(0, 4000) } };
+    }
+
+    // Kvar i bakgrunden: bevaka färdigt och lägg svaret på skärmen.
+    void (async () => {
+        try {
+            const late = await pollGatewayAnswer(handle.historyKey, 0, DELEGATE_BACKGROUND_MS);
+            const { emitSystemEvent } = await import('../routes/eventStream');
+            const { supabase: db } = await import('../services/supabase');
+            const text = late
+                ? late.slice(0, 4000)
+                : `Uppdraget "${uppdrag.slice(0, 80)}" har inte svarat på tolv minuter. Kolla gatewayen.`;
+            emitSystemEvent('ui_action', { action: 'note', text, speak: true, source: 'delegate' }, 'alex');
+            await db.from('activities').insert({
+                customer_id: null,
+                agent: 'alex',
+                action: late ? 'delegate.done' : 'delegate.timeout',
+                event_type: 'chat',
+                severity: late ? 'info' : 'warn',
+                autonomy_level: 'OBSERVE',
+                details: { uppdrag: uppdrag.slice(0, 500), history_key: handle.historyKey, answer_length: late.length },
+            });
+        } catch (err) {
+            console.error('[delegate] bakgrundsbevakning:', err instanceof Error ? err.message : err);
+        }
+    })();
+
+    return {
+        success: true,
+        data: {
+            status: 'pågår',
+            info: 'Uppdraget är igång på VPS:en men hann inte bli klart. Svaret dyker upp i panelen av sig självt. Säg att det är igång — hitta inte på ett resultat.',
+        },
+    };
 }
 
 /** get_site_stats — webbspårningens nyckeltal för en kunds sajt. Läsning, ändrar inget. */

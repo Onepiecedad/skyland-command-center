@@ -129,6 +129,20 @@ export function AlexDock() {
         window.addEventListener('scc:present', onPresent);
         return () => window.removeEventListener('scc:present', onPresent);
     }, [talk]);
+    // Svar som kommer in efteråt (delegerat uppdrag klart på VPS:en): lägg i
+    // tråden och läs upp, men avbryt aldrig något som redan låter.
+    useEffect(() => {
+        const onNote = (e: Event) => {
+            const d = (e as CustomEvent<{ text: string; speak: boolean }>).detail;
+            if (!d?.text) return;
+            setOpen(true);
+            setMessages((prev) => [...prev, { role: 'assistant', content: d.text }]);
+            if (d.speak) void talk.speak(d.text);
+        };
+        window.addEventListener('scc:alex-note', onNote);
+        return () => window.removeEventListener('scc:alex-note', onNote);
+    }, [talk]);
+
     const lastNotedRef = useRef<string>('');
     useEffect(() => {
         if (!show || show.status === 'done') return;
