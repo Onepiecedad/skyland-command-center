@@ -100,8 +100,11 @@ export const ALEX_TOOLS: ToolDefinition[] = [
                 },
                 executor: {
                     type: 'string',
-                    description: 'Vilken executor som ska köra tasken',
-                    enum: ['n8n:research', 'claw:research', 'claw:deep-research', 'claw:report-writer', 'n8n:content', 'local:echo']
+                    // Bara det pollern på VPS:en faktiskt kan köra (AGENT_MAPPING).
+                    // n8n är avvecklat sedan 30 aug; claw:deep-research och
+                    // claw:report-writer saknar mappning och skulle fastna i kön.
+                    description: 'Vilken executor som ska köra tasken. claw:research = faktaresearch, claw:prospect-finder = hitta företag, claw:produce-package = färdigt leveranspaket, local:echo = test.',
+                    enum: ['claw:research', 'claw:prospect-finder', 'claw:produce-package', 'local:echo']
                 },
                 input: {
                     type: 'string',

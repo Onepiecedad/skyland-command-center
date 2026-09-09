@@ -11,7 +11,7 @@ import { supabase } from './supabase';
 import { config } from '../config';
 import { logger } from './logger';
 import { logMessage, loadRecentMessages } from './messageService';
-import { loadCustomersForPrompt } from './customerService';
+import { loadCustomersForPrompt, loadPipelinesForPrompt } from './customerService';
 import { getAdapter, ChatMessage } from '../llm/adapter';
 import { logLLMCost } from './costService';
 import { buildSystemPrompt } from '../llm/systemPrompt';
@@ -201,12 +201,13 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
     actions_taken.push({ action: 'insert', table: 'messages', details: { role: 'user', conversation_id } });
 
     // Load context for LLM
-    const [customers, previousMessages] = await Promise.all([
+    const [customers, pipelines, previousMessages] = await Promise.all([
         loadCustomersForPrompt(),
+        loadPipelinesForPrompt(),
         loadRecentMessages(conversation_id)
     ]);
 
-    const systemPrompt = buildSystemPrompt(customers) + '\n' + REPORTING_RULES
+    const systemPrompt = buildSystemPrompt(customers, pipelines) + '\n' + REPORTING_RULES
         + (channel === 'voice' ? '\n' + VOICE_RULES : '');
 
     const llmMessages: ChatMessage[] = [
