@@ -64,6 +64,9 @@ interface UiActionData extends UiNavigateData {
     /** action 'note': ett svar som kom in efteråt (t.ex. färdig research på VPS:en). */
     text?: string;
     speak?: boolean;
+    /** 'delegate' = svar på något du bett om. 'pulse' = Alex säger till självmant. */
+    source?: string;
+    kind?: string;
 }
 
 /** Navigera till en logisk vy (panel + ev. undervy). Används av SSE-bryggan och presentern. */
@@ -116,8 +119,8 @@ function handleUiAction(data: UiActionData): void {
     if (data.action === 'note') {
         const text = typeof data.text === 'string' ? data.text.trim() : '';
         if (text) {
-            window.dispatchEvent(new CustomEvent<{ text: string; speak: boolean }>('scc:alex-note', {
-                detail: { text, speak: data.speak !== false },
+            window.dispatchEvent(new CustomEvent<{ text: string; speak: boolean; source: string }>('scc:alex-note', {
+                detail: { text, speak: data.speak !== false, source: data.source ?? 'delegate' },
             }));
         }
         return;

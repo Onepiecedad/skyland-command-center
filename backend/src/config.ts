@@ -212,6 +212,13 @@ const envSchema = z.object({
     // på dom, svar per klass, poller, integrationer och kostnad. Skickas till
     // EMAIL_FORWARD_TO. Vakten mejlar när något är sönder; digesten svarar på
     // frågan "vad gjorde maskinen medan jag sov" även när allt fungerar.
+    // --- Alex säger till av sig själv (pulse) ---
+    PULSE_ENABLED: z
+        .string()
+        .default('true')
+        .transform((v) => v === 'true'),
+    PULSE_INTERVAL_MS: z.coerce.number().default(60000),
+
     DAILY_DIGEST_ENABLED: z
         .string()
         .default('true')

@@ -198,19 +198,39 @@ export function AlexDock() {
         window.addEventListener('scc:present', onPresent);
         return () => window.removeEventListener('scc:present', onPresent);
     }, [talk]);
-    // Svar som kommer in efteråt (delegerat uppdrag klart på VPS:en): lägg i
-    // tråden och läs upp, men avbryt aldrig något som redan låter.
+    // Rader som kommer utan att du frågat. Två sorter, samma rör:
+    //   'delegate' — svaret på något du faktiskt bett om, läses upp.
+    //   'pulse'    — Alex säger till självmant. Läses BARA upp om du varit
+    //                aktiv nyligen och inget annat låter. Ett tomt rum ska
+    //                inte pratas till, och en pågående genomgång inte brytas.
+    const lastActiveRef = useRef<number>(Date.now());
+    useEffect(() => {
+        const touch = () => { lastActiveRef.current = Date.now(); };
+        window.addEventListener('pointerdown', touch);
+        window.addEventListener('keydown', touch);
+        return () => {
+            window.removeEventListener('pointerdown', touch);
+            window.removeEventListener('keydown', touch);
+        };
+    }, []);
+
     useEffect(() => {
         const onNote = (e: Event) => {
-            const d = (e as CustomEvent<{ text: string; speak: boolean }>).detail;
+            const d = (e as CustomEvent<{ text: string; speak: boolean; source: string }>).detail;
             if (!d?.text) return;
-            setOpen(true);
-            setMessages((prev) => [...prev, { role: 'assistant', content: d.text }]);
-            if (d.speak) void talk.speak(d.text);
+            const selfInitiated = d.source === 'pulse';
+            // Självmant: visa i tråden men öppna inte panelen över det du gör.
+            if (!selfInitiated) setOpen(true);
+            setMessages((prev) => [...prev, { role: 'assistant', content: d.text, note: selfInitiated }]);
+
+            const busyTalking = presenter.current !== null || speechQueue.speaking || talk.state !== 'idle';
+            const recentlyActive = Date.now() - lastActiveRef.current < 15 * 60_000;
+            const maySpeak = d.speak && !busyTalking && (!selfInitiated || (recentlyActive && open));
+            if (maySpeak) void talk.speak(d.text);
         };
         window.addEventListener('scc:alex-note', onNote);
         return () => window.removeEventListener('scc:alex-note', onNote);
-    }, [talk]);
+    }, [talk, open]);
 
     const lastNotedRef = useRef<string>('');
     useEffect(() => {
