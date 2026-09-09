@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { supabase } from '../services/supabase';
 import { summarizeBatch, outcomesByAgent, type CostRow } from '../services/officeBatch';
+import { checkAll } from '../services/integrationHealth';
+import { pollerStatus } from '../services/pollerWatchdog';
 
 const router = Router();
 
@@ -98,6 +100,74 @@ function newestTrajectory(dir: string): { file: string; mtime: number } | null {
     return null;
   }
 }
+
+// ── SCC-49 etapp 4: tre hälsolampor för Kontorets sidhuvud ──────────────────
+// integrationer (checkAll, cachad 60 s — probarna tar sekunder), pollerns hjärtslag
+// (watchdogens minne), preflight (senaste aktivitet 'preflight.result', skrivs av
+// preflight.py på VPS:en 06:30). Varje lampa: 'ok' | 'warn' | 'down' | 'unknown'.
+type Lamp = 'ok' | 'warn' | 'down' | 'unknown';
+let healthCache: { at: number; overall: string; bad: string[] } | null = null;
+const HEALTH_TTL_MS = 60_000;
+
+async function integrationsLamp(): Promise<{ lamp: Lamp; detail: string; at: string | null }> {
+    try {
+        if (!healthCache || Date.now() - healthCache.at > HEALTH_TTL_MS) {
+            const results = await checkAll();
+            const bad = results.filter((r) => r.status === 'down' || r.status === 'auth_failed').map((r) => r.name);
+            healthCache = { at: Date.now(), overall: bad.length ? 'degraded' : 'healthy', bad };
+        }
+        const c = healthCache;
+        return {
+            lamp: c.bad.length === 0 ? 'ok' : 'down',
+            detail: c.bad.length ? `nere: ${c.bad.join(', ')}` : 'alla integrationer uppe',
+            at: new Date(c.at).toISOString(),
+        };
+    } catch (err) {
+        return { lamp: 'unknown', detail: `kunde inte proba: ${err instanceof Error ? err.message : err}`, at: null };
+    }
+}
+
+function pollerLamp(): { lamp: Lamp; detail: string; at: string | null } {
+    const p = pollerStatus();
+    if (p.lastSeenAt === null) return { lamp: p.stale ? 'down' : 'unknown', detail: 'pollern har inte hämtat sedan omstart', at: null };
+    const s = p.secondsSince ?? 0;
+    const when = s < 60 ? `${s} s sedan` : `${Math.round(s / 60)} min sedan`;
+    return {
+        lamp: p.stale ? 'down' : 'ok',
+        detail: `${p.lastWorker ?? 'poller'} hämtade ${when}`,
+        at: new Date(p.lastSeenAt).toISOString(),
+    };
+}
+
+async function preflightLamp(): Promise<{ lamp: Lamp; detail: string; at: string | null }> {
+    try {
+        const { data } = await supabase
+            .from('activities')
+            .select('created_at, severity, details')
+            .eq('action', 'preflight.result')
+            .order('created_at', { ascending: false })
+            .limit(1);
+        const row = data?.[0];
+        if (!row) return { lamp: 'unknown', detail: 'ingen preflight-körning rapporterad än', at: null };
+        const d = (row.details ?? {}) as Record<string, unknown>;
+        const fail = Number(d.fail ?? 0), warn = Number(d.warn ?? 0), okN = Number(d.ok ?? 0);
+        const ageH = (Date.now() - new Date(row.created_at).getTime()) / 36e5;
+        // En körning äldre än 30 h betyder att 06:30-jobbet inte gått — det är i sig en varning.
+        const lamp: Lamp = fail > 0 ? 'down' : (warn > 0 || ageH > 30) ? 'warn' : 'ok';
+        const detail = fail > 0 ? `${fail} FAIL, ${warn} varningar`
+            : warn > 0 ? `rent med ${warn} varning${warn > 1 ? 'ar' : ''}`
+            : ageH > 30 ? `senaste körning ${Math.round(ageH)} h sedan` : `rent, ${okN} OK`;
+        return { lamp, detail, at: row.created_at };
+    } catch (err) {
+        return { lamp: 'unknown', detail: `kunde inte läsa: ${err instanceof Error ? err.message : err}`, at: null };
+    }
+}
+
+// GET /api/v1/agents/office/health — de tre lamporna. Lätt anrop: bara probar var 60:e s.
+router.get('/office/health', async (_req: Request, res: Response) => {
+    const [integrations, preflight] = await Promise.all([integrationsLamp(), preflightLamp()]);
+    res.json({ integrations, poller: pollerLamp(), preflight, ts: Date.now() });
+});
 
 // GET /api/v1/agents/office — live activity for main + sub-agents.
 router.get('/office', async (_req: Request, res: Response) => {

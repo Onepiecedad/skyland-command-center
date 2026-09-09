@@ -5,6 +5,7 @@ import type { AgentStatus } from '../gateway/fleetApi';
 import { getGatewaySocket, type GatewaySession } from '../gateway/gatewaySocket';
 import { AGENT_PROFILES } from '../data/agentProfiles';
 import { CharacterSheet, type AgentLiveInfo } from '../components/CharacterSheet';
+import { navigateToView } from '../navigation/uiActions';
 
 // ─── Static office layout: main in the centre, 8 sub-agents around it ───
 const MAIN = { x: 500, y: 360 };
@@ -64,6 +65,13 @@ interface BatchSummary {
     etaMinutes: number | null;
 }
 interface AgentOutcome { contact: string | null; result: 'ok' | 'rerun' | 'failed'; at: string; durationS: number | null }
+
+// Etapp 4: tre hälsolampor (backend /agents/office/health)
+type Lamp = 'ok' | 'warn' | 'down' | 'unknown';
+interface LampInfo { lamp: Lamp; detail: string; at: string | null }
+interface OfficeHealth { integrations: LampInfo; poller: LampInfo; preflight: LampInfo }
+const LAMP_COLOR: Record<Lamp, string> = { ok: '#22c55e', warn: '#f59e0b', down: '#ef4444', unknown: '#475569' };
+const LAMP_LABEL: Record<keyof OfficeHealth, string> = { integrations: 'Integrationer', poller: 'Poller', preflight: 'Preflight' };
 
 const OUTCOME_COLOR: Record<AgentOutcome['result'], string> = { ok: '#22c55e', rerun: '#f59e0b', failed: '#ef4444' };
 const RESEARCH_BUDGET_S = 600;   // researchens tak i prospect_pipeline
@@ -145,6 +153,21 @@ export default function OfficeView() {
     const prevRef = useRef<Record<string, AgentStatus>>({});
     const envIdRef = useRef(0);
     const [batch, setBatch] = useState<BatchSummary | null>(null);
+    const [health, setHealth] = useState<OfficeHealth | null>(null);
+
+    // Hälsolamporna: var 60:e sekund räcker, backend cachar probarna lika länge.
+    useEffect(() => {
+        let stop = false;
+        const load = async () => {
+            try {
+                const res = await fetchWithAuth('/api/v1/agents/office/health');
+                if (res.ok && !stop) setHealth(await res.json());
+            } catch { /* lamporna blir grå */ }
+        };
+        load();
+        const t = setInterval(load, 60_000);
+        return () => { stop = true; clearInterval(t); };
+    }, []);
     const [outcomes, setOutcomes] = useState<Record<string, AgentOutcome[]>>({});
     const [nowMs, setNowMs] = useState(Date.now());
     // Briefen per sessionsnyckel hämtas EN gång — inte var femte sekund.
@@ -454,7 +477,21 @@ export default function OfficeView() {
                         Main delegerar · subagenter utför · klicka på en agent för rollformuläret
                     </p>
                 </div>
-                <div style={{ fontSize: 12, color: '#94a3b8', display: 'flex', gap: 14 }}>
+                <div style={{ fontSize: 12, color: '#94a3b8', display: 'flex', gap: 14, alignItems: 'center' }}>
+                    {/* Etapp 4: tre lampor — klick går till System-fliken */}
+                    <button type="button" onClick={() => navigateToView('system')}
+                        title={health ? (['integrations', 'poller', 'preflight'] as const).map(k => `${LAMP_LABEL[k]}: ${health[k].detail}`).join('\n') : 'Hälsa hämtas…'}
+                        style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 999, padding: '3px 10px', cursor: 'pointer', color: '#94a3b8', font: 'inherit' }}>
+                        {(['integrations', 'poller', 'preflight'] as const).map(k => {
+                            const l = health?.[k].lamp ?? 'unknown';
+                            return (
+                                <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <span style={{ width: 8, height: 8, borderRadius: 4, background: LAMP_COLOR[l], boxShadow: l === 'ok' ? '0 0 6px rgba(34,197,94,0.6)' : l === 'down' ? '0 0 6px rgba(239,68,68,0.7)' : 'none' }} />
+                                    <span style={{ fontSize: 11 }}>{LAMP_LABEL[k]}</span>
+                                </span>
+                            );
+                        })}
+                    </button>
                     <span>{connected ? '🟢 Gateway' : '🔴 Offline'}</span>
                     <span>{activeCount} aktiva nu</span>
                 </div>
