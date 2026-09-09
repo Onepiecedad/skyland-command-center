@@ -63,7 +63,7 @@ interface UiActionData extends UiNavigateData {
     steps?: (UiNavigateData & { say: string })[];
 }
 
-/** Navigera till en logisk vy (panel + ev. undervy). Används av SSE-bryggan och GuidedTour. */
+/** Navigera till en logisk vy (panel + ev. undervy). Används av SSE-bryggan och presentern. */
 export function navigateToView(view: string): void {
     const target = VIEW_TO_PANE[view];
     if (!target) return;
@@ -110,10 +110,6 @@ export function applyUiNavigate(data: UiNavigateData): void {
 }
 
 function handleUiAction(data: UiActionData): void {
-    if (data.action === 'tour') {
-        window.dispatchEvent(new CustomEvent('scc:start-tour'));
-        return;
-    }
     if (data.action === 'present') {
         const steps = (data.steps ?? []).filter((s) => s && typeof s.say === 'string' && s.say.trim());
         if (steps.length) window.dispatchEvent(new CustomEvent('scc:present', { detail: { steps } }));

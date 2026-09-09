@@ -13,7 +13,6 @@ import { Mic, X, ArrowUp, Square } from 'lucide-react';
 import { API_BASE, fetchWithAuth } from '../api';
 import { useWalkieTalkie, TALK_LABEL } from '../hooks/useWalkieTalkie';
 import { presenter, type PresenterState, type PresentStep } from '../voice/presenter';
-import { Pause, Play, SkipForward, SkipBack, Square as StopIcon } from 'lucide-react';
 import '../styles/alexdock.css';
 
 interface ChatMsg {
@@ -60,6 +59,7 @@ export function AlexDock() {
                 e.preventDefault();
                 setOpen((o) => !o);
             } else if (e.key === 'Escape') {
+                presenter.stop();
                 setOpen(false);
             }
         };
@@ -78,6 +78,7 @@ export function AlexDock() {
     const sendText = useCallback(
         async (text: string, channel: 'chat' | 'voice' = 'chat'): Promise<string | null> => {
             if (!text || busy) return null;
+            presenter.stop(); // ett nytt meddelande avbryter en pågående genomgång
             setInput('');
             setMessages((prev) => [...prev, { role: 'user', content: text }]);
             setBusy(true);
@@ -151,6 +152,7 @@ export function AlexDock() {
             if (inField && el !== inputRef.current) return;
             if (el === inputRef.current && inputRef.current?.value) return;
             e.preventDefault();
+            presenter.stop();
             talk.hush();
             void talk.start();
         };
@@ -227,9 +229,13 @@ export function AlexDock() {
                                             )}
                                         </div>
                                     ))}
-                                    {(busy || talking) && (
+                                    {(busy || talking || show) && (
                                         <div className={`alexdock-thinking ${talk.state === 'recording' ? 'alexdock-thinking--rec' : ''}`}>
-                                            {talking ? TALK_LABEL[talk.state] : 'Alex tänker…'}
+                                            {talking
+                                                ? TALK_LABEL[talk.state]
+                                                : show
+                                                    ? (show.status === 'done' ? 'Klart.' : `Alex visar runt (${show.index + 1}/${show.steps.length}) · skriv eller tryck på mikrofonen för att avbryta`)
+                                                    : 'Alex tänker…'}
                                         </div>
                                     )}
                                     {talk.error && (
@@ -239,23 +245,6 @@ export function AlexDock() {
                                     )}
                                 </div>
 
-                                {show && (
-                                    <div className="alexdock-present">
-                                        <span className="alexdock-present-label">
-                                            {show.status === 'done' ? 'Klart' : `Genomgång ${show.index + 1}/${show.steps.length}`}
-                                            {' · '}
-                                            {show.steps[show.index]?.customer_name ?? show.steps[show.index]?.contact_name ?? show.steps[show.index]?.view}
-                                        </span>
-                                        <span className="alexdock-present-btns">
-                                            <button type="button" onClick={() => presenter.prev()} title="Föregående"><SkipBack size={13} /></button>
-                                            {show.status === 'playing'
-                                                ? <button type="button" onClick={() => presenter.pause()} title="Paus"><Pause size={13} /></button>
-                                                : <button type="button" onClick={() => presenter.resume()} title="Fortsätt"><Play size={13} /></button>}
-                                            <button type="button" onClick={() => presenter.next()} title="Nästa"><SkipForward size={13} /></button>
-                                            <button type="button" onClick={() => presenter.stop()} title="Avsluta"><StopIcon size={13} /></button>
-                                        </span>
-                                    </div>
-                                )}
                                 <form onSubmit={onSubmit} className="alexdock-inputrow">
                                     <input
                                         ref={inputRef}
@@ -271,6 +260,7 @@ export function AlexDock() {
                                             title={talk.state === 'speaking' ? 'Tysta Alex' : 'Håll in och prata (eller håll mellanslag)'}
                                             onPointerDown={(e) => {
                                                 e.preventDefault();
+                                                presenter.stop();
                                                 if (talk.state === 'speaking') { talk.hush(); return; }
                                                 void talk.start();
                                             }}

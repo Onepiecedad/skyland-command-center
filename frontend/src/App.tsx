@@ -22,7 +22,6 @@ import WebsiteView from './pages/WebsiteView';
 import { LoginView } from './components/LoginView';
 import { IntroSequence } from './components/IntroSequence';
 import { AlexDock } from './components/AlexDock';
-import { GuidedTour } from './components/GuidedTour';
 import { UpdateWatcher } from './components/UpdateWatcher';
 import { FocusNavigator, type CrossLayout } from './navigation/FocusNavigator';
 import { subscribeUiActions } from './navigation/uiActions';
@@ -229,7 +228,6 @@ function App() {
             {/* Docken (server-Alex: röst + UI-styrning) visas ÖVERALLT — Alex-vyns
                 egen chat är gateway-Alex (terminalen) och saknar röst/navigate_ui. */}
             <AlexDock />
-            <GuidedTour />
             <UpdateWatcher />
         </>
     );
