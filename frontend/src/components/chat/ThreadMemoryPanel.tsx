@@ -45,9 +45,12 @@ export function ThreadMemoryPanel({ memoryEntries, onSearch }: ThreadMemoryPanel
         <div className="memory-panel">
             {/* Header */}
             <div className="memory-panel-header">
-                <div className="memory-panel-title">
+                <div
+                    className="memory-panel-title"
+                    title="Söker i aktiviteter, meddelanden och uppgifter. Alex egna långtidsminne (MEMORY.md och memory/*.md i arbetskatalogen på servern) visas inte här än."
+                >
                     <Brain size={14} />
-                    <span>Alex Minne</span>
+                    <span>Systemhistorik</span>
                 </div>
                 <button
                     className="memory-panel-refresh"
@@ -78,7 +81,8 @@ export function ThreadMemoryPanel({ memoryEntries, onSearch }: ThreadMemoryPanel
                         <span>Inget minne att visa</span>
                         <span className="memory-empty-hint">
                             Sök på ett ord för att leta i aktiviteter, meddelanden
-                            och uppgifter.
+                            och uppgifter. Alex eget långtidsminne ligger på servern
+                            och visas inte här än.
                         </span>
                     </div>
                 )}
