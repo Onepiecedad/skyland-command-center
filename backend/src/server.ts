@@ -43,6 +43,7 @@ import errorRecoveryRouter from './routes/errorRecovery.js';
 import memoryManagementRouter from './routes/memoryManagement.js';
 import memorySearchRouter from './routes/memorySearch.js';
 import alexMemoryRouter from './routes/alexMemory.js';
+import agentMemoryRouter from './routes/agentMemory.js';
 import alexRoleFilesRouter from './routes/alexRoleFiles.js';
 import agentsOfficeRouter from './routes/agentsOffice.js';
 import deliverablesRouter from './routes/deliverables.js';
@@ -295,6 +296,7 @@ class Server {
     this.app.use('/api/v1/memory', memoryManagementRouter);
     this.app.use('/api/v1/memory', memorySearchRouter);
     this.app.use('/api/v1/alex-memory', alexMemoryRouter);
+    this.app.use('/api/v1/agent-memory', agentMemoryRouter);   // spegel av OpenClaws arbetskatalog
     this.app.use('/api/v1/alex', alexRoleFilesRouter);
     this.app.use('/api/v1/agents', agentsOfficeRouter);
     this.app.use('/api/v1/deliverables', deliverablesRouter);

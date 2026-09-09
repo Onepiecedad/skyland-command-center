@@ -350,35 +350,35 @@ export class GatewaySocket {
     }
 
     /**
-     * Alex minne läser /api/v1/memory, inte /api/v1/alex-memory.
+     * Agentens eget långtidsminne, via spegeln i Supabase.
      *
-     * Den gamla vägen läste MEMORY.md och memory/*.md ur OpenClaws arbetskatalog.
-     * Den katalogen finns inte på Render där backendn kör, och på VPS:en där
-     * OpenClaw kör innehåller memory/ bara sqlite-filer och MEMORY.md saknas helt.
-     * Panelen svarade alltså tomt oavsett maskin. /api/v1/memory söker i
-     * activities, messages och tasks i Supabase, alltså i det systemet faktiskt
-     * har sett, och den datan finns. Rättat 9 sep 2026.
+     * Minnet är markdown i OpenClaws arbetskatalog (~/clawd): MEMORY.md och
+     * memory/YYYY-MM-DD.md. Backendn kör på Render och kan inte läsa den
+     * katalogen, så scripts/sync_memory.py på VPS:en speglar filerna till
+     * tabellen agent_memory och /api/v1/agent-memory läser spegeln.
+     *
+     * Den gamla vägen, /api/v1/alex-memory, läste filerna direkt och svarade
+     * därför alltid tomt i molnet. Byggt 9 sep 2026.
      */
     async searchMemory(query: string, limit = 20): Promise<MemoryEntry[]> {
         try {
             const apiUrl = import.meta.env.VITE_API_URL ?? '';  // tom = samma origin i prod
-            const res = await fetch(`${apiUrl}/api/v1/memory/search`, {
+            const res = await fetch(`${apiUrl}/api/v1/agent-memory/search`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ query, limit, scope: 'all' }),
+                body: JSON.stringify({ query, limit }),
             });
             if (!res.ok) {
-                console.warn('[GW] memory/search failed:', res.status);
+                console.warn('[GW] agent-memory/search failed:', res.status);
                 return [];
             }
             const data = await res.json();
-            return (data.results || []).map((e: Record<string, unknown>) => ({
-                id: String(e.source_id ?? ''),
-                content: String(e.snippet ?? ''),
-                source: String(e.source_type ?? 'okänd'),
-                timestamp: e.created_at as string,
-                score: e.relevance_score as number,
+            return (data.entries || []).map((e: Record<string, unknown>) => ({
+                id: String(e.id ?? ''),
+                content: String(e.content ?? ''),
+                source: String(e.source ?? ''),
+                timestamp: e.timestamp as string,
             }));
         } catch (err) {
             console.warn('[GW] memory/search error:', err);
@@ -386,23 +386,23 @@ export class GatewaySocket {
         }
     }
 
-    /** Utan sökord: senaste händelserna ur tidslinjen, alltså det färskaste minnet. */
+    /** Utan sökord: långtidsminnet först, sedan dagsminnena i fallande ordning. */
     async getMemoryEntries(limit = 50): Promise<MemoryEntry[]> {
         try {
             const apiUrl = import.meta.env.VITE_API_URL ?? '';
-            const res = await fetch(`${apiUrl}/api/v1/memory/timeline?limit=${limit}`, {
+            const res = await fetch(`${apiUrl}/api/v1/agent-memory/list?limit=${limit}`, {
                 credentials: 'include',
             });
             if (!res.ok) {
-                console.warn('[GW] memory/timeline failed:', res.status);
+                console.warn('[GW] agent-memory/list failed:', res.status);
                 return [];
             }
             const data = await res.json();
-            return (data.timeline || []).map((e: Record<string, unknown>) => ({
+            return (data.entries || []).map((e: Record<string, unknown>) => ({
                 id: String(e.id ?? ''),
-                content: String(e.summary ?? ''),
-                source: String(e.type ?? 'okänd'),
-                timestamp: e.created_at as string,
+                content: String(e.content ?? ''),
+                source: String(e.source ?? ''),
+                timestamp: e.timestamp as string,
             }));
         } catch (err) {
             console.warn('[GW] memory/timeline error:', err);

@@ -47,10 +47,10 @@ export function ThreadMemoryPanel({ memoryEntries, onSearch }: ThreadMemoryPanel
             <div className="memory-panel-header">
                 <div
                     className="memory-panel-title"
-                    title="Söker i aktiviteter, meddelanden och uppgifter. Alex egna långtidsminne (MEMORY.md och memory/*.md i arbetskatalogen på servern) visas inte här än."
+                    title="Alex långtidsminne: MEMORY.md och memory/YYYY-MM-DD.md ur arbetskatalogen på servern, speglat till Supabase."
                 >
                     <Brain size={14} />
-                    <span>Systemhistorik</span>
+                    <span>Alex Minne</span>
                 </div>
                 <button
                     className="memory-panel-refresh"
@@ -80,9 +80,8 @@ export function ThreadMemoryPanel({ memoryEntries, onSearch }: ThreadMemoryPanel
                         <Sparkles size={16} />
                         <span>Inget minne att visa</span>
                         <span className="memory-empty-hint">
-                            Sök på ett ord för att leta i aktiviteter, meddelanden
-                            och uppgifter. Alex eget långtidsminne ligger på servern
-                            och visas inte här än.
+                            Alex sparar kontext mellan trådar automatiskt. Syns inget
+                            här har synken från servern inte kört än.
                         </span>
                     </div>
                 )}
