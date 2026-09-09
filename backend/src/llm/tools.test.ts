@@ -21,9 +21,8 @@ const h = vi.hoisted(() => {
         listFor: null as null | ((pattern: string) => { data: unknown[]; error: unknown }),
     };
     const emitSystemEvent = vi.fn();
-    const dispatchToGateway = vi.fn();
-    const pollGatewayAnswer = vi.fn();
-    return { state, emitSystemEvent, dispatchToGateway, pollGatewayAnswer };
+    const dispatchTask = vi.fn();
+    return { state, emitSystemEvent, dispatchTask };
 });
 
 vi.mock('../services/supabase', () => {
@@ -44,11 +43,7 @@ vi.mock('../services/supabase', () => {
     return { supabase: { from: () => build() } };
 });
 
-vi.mock('../services/gatewayDelegate', () => ({
-    dispatchToGateway: h.dispatchToGateway,
-    pollGatewayAnswer: h.pollGatewayAnswer,
-    readGatewayHistory: vi.fn(),
-}));
+vi.mock('../services/taskService', () => ({ dispatchTask: h.dispatchTask }));
 vi.mock('../services/sequenceEvents', () => ({ enrollContact: vi.fn(async () => ({ id: 'enr-1' })) }));
 vi.mock('../routes/eventStream', () => ({ emitSystemEvent: h.emitSystemEvent }));
 
@@ -61,8 +56,7 @@ beforeEach(() => {
     h.state.listFor = null;
     h.state.lastIlike = '';
     h.emitSystemEvent.mockReset();
-    h.dispatchToGateway.mockReset().mockResolvedValue({ historyKey: 'agent:main:hook:scc-1' });
-    h.pollGatewayAnswer.mockReset().mockResolvedValue('');
+    h.dispatchTask.mockReset().mockResolvedValue({ success: true, task: {}, run: {} });
 });
 
 describe('ALEX_TOOLS — schema-integritet', () => {
@@ -88,33 +82,41 @@ describe('ALEX_TOOLS — schema-integritet', () => {
     });
 });
 
-describe('delegate_task — överlämning till gateway-Alex', () => {
-    it('svar inom väntetiden returneras direkt', async () => {
-        h.pollGatewayAnswer.mockResolvedValueOnce('LOA Ink drivs av Louise, tre anställda.');
+describe('delegate_task — uppdrag till huvud-Alex via claw-kön', () => {
+    it('köar en claw:main-task och dispatchar den', async () => {
+        h.state.single = { data: { id: 'task-1' }, error: null };
         const res = await executeToolCall('delegate_task', { uppdrag: 'Kör research på LOA Ink' });
         expect(res.success).toBe(true);
-        expect(res.data).toMatchObject({ status: 'klart', svar: 'LOA Ink drivs av Louise, tre anställda.' });
-        expect(h.dispatchToGateway).toHaveBeenCalledWith('Kör research på LOA Ink', 'SCC-panelen');
+        expect(res.data).toMatchObject({ status: 'köad', task_id: 'task-1' });
+        expect(h.state.insertPayload).toMatchObject({
+            executor: 'claw:main',
+            status: 'created',
+            prompt: 'Kör research på LOA Ink',
+            input: { source: 'panel', uppdrag: 'Kör research på LOA Ink' },
+        });
+        expect(h.dispatchTask).toHaveBeenCalledWith('task-1', 'panel');
     });
 
-    it('inget svar i tid → status pågår, aldrig ett påhittat resultat', async () => {
+    it('lovar aldrig ett resultat — bara att uppdraget är igång', async () => {
+        h.state.single = { data: { id: 'task-2' }, error: null };
         const res = await executeToolCall('delegate_task', { uppdrag: 'Leta kliniker i Malmö' });
-        expect(res.success).toBe(true);
-        expect((res.data as { status: string }).status).toBe('pågår');
         expect((res.data as { svar?: string }).svar).toBeUndefined();
+        expect(String((res.data as { info: string }).info)).toMatch(/aldrig på ett resultat/i);
     });
 
-    it('gatewayen nås inte → fel, inget påstående om att uppdraget gick iväg', async () => {
-        h.dispatchToGateway.mockResolvedValueOnce(null);
+    it('dispatch som nekas (t.ex. rate limit) → fel, inget påstående om att det körs', async () => {
+        h.state.single = { data: { id: 'task-3' }, error: null };
+        h.dispatchTask.mockResolvedValueOnce({ success: false, task: {}, run: {}, error: 'Rate limited: hourly_limit' });
         const res = await executeToolCall('delegate_task', { uppdrag: 'Kolla inkorgen' });
         expect(res.success).toBe(false);
-        expect(res.error).toMatch(/nås inte/i);
+        expect(res.error).toMatch(/hourly_limit/);
     });
 
-    it('tomt uppdrag → valideringsfel, ingen dispatch', async () => {
+    it('tomt uppdrag → valideringsfel, ingen task skapas', async () => {
+        h.state.insertPayload = null;
         const res = await executeToolCall('delegate_task', { uppdrag: '   ' });
         expect(res.success).toBe(false);
-        expect(h.dispatchToGateway).not.toHaveBeenCalled();
+        expect(h.state.insertPayload).toBeNull();
     });
 });
 

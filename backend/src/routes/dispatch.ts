@@ -233,6 +233,22 @@ router.post('/claw/task-result', async (req: Request, res: Response) => {
             success ? { output, source: 'openclaw' } : { error, source: 'openclaw' }
         );
 
+        // Kom uppdraget från Alex-panelen (delegate_task)? Då väntar en människa
+        // på svaret där, inte i en tasklista. Skicka det till skärmen.
+        try {
+            const { data: t } = await supabase.from('tasks').select('input, prompt').eq('id', task_id).maybeSingle();
+            const input = (t?.input ?? {}) as Record<string, unknown>;
+            if (input.source === 'panel') {
+                const { emitSystemEvent } = await import('./eventStream');
+                const text = success
+                    ? readableOutput(output)
+                    : `Uppdraget "${String(t?.prompt ?? '').slice(0, 80)}" misslyckades: ${error ?? 'okänt fel'}`;
+                emitSystemEvent('ui_action', { action: 'note', text, speak: true, source: 'delegate' }, 'alex');
+            }
+        } catch (err) {
+            console.error('[claw-callback] kunde inte skicka svaret till panelen:', err);
+        }
+
         return res.json({
             message: success ? 'Task completed' : 'Task failed',
             task_id,
@@ -244,6 +260,25 @@ router.post('/claw/task-result', async (req: Request, res: Response) => {
         return res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+/**
+ * Gör agentens JSON-output läsbar för en människa. Agenter svarar i olika
+ * former (summary/result/text, eller ett helt objekt); vi plockar det som ser
+ * ut som prosa och faller tillbaka på kompakt JSON hellre än att visa inget.
+ */
+function readableOutput(output: unknown): string {
+    if (typeof output === 'string') return output.slice(0, 3000);
+    if (output && typeof output === 'object') {
+        const o = output as Record<string, unknown>;
+        for (const key of ['summary', 'sammanfattning', 'answer', 'svar', 'result', 'text', 'message']) {
+            const v = o[key];
+            if (typeof v === 'string' && v.trim()) return v.slice(0, 3000);
+        }
+        const json = JSON.stringify(output, null, 2);
+        return json.length > 3000 ? json.slice(0, 3000) + '…' : json;
+    }
+    return 'Uppdraget är klart, men agenten skickade inget läsbart resultat.';
+}
 
 // GET /claw/pending - PULL-läge: pollern på Macen hämtar köade claw-körningar.
 // Render (moln) kan inte pusha till gatewayn på Macens localhost, så vi vänder på

@@ -1469,64 +1469,47 @@ async function findContactsForNavigate(query: string): Promise<{ id: string; nam
     return fuzzy ?? [];
 }
 
-/** Så länge väntar panelen innan ett uppdrag lämnas till bakgrunden. */
-const DELEGATE_WAIT_MS = 40_000;
-/** Så länge bevakas ett bakgrundsuppdrag innan vi ger upp på svaret. */
-const DELEGATE_BACKGROUND_MS = 12 * 60_000;
-
 /**
- * delegate_task — skickar uppdraget till gateway-Alex och väntar en stund.
- * Hinner svaret fram returneras det direkt. Annars fortsätter bevakningen i
- * bakgrunden och svaret skickas till skärmen när det kommer, så att en lång
- * research inte tappas bort bara för att chattsvaret redan gått iväg.
+ * delegate_task — lägger uppdraget i claw-kön så att pollern på VPS:en kör det
+ * med huvud-Alex (alla skills). Push går inte: gatewayen är bunden till
+ * tailnetet och backenden ligger utanför, vilket är hela anledningen till att
+ * pull-bryggan finns. Svaret kommer tillbaka via /claw/task-result och skickas
+ * därifrån till panelen, så en lång körning aldrig tappas bort.
  */
 async function handleDelegateTask(args: Record<string, unknown>): Promise<ToolResult> {
     const uppdrag = typeof args.uppdrag === 'string' ? args.uppdrag.trim() : '';
     if (!uppdrag) return { success: false, error: 'uppdrag krävs.' };
 
-    const { dispatchToGateway, pollGatewayAnswer } = await import('../services/gatewayDelegate');
-    const handle = await dispatchToGateway(uppdrag, 'SCC-panelen');
-    if (!handle) {
-        return {
-            success: false,
-            error: 'Uppdraget gick INTE iväg: gatewayen på VPS:en nås inte härifrån (den är bunden till tailnetet, och backenden ligger utanför). Säg det kort och hänvisa till WhatsApp-Alex för research, prospektering och inkorg tills bryggan är på plats. Påstå ingenting om resultatet.',
-        };
+    const { data: task, error: taskErr } = await supabase
+        .from('tasks')
+        .insert({
+            customer_id: null,
+            title: uppdrag.slice(0, 120),
+            prompt: uppdrag,
+            executor: 'claw:main',
+            status: 'created',
+            autonomy_level: 'ACT',
+            input: { source: 'panel', uppdrag },
+        })
+        .select()
+        .single();
+
+    if (taskErr || !task) {
+        return { success: false, error: `Kunde inte köa uppdraget: ${taskErr?.message ?? 'okänt fel'}` };
     }
 
-    const answer = await pollGatewayAnswer(handle.historyKey, 0, DELEGATE_WAIT_MS);
-    if (answer) {
-        return { success: true, data: { status: 'klart', svar: answer.slice(0, 4000) } };
+    const { dispatchTask } = await import('../services/taskService');
+    const dispatch = await dispatchTask(task.id as string, 'panel');
+    if (!dispatch.success) {
+        return { success: false, error: `Uppdraget köades inte: ${dispatch.error ?? 'okänt fel'}. Påstå ingenting om resultatet.` };
     }
-
-    // Kvar i bakgrunden: bevaka färdigt och lägg svaret på skärmen.
-    void (async () => {
-        try {
-            const late = await pollGatewayAnswer(handle.historyKey, 0, DELEGATE_BACKGROUND_MS);
-            const { emitSystemEvent } = await import('../routes/eventStream');
-            const { supabase: db } = await import('../services/supabase');
-            const text = late
-                ? late.slice(0, 4000)
-                : `Uppdraget "${uppdrag.slice(0, 80)}" har inte svarat på tolv minuter. Kolla gatewayen.`;
-            emitSystemEvent('ui_action', { action: 'note', text, speak: true, source: 'delegate' }, 'alex');
-            await db.from('activities').insert({
-                customer_id: null,
-                agent: 'alex',
-                action: late ? 'delegate.done' : 'delegate.timeout',
-                event_type: 'chat',
-                severity: late ? 'info' : 'warn',
-                autonomy_level: 'OBSERVE',
-                details: { uppdrag: uppdrag.slice(0, 500), history_key: handle.historyKey, answer_length: late.length },
-            });
-        } catch (err) {
-            console.error('[delegate] bakgrundsbevakning:', err instanceof Error ? err.message : err);
-        }
-    })();
 
     return {
         success: true,
         data: {
-            status: 'pågår',
-            info: 'Uppdraget är igång på VPS:en men hann inte bli klart. Svaret dyker upp i panelen av sig självt. Säg att det är igång — hitta inte på ett resultat.',
+            status: 'köad',
+            task_id: task.id,
+            info: 'Uppdraget ligger i kön och plockas upp av Alex på VPS:en inom ungefär 15 sekunder. Svaret dyker upp i panelen av sig självt när det är klart — säg att det är igång och hur du kommer tillbaka med svaret. Hitta ALDRIG på ett resultat.',
         },
     };
 }
