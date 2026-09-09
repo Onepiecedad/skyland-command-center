@@ -63,6 +63,8 @@ interface UiActionData extends UiNavigateData {
     steps?: (UiNavigateData & { say: string })[];
     /** action 'note': ett svar som kom in efteråt (t.ex. färdig research på VPS:en). */
     text?: string;
+    /** Det som ska LÄSAS UPP, när det skiljer sig från det som visas. */
+    speech?: string;
     speak?: boolean;
     /** 'delegate' = svar på något du bett om. 'pulse' = Alex säger till självmant. */
     source?: string;
@@ -119,8 +121,13 @@ function handleUiAction(data: UiActionData): void {
     if (data.action === 'note') {
         const text = typeof data.text === 'string' ? data.text.trim() : '';
         if (text) {
-            window.dispatchEvent(new CustomEvent<{ text: string; speak: boolean; source: string }>('scc:alex-note', {
-                detail: { text, speak: data.speak !== false, source: data.source ?? 'delegate' },
+            window.dispatchEvent(new CustomEvent<{ text: string; speech: string; speak: boolean; source: string }>('scc:alex-note', {
+                detail: {
+                    text,
+                    speech: (typeof data.speech === 'string' && data.speech.trim()) ? data.speech : text,
+                    speak: data.speak !== false,
+                    source: data.source ?? 'delegate',
+                },
             }));
         }
         return;

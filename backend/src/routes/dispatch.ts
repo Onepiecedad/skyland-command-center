@@ -240,10 +240,20 @@ router.post('/claw/task-result', async (req: Request, res: Response) => {
             const input = (t?.input ?? {}) as Record<string, unknown>;
             if (input.source === 'panel') {
                 const { emitSystemEvent } = await import('./eventStream');
-                const text = success
-                    ? readableOutput(output)
-                    : `Uppdraget "${String(t?.title ?? '').slice(0, 80)}" misslyckades: ${error ?? 'okänt fel'}`;
-                emitSystemEvent('ui_action', { action: 'note', text, speak: true, source: 'delegate' }, 'alex');
+                const rubrik = String(t?.title ?? 'Uppdraget').slice(0, 60);
+                const svar = success
+                    ? readableOutput(output, rubrik)
+                    : (() => {
+                        const rad = `Uppdraget "${rubrik}" misslyckades: ${error ?? 'okänt fel'}`;
+                        return { text: rad, speech: rad };
+                    })();
+                emitSystemEvent('ui_action', {
+                    action: 'note',
+                    text: svar.text,
+                    speech: svar.speech,
+                    speak: true,
+                    source: 'delegate',
+                }, 'alex');
             }
         } catch (err) {
             console.error('[claw-callback] kunde inte skicka svaret till panelen:', err);
@@ -262,22 +272,64 @@ router.post('/claw/task-result', async (req: Request, res: Response) => {
 });
 
 /**
- * Gör agentens JSON-output läsbar för en människa. Agenter svarar i olika
- * former (summary/result/text, eller ett helt objekt); vi plockar det som ser
- * ut som prosa och faller tillbaka på kompakt JSON hellre än att visa inget.
+ * Gör agentens svar begripligt för en människa — och särskilt för ett ÖRA.
+ *
+ * Bakgrund: 9 sep läste Alex upp en hel JSON-blob i högtalaren, med
+ * klammerparenteser och engelska nyckelnamn, för att researchagenten svarade
+ * med ett strukturerat objekt utan sammanfattning. Därför två spår: `text`
+ * är det som visas i tråden, `speech` det som läses upp. Saknas prosa görs
+ * en läsbar sammanställning för ögat och en kort mening för örat.
  */
-function readableOutput(output: unknown): string {
-    if (typeof output === 'string') return output.slice(0, 3000);
-    if (output && typeof output === 'object') {
+export function readableOutput(output: unknown, rubrik = 'Uppdraget'): { text: string; speech: string } {
+    const klipp = (v: string, n = 3000) => (v.length > n ? v.slice(0, n) + '…' : v);
+
+    if (typeof output === 'string' && output.trim()) {
+        return { text: klipp(output), speech: klipp(output, 1000) };
+    }
+
+    if (output && typeof output === 'object' && !Array.isArray(output)) {
         const o = output as Record<string, unknown>;
         for (const key of ['summary', 'sammanfattning', 'answer', 'svar', 'result', 'text', 'message']) {
             const v = o[key];
-            if (typeof v === 'string' && v.trim()) return v.slice(0, 3000);
+            if (typeof v === 'string' && v.trim()) {
+                const rest = Object.keys(o).filter(k => k !== key).length;
+                return {
+                    text: klipp(v) + (rest ? `\n\n(Agenten skickade även ${rest} fält med detaljer.)` : ''),
+                    speech: klipp(v, 1000),
+                };
+            }
         }
-        const json = JSON.stringify(output, null, 2);
-        return json.length > 3000 ? json.slice(0, 3000) + '…' : json;
+
+        // Ingen prosa: vik ut objektet till rader i stället för att visa rå JSON.
+        const rader: string[] = [];
+        const värde = (v: unknown): string => {
+            if (v === null || v === undefined) return '';
+            if (Array.isArray(v)) {
+                return v.map(x => (x && typeof x === 'object'
+                    ? Object.values(x as Record<string, unknown>).filter(y => typeof y === 'string').join(', ')
+                    : String(x))).filter(Boolean).join(' · ');
+            }
+            if (typeof v === 'object') {
+                return Object.entries(v as Record<string, unknown>)
+                    .map(([k2, v2]) => `${k2}: ${typeof v2 === 'object' ? JSON.stringify(v2) : String(v2)}`)
+                    .join(', ');
+            }
+            return String(v);
+        };
+        for (const [k, v] of Object.entries(o)) {
+            const rad = värde(v).trim();
+            if (rad) rader.push(`${k.replace(/_/g, ' ')}: ${rad}`);
+        }
+        if (rader.length) {
+            return {
+                text: klipp(rader.join('\n')),
+                speech: `${rubrik} är klart. Resultatet är för detaljerat för att läsa upp — det står i tråden.`,
+            };
+        }
     }
-    return 'Uppdraget är klart, men agenten skickade inget läsbart resultat.';
+
+    const tomt = `${rubrik} är klart, men agenten skickade inget läsbart resultat.`;
+    return { text: tomt, speech: tomt };
 }
 
 // GET /claw/pending - PULL-läge: pollern på Macen hämtar köade claw-körningar.

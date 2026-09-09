@@ -216,7 +216,7 @@ export function AlexDock() {
 
     useEffect(() => {
         const onNote = (e: Event) => {
-            const d = (e as CustomEvent<{ text: string; speak: boolean; source: string }>).detail;
+            const d = (e as CustomEvent<{ text: string; speech: string; speak: boolean; source: string }>).detail;
             if (!d?.text) return;
             const selfInitiated = d.source === 'pulse';
             // Självmant: visa i tråden men öppna inte panelen över det du gör.
@@ -226,7 +226,7 @@ export function AlexDock() {
             const busyTalking = presenter.current !== null || speechQueue.speaking || talk.state !== 'idle';
             const recentlyActive = Date.now() - lastActiveRef.current < 15 * 60_000;
             const maySpeak = d.speak && !busyTalking && (!selfInitiated || (recentlyActive && open));
-            if (maySpeak) void talk.speak(d.text);
+            if (maySpeak) void talk.speak(d.speech || d.text);
         };
         window.addEventListener('scc:alex-note', onNote);
         return () => window.removeEventListener('scc:alex-note', onNote);

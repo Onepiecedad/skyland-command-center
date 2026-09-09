@@ -1503,7 +1503,9 @@ async function handleDelegateTask(args: Record<string, unknown>): Promise<ToolRe
         // task.title vidare), så hela uppdraget måste stå där — inte en rubrik.
         .insert({
             customer_id: null,
-            title: uppdrag.slice(0, 500),
+            // Agenten svarar i JSON. Utan en uttrycklig begäran om prosa blir
+            // svaret bara nycklar, och en uppläsning av det är obrukbar.
+            title: `${uppdrag}\n\nSvara med ett JSON-objekt som ALLTID har fältet "summary": en sammanfattning på svenska, högst fem meningar, skriven för att läsas upp högt. Lägg gärna detaljer i andra fält.`.slice(0, 900),
             description: uppdrag,
             executor: 'claw:main',
             status: 'created',
