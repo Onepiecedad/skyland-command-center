@@ -11,6 +11,10 @@ import { supabase } from '../services/supabase';
  *
  * Ersätter routes/alexMemory.ts, som läste filerna direkt och därför alltid
  * svarade tomt i molnet.
+ *
+ * Flera maskiner speglar samma arbetskatalog (VPS:en och Joakims Mac), så samma
+ * `path` finns en gång per host. Vyn ska visa minnet, inte maskinerna: raderna
+ * dedupliceras på path och den färskaste filen vinner.
  */
 const router = Router();
 
@@ -25,19 +29,19 @@ router.get('/list', async (req: Request, res: Response) => {
         .is('deleted_at', null)
         .order('kind', { ascending: true })     // 'daily' < 'longterm' alfabetiskt
         .order('file_mtime', { ascending: false })
-        .limit(limit);
+        .limit(limit * 2);   // dubbletter per host rensas efter hämtning
 
     if (error) return res.status(500).json({ error: error.message });
 
     // Långtidsminnet är den viktigaste raden och ska ligga överst, inte sorteras
     // in bland dagarna efter mtime.
-    const rader = data ?? [];
+    const rader = fardigast(data ?? []);
     const langtid = rader.filter(r => r.kind === 'longterm');
     const dagliga = rader.filter(r => r.kind !== 'longterm');
 
     return res.json({
-        entries: [...langtid, ...dagliga].map(r => formatera(r)),
-        count: rader.length,
+        entries: [...langtid, ...dagliga].slice(0, limit).map(r => formatera(r)),
+        count: Math.min(rader.length, limit),
         synced_at: rader.reduce<string | null>(
             (senast, r) => (!senast || r.synced_at > senast ? r.synced_at : senast), null),
     });
@@ -62,11 +66,24 @@ router.post('/search', async (req: Request, res: Response) => {
 
     const { data, error } = await q
         .order('file_mtime', { ascending: false })
-        .limit(limit);
+        .limit(limit * 2);   // dubbletter per host rensas efter hämtning
 
     if (error) return res.status(500).json({ error: error.message });
-    return res.json({ entries: (data ?? []).map(r => formatera(r, query)), count: data?.length ?? 0, query });
+    const rader = fardigast(data ?? []);
+    const trimmade = rader.slice(0, limit);
+    return res.json({ entries: trimmade.map(r => formatera(r, query)), count: trimmade.length, query });
 });
+
+/** En rad per path: den med färskast file_mtime. */
+function fardigast<T extends { path?: unknown; file_mtime?: unknown }>(rader: T[]): T[] {
+    const basta = new Map<string, T>();
+    for (const r of rader) {
+        const nyckel = String(r.path ?? '');
+        const forra = basta.get(nyckel);
+        if (!forra || String(r.file_mtime ?? '') > String(forra.file_mtime ?? '')) basta.set(nyckel, r);
+    }
+    return [...basta.values()];
+}
 
 /** Klipp ut ett stycke runt träffen, annars början av filen. */
 function formatera(r: Record<string, unknown>, query?: string) {
