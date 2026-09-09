@@ -13,6 +13,16 @@ med `meta = {contact, vertical, attempts, duration_s, result}`) och i kortens
 **Princip:** vyn är redan säljbar som skådespel. Ärendet gör den ÄRLIG — samma yta ska
 svara på "vad händer, vad kostar det, går något snett" utan att terminalen behövs.
 
+> **Läge 9 sep 2026 (commit `ba0afba`):** etapp 1, 2, 3 och kantpulsen i etapp 4 är byggda i
+> förenklad form och verifierade med en skarp batch på tre kort (Sens à skin, OCEANA,
+> Estetikcentrum) medan vyn var öppen: batchkortet tickade, Researcher-noden visade kortnamn,
+> försök och ring, kanten pulserade, flödet sa "Researchar …" i stället för rå brief.
+> Bakgrund till valet av just detta: research 9 sep av Pixel Agents (9,2k★), OpenClaw Office,
+> AgentMonitor, ClawBoard, Claude-Office — det som gör vyerna levande överallt är att varje
+> visuell händelse svarar mot en riktig händelse, inte grafiken. Vi behöll rymdkontrollrummet.
+> **Kvar:** hälsolamporna i etapp 4 (integrationshälsa, poller, drift) och etapp 3 för fler
+> verktygstyper (apify, scrapling, leverans). Se bockarna nedan.
+
 ---
 
 ## Etapp 1 — Batchkortet (störst värde, bygg först)
@@ -21,35 +31,35 @@ En pågående `prospect_batch` ska synas som EN sammanhållen körning i Kontore
 lösa researcher-delegeringar.
 
 **DoD:**
-- [ ] Backend: `GET /api/v1/agents/office` utökas med `batch`: aggregat ur `costs` för
+- [x] Backend: `GET /api/v1/agents/office` utökas med `batch`: aggregat ur `costs` för
       innevarande dag där `agent='pipeline:prospect'` — antal klara/omkörda/misslyckade
       (ur `meta.result`/`meta.attempts`), ackumulerad `cost_usd`, snitt `duration_s`,
       senaste kortnamn. Pågående = rader senaste 20 min.
-- [ ] Frontend: kort i Kontoret när batch pågår: "Beauty-batch · 9/25 klara · 1 omkörning ·
+- [x] Frontend: kort i Kontoret när batch pågår: "Beauty-batch · 9/25 klara · 1 omkörning ·
       0 fel · $0.21 · klar ~21:40" (ETA = snittid × återstående / 3 parallella).
-- [ ] Kortet ligger kvar 1 h efter sista raden med slutsiffror, sedan borta.
-- [ ] Fungerar i mobilbredd (Joakim följer batchar från soffan).
+- [x] Kortet ligger kvar 1 h efter sista raden med slutsiffror, sedan borta.
+- [x] Fungerar i mobilbredd (Joakim följer batchar från soffan).
 
 ## Etapp 2 — Ärliga noder
 
-- [ ] Researcher-nodens "Arbetar…" ersätts med vad: kortets namn + försök (1/2) +
+- [x] Researcher-nodens "Arbetar…" ersätts med vad: kortets namn + försök (1/2) +
       förloppsring mot researchens 600 s-tak (starttid från delegeringen).
-- [ ] Utfallsglöd 10 min efter avslut: grön = klart, bärnsten = omkörning räddade kortet
+- [x] Utfallsglöd 10 min efter avslut: grön = klart, bärnsten = omkörning räddade kortet
       (`attempts=2, result=ok`), röd = misslyckat. Datakälla: samma `costs.meta`.
-- [ ] Nodens senaste 5 utfall som små prickar under statusraden (minne, inte bara nu).
+- [x] Nodens senaste 5 utfall som små prickar under statusraden (minne, inte bara nu).
 
 ## Etapp 3 — Läsbart delegeringsflöde
 
-- [ ] Rå JSON i "Senaste delegeringar" skrivs om till människospråk i frontend:
+- [x] Rå JSON i "Senaste delegeringar" skrivs om till människospråk i frontend:
       `{"query":"\"Shine Klinik\" Göteborg mesoterapi","provider":"brave"}` →
       "Söker: Shine Klinik — mesoterapi (Brave)". Mönster per verktygstyp
       (webbsök, apify-google-reviews, scrapling, leverans, ok-kvitto); okända
       verktyg faller tillbaka på dagens JSON.
-- [ ] Leveransrader behåller tokens + $ (uppskattat) som idag — det är rätt data.
+- [x] Leveransrader behåller tokens + $ (uppskattat) som idag — det är rätt data.
 
 ## Etapp 4 — Puls och hälsa (estetik + vakt)
 
-- [ ] Kanten Alex→arbetande agent pulserar (animerad gradient längs linjen) medan
+- [x] Kanten Alex→arbetande agent pulserar (animerad gradient längs linjen) medan
       sessionen är aktiv; stillastående linje = inget arbete. Respektera
       `prefers-reduced-motion`.
 - [ ] Diskret hälsorad i sidhuvudet: tre lampor — integrationshälsa (grön/röd ur
