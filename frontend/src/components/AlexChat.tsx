@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { isNoiseMessage } from './chat/messageNoise';
+import { useWalkieTalkie, TALK_LABEL } from '../hooks/useWalkieTalkie';
+import { speechQueue } from '../voice/speechQueue';
+import '../styles/alexdock.css';   // mikrofonknappens stilar delas med panelen
 import ReactMarkdown from 'react-markdown';
 import { CollapsibleMarkdown } from './chat/CollapsibleMarkdown';
 import remarkGfm from 'remark-gfm';
@@ -7,6 +10,7 @@ import { useGateway, type UseGatewayResult } from '../gateway/useGateway';
 import type { ChatAttachment } from '../gateway/gatewaySocket';
 import {
     Zap,
+    Mic,
     Brain,
     ChevronDown,
     Check,
@@ -264,14 +268,50 @@ export function AlexChat({ gateway: externalGateway }: Props) {
     useEffect(() => { autoResize(); }, [input, autoResize]);
 
     // --- Send handler ---
-    const handleSend = () => {
-        if ((!input.trim() && !attachments.length)) return;
-        const text = input.trim();
+    const send = useCallback((text: string, spoken = false) => {
+        if (!text.trim() && !attachments.length) return;
         const atts = attachments.length ? [...attachments] : undefined;
         setInput('');
         setAttachments([]);
-        gateway.sendMessage(text, atts);
-    };
+        // Talat in? Då ska svaret läsas upp. Kön nollställs här, matas av
+        // gatewayns strömmande deltas nedan och töms när svaret är klart.
+        spokenRef.current = spoken;
+        if (spoken) speechQueue.start(); else speechQueue.stop();
+        gateway.sendMessage(text.trim(), atts);
+    }, [attachments, gateway]);
+
+    const handleSend = () => send(input);
+
+    // Håll-och-prata mot gateway-Alex. Samma hook som i den flytande panelen:
+    // mikrofon → transkribering → in i DEN HÄR tråden. Svaret kommer som
+    // strömmande deltas, inte som ett returvärde, så uppläsningen sköts av
+    // effekten under (därför null här).
+    const spokenRef = useRef(false);
+    const talk = useWalkieTalkie({
+        onTranscript: async (t) => { send(t, true); return null; },
+    });
+    const [queueSpeaking, setQueueSpeaking] = useState(false);
+    useEffect(() => {
+        speechQueue.onState(setQueueSpeaking);
+        return () => speechQueue.onState(null);
+    }, []);
+
+    // Mata uppläsningen med det som redan skrivits ut, mening för mening.
+    const spokenUpToRef = useRef(0);
+    useEffect(() => {
+        if (!spokenRef.current) return;
+        const text = gateway.streamingContent;
+        if (text.length > spokenUpToRef.current) {
+            speechQueue.push(text.slice(spokenUpToRef.current));
+            spokenUpToRef.current = text.length;
+        }
+        if (!gateway.isStreaming && text.length === 0 && spokenUpToRef.current > 0) {
+            // Strömmen är slut och innehållet flyttat till messages: läs upp resten.
+            speechQueue.flush();
+            spokenUpToRef.current = 0;
+            spokenRef.current = false;
+        }
+    }, [gateway.streamingContent, gateway.isStreaming]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -409,6 +449,33 @@ export function AlexChat({ gateway: externalGateway }: Props) {
                                 onFileSelect={() => fileInputRef.current?.click()}
                             />
                             <ModelSelector selected={selectedModel} onSelect={handleModelSwitch} />
+                            {talk.supported && (
+                                <button
+                                    type="button"
+                                    className={`alexdock-mic alexdock-mic--${queueSpeaking && talk.state === 'idle' ? 'speaking' : talk.state}`}
+                                    title={queueSpeaking || talk.state === 'speaking' ? 'Tysta Alex' : 'Håll in och prata'}
+                                    disabled={inputDisabled}
+                                    onPointerDown={(e) => {
+                                        e.preventDefault();
+                                        if (queueSpeaking) { speechQueue.stop(); return; }
+                                        if (talk.state === 'speaking') { talk.hush(); return; }
+                                        void talk.start();
+                                    }}
+                                    onPointerUp={talk.stop}
+                                    onPointerLeave={talk.stop}
+                                    onPointerCancel={talk.stop}
+                                    onContextMenu={(e) => e.preventDefault()}
+                                >
+                                    {queueSpeaking || talk.state === 'speaking'
+                                        ? <Square size={13} strokeWidth={2.5} />
+                                        : <Mic size={14} strokeWidth={2.25} />}
+                                </button>
+                            )}
+                            {(talk.state !== 'idle' || queueSpeaking) && (
+                                <span className="alex-voice-status">
+                                    {talk.state !== 'idle' ? TALK_LABEL[talk.state] : 'Alex pratar…'}
+                                </span>
+                            )}
                         </div>
 
                         <div className="bolt-toolbar-right">

@@ -265,6 +265,60 @@
     content: '→ ';
 }
 
+/* Mikrofonknappen återanvänds i Alex-vyns verktygsrad, där den inte sitter
+   i en .alexdock-inputrow — därför en fristående grundstil här. */
+button.alexdock-mic {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.75);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+button.alexdock-mic:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+}
+
+button.alexdock-mic:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+button.alexdock-mic--recording {
+    background: #ef4444;
+    color: #fff;
+    animation: alexdock-pulse 1.1s ease-out infinite;
+}
+
+button.alexdock-mic--transcribing,
+button.alexdock-mic--thinking {
+    background: rgba(124, 140, 255, 0.35);
+    color: #d5daff;
+    animation: alexdock-breathe 1.4s ease-in-out infinite;
+}
+
+button.alexdock-mic--speaking {
+    background: #10b981;
+    color: #fff;
+}
+
+.alex-voice-status {
+    font-size: 11.5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
 /* ── Röstläge ── */
 
 /* Håll-och-prata-knappen i inmatningsraden */
