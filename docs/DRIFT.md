@@ -169,7 +169,7 @@ VPS:ens `openclaw.json` stod på `ollama/llama3.1:8b`, som bara fanns på Macen.
 hjärtslag (var 2:e timme) föll sedan flytten 31 aug med "Unknown model", och ibland
 läckte felet ut i WhatsApp som "The configured model is unavailable" (00:32 den 8 sep).
 Chatten påverkades inte, den kör Kimi. Bytt till `openrouter/google/gemini-2.5-flash`,
-gateway omstartad 20:22, backup `openclaw.json.bak-heartbeat-8sep`. **Preflight har sedan 8 sep kväll kontroll 7:** varje modell i `openclaw.json` och
+gateway omstartad 20:22, backup `openclaw.json.bak-heartbeat-8sep`. **Preflight rapporterar sedan 9 sep till SCC** som aktiviteten `preflight.result` (fail/warn/ok, host, felrader); Kontorets hälsolampa läser senaste raden och varnar om den är äldre än 30 h. **Preflight har sedan 8 sep kväll kontroll 7:** varje modell i `openclaw.json` och
 `agents/*/agent.json` slås upp hos sin leverantör (OpenRouter publikt, Google med nyckeln
 i configen); `ollama/` och prefixlösa namn är FAIL, nätfel är VARNING. Första körningen
 hittade **sjunde Mac-arvet**: `agents/deep-research/agent.json` bar `claude-sonnet-4-20250514`,

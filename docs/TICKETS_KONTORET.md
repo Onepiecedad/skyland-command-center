@@ -20,8 +20,10 @@ svara på "vad händer, vad kostar det, går något snett" utan att terminalen b
 > Bakgrund till valet av just detta: research 9 sep av Pixel Agents (9,2k★), OpenClaw Office,
 > AgentMonitor, ClawBoard, Claude-Office — det som gör vyerna levande överallt är att varje
 > visuell händelse svarar mot en riktig händelse, inte grafiken. Vi behöll rymdkontrollrummet.
-> **Kvar:** hälsolamporna i etapp 4 (integrationshälsa, poller, drift) och etapp 3 för fler
-> verktygstyper (apify, scrapling, leverans). Se bockarna nedan.
+> **Senare samma dag (`1c700b2`):** hälsolamporna byggda. Preflight rapporterar sedan dess sitt
+> resultat till SCC (`preflight.result`), så den tredje lampan har en riktig källa; alla tre gröna
+> vid första kontrollen. **Kvar:** etapp 3 för fler verktygstyper (apify, scrapling, leverans),
+> görs mot skarpa rader efter nästa nattkörning.
 
 ---
 
@@ -62,7 +64,7 @@ lösa researcher-delegeringar.
 - [x] Kanten Alex→arbetande agent pulserar (animerad gradient längs linjen) medan
       sessionen är aktiv; stillastående linje = inget arbete. Respektera
       `prefers-reduced-motion`.
-- [ ] Diskret hälsorad i sidhuvudet: tre lampor — integrationshälsa (grön/röd ur
+- [x] Diskret hälsorad i sidhuvudet: tre lampor — integrationshälsa (grön/röd ur
       `/api/v1/integrations/health`, cachea 60 s), poller-heartbeat (kopplas till
       watchdogen i plan 3.3 när den finns; tills dess senaste `/claw/pending`-anrop),
       drift (senaste `drift_check`-utfall när Alex kör den i digest, plan 3.2).
