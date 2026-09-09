@@ -6,6 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { checkAll } from '../services/integrationHealth';
 import { config } from '../config';
+import { supabase } from '../services/supabase';
 
 const router = Router();
 
@@ -74,6 +75,76 @@ router.get('/health', async (_req: Request, res: Response) => {
     const integrations = await checkAll();
     const worst = integrations.some(i => i.status === 'auth_failed' || i.status === 'down');
     res.json({ overall: worst ? 'degraded' : 'healthy', integrations, checked_at: new Date().toISOString() });
+});
+
+// ---------------------------------------------------------------------------
+// GET /openrouter/credits — kvarvarande saldo på OpenRouter + vad Alex
+// förbrukat enligt costs-tabellen (24 h / 7 d). Saldot cachas 5 min så
+// systemvyn kan polla utan att slå på OpenRouter varje gång.
+// ---------------------------------------------------------------------------
+interface CreditsSnapshot {
+    remaining_usd: number | null;
+    total_credits_usd: number | null;
+    total_usage_usd: number | null;
+    spent_24h_usd: number;
+    spent_7d_usd: number;
+    error?: string;
+    fetched_at: string;
+}
+let creditsCache: { at: number; value: CreditsSnapshot } | null = null;
+const CREDITS_TTL_MS = 5 * 60 * 1000;
+
+export async function openRouterCredits(force = false): Promise<CreditsSnapshot> {
+    if (!force && creditsCache && Date.now() - creditsCache.at < CREDITS_TTL_MS) return creditsCache.value;
+
+    let remaining: number | null = null, total: number | null = null, usage: number | null = null, error: string | undefined;
+    if (!config.OPENROUTER_API_KEY) {
+        error = 'OPENROUTER_API_KEY saknas';
+    } else {
+        try {
+            const r = await fetch('https://openrouter.ai/api/v1/credits', {
+                headers: { Authorization: `Bearer ${config.OPENROUTER_API_KEY}` },
+                signal: AbortSignal.timeout(8000),
+            });
+            if (!r.ok) {
+                error = `OpenRouter ${r.status}`;
+            } else {
+                const j = await r.json() as { data?: { total_credits?: number; total_usage?: number } };
+                total = Number(j.data?.total_credits ?? NaN);
+                usage = Number(j.data?.total_usage ?? NaN);
+                if (Number.isFinite(total) && Number.isFinite(usage)) remaining = Math.round((total - usage) * 100) / 100;
+                else error = 'oväntat svar från OpenRouter';
+            }
+        } catch (e) {
+            error = e instanceof Error ? e.message : 'nätfel';
+        }
+    }
+
+    const since7 = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const since24 = new Date(Date.now() - 86_400_000).toISOString();
+    const { data: rows } = await supabase.from('costs').select('cost_usd, created_at').gte('created_at', since7).limit(5000);
+    let s24 = 0, s7 = 0;
+    for (const row of rows ?? []) {
+        const c = Number(row.cost_usd) || 0;
+        s7 += c;
+        if (row.created_at >= since24) s24 += c;
+    }
+
+    const value: CreditsSnapshot = {
+        remaining_usd: remaining,
+        total_credits_usd: Number.isFinite(total ?? NaN) ? total : null,
+        total_usage_usd: Number.isFinite(usage ?? NaN) ? usage : null,
+        spent_24h_usd: Math.round(s24 * 1000) / 1000,
+        spent_7d_usd: Math.round(s7 * 1000) / 1000,
+        ...(error ? { error } : {}),
+        fetched_at: new Date().toISOString(),
+    };
+    creditsCache = { at: Date.now(), value };
+    return value;
+}
+
+router.get('/openrouter/credits', async (req: Request, res: Response) => {
+    res.json(await openRouterCredits(req.query.force === '1'));
 });
 
 export default router;

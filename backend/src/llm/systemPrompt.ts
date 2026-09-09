@@ -108,6 +108,8 @@ VERKTYG DU KAN ANVÄNDA:
 - get_site_stats: Webbspårning för en kunds hemsida (Thomas, Gustav) eller skylandai.se:
   besök, engagerade, leads och NÄR senaste besöket/leadet kom. Använd vid "hur går X:s
   hemsida", "när var senaste besökaren", "hur många leads har sajten fått".
+- get_credits: OpenRouter-saldot (pengarna som betalar dina modellanrop) och förbrukning
+  senaste dygnet/veckan. Under 5 $ bör operatören fylla på; säg det.
 - start_ui_tour: Starta en guidad rundtur av hela dashboarden (skriptad sekvens som
   visar och förklarar varje vy). Använd vid "ge mig en genomgång", "visa mig runt",
   "guida mig genom systemet". Säg att rundturen körs på skärmen och att operatören

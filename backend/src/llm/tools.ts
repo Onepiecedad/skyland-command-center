@@ -344,6 +344,11 @@ Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — 
         }
     },
     {
+        name: 'get_credits',
+        description: 'Kvarvarande OpenRouter-saldo (det som betalar Alex och alla modellanrop) i USD, plus vad som förbrukats senaste dygnet och senaste 7 dagarna. Använd vid "hur mycket kredit har jag kvar", "hur länge räcker pengarna", "vad kostar Alex".',
+        parameters: { type: 'object', properties: {} }
+    },
+    {
         name: 'start_ui_tour',
         description: 'Starta en guidad rundtur av hela dashboarden på operatörens skärm. En skriptad sekvens visar varje vy i tur och ordning med förklaringskort (Alex-chatten, CRM-pipelinen, leads, sekvenser, kunder, kontoret, systemöversikt, skills). Använd när operatören ber om en genomgång, rundtur, guidning eller demo av systemet, t.ex. "visa mig runt", "ge mig en genomgång", "guida mig genom systemet". Påverkar bara skärmen — alltid säkert.',
         parameters: { type: 'object', properties: {} }
@@ -439,6 +444,13 @@ export async function executeToolCall(
                 return await handleNavigateUi(args);
             case 'get_site_stats':
                 return await handleGetSiteStats(args);
+            case 'get_credits': {
+                const { openRouterCredits } = await import('../routes/integrations');
+                const c = await openRouterCredits();
+                return c.error && c.remaining_usd === null
+                    ? { success: false, error: `Kunde inte hämta saldot: ${c.error}` }
+                    : { success: true, data: c };
+            }
             case 'start_ui_tour':
                 return await handleStartUiTour();
             default:

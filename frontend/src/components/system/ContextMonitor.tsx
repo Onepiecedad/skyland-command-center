@@ -1,6 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Activity, DollarSign, AlertTriangle, TrendingUp, Brain, Clock } from 'lucide-react';
 import { useGateway } from '../../gateway/useGateway';
+import { API_BASE, fetchWithAuth } from '../../api';
+
+interface Credits {
+  remaining_usd: number | null;
+  spent_24h_usd: number;
+  spent_7d_usd: number;
+  error?: string;
+}
+
+/** Färg på saldot: under 2 $ är Alex snart tyst, under 5 $ dags att fylla på. */
+function creditsColor(remaining: number | null): string {
+  if (remaining === null) return '#94a3b8';
+  if (remaining < 2) return '#ef4444';
+  if (remaining < 5) return '#f59e0b';
+  return '#10b981';
+}
 
 interface ModelPricing {
   input: number;
@@ -33,6 +49,20 @@ export function ContextMonitor() {
   const [metrics, setMetrics] = useState<SessionMetrics[]>([]);
   const [totalCost, setTotalCost] = useState(0);
   const [totalTokens, setTotalTokens] = useState(0);
+  const [credits, setCredits] = useState<Credits | null>(null);
+
+  // OpenRouter-saldo: det som faktiskt avgör om Alex kan svara i morgon.
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      fetchWithAuth(`${API_BASE}/integrations/openrouter/credits`)
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then(c => { if (alive) setCredits(c); })
+        .catch(() => { if (alive) setCredits({ remaining_usd: null, spent_24h_usd: 0, spent_7d_usd: 0, error: 'nås inte' }); });
+    load();
+    const t = setInterval(load, 5 * 60 * 1000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
 
   // Load pricing config
   useEffect(() => {
@@ -122,13 +152,23 @@ export function ContextMonitor() {
 
       {/* Overview Cards */}
       <div className="monitor-cards">
-        <div className="monitor-card">
-          <div className="card-icon" style={{ color: '#3b82f6' }}>
+        <div
+          className="monitor-card"
+          title={credits?.error
+            ? `Saldo kunde inte hämtas: ${credits.error}`
+            : `OpenRouter-saldo. Förbrukat senaste dygnet $${(credits?.spent_24h_usd ?? 0).toFixed(2)}, senaste 7 dagarna $${(credits?.spent_7d_usd ?? 0).toFixed(2)}. Sessionens uppskattning: $${totalCost.toFixed(4)}.`}
+        >
+          <div className="card-icon" style={{ color: creditsColor(credits?.remaining_usd ?? null) }}>
             <DollarSign size={20} />
           </div>
           <div className="card-content">
-            <span className="card-label">Total Cost</span>
-            <span className="card-value">${totalCost.toFixed(4)}</span>
+            <span className="card-label">OpenRouter-saldo</span>
+            <span className="card-value" style={{ color: creditsColor(credits?.remaining_usd ?? null) }}>
+              {credits?.remaining_usd === null || credits?.remaining_usd === undefined ? '—' : `$${credits.remaining_usd.toFixed(2)}`}
+            </span>
+            {credits && !credits.error && (
+              <span className="card-sub">−${credits.spent_7d_usd.toFixed(2)} / 7 d</span>
+            )}
           </div>
         </div>
 
