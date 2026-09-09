@@ -801,6 +801,41 @@ människa svarat. Gustav har iPhone och Mac; Mac står inte på listan över kli
 stöd, men det är **otestat** och ska verifieras med ett riktigt meddelande innan
 autopiloten slås på.
 
+## WhatsApp: kopplingen revs efter 27 sekunder, och tre saker som byggdes under utredningen (9 sep)
+
+Kopplingen 8 sep levde i noll sekunder. Meta rev partnertilldelningen 23:18, 27 sekunder
+efter att Dualhook slutfört signupen, och 401:an i loggen var `ACCOUNT_OFFBOARDED`, inte ett
+gästmeddelande. Ingen WhatsApp-trafik har nått oss. Hela utredningen, tidslinjen från tre
+källor och Dualhooks svar står i `scc-crm/references/tekniska-forutsattningar.md` under
+"Kopplingen revs 27 sekunder efter inkopplingen". Kort: orsaken är inte fastställd,
+arbetshypotesen är tre Embedded Signup-fönster på samma minut, och Dualhook-kontot måste
+ägas av Cold Experience, inte Skyland, så nästa försök görs från Gustavs eget konto.
+
+Tre saker som driftar från och med nu:
+
+**`ce_account_events`** (migration `20260909075516`). Kontohändelser från Meta och Dualhook
+som inte hör till ett lead: `account_update` (`ACCOUNT_OFFBOARDED`, `PARTNER_REMOVED`,
+`PARTNER_APP_INSTALLED` ...), kvalitet, granskning, och okända `object`-typer. Append-only med
+samma `app.allow_event_purge`-lucka som `ce_lead_events`. `ce-agent-webhook` skriver dit och
+mejlar `ALERT_EMAIL` (default joakim@skylandai.se) via Resend med LARM/VARNING/INFO i ämnet;
+sms bara om `ALERT_SMS_TO` är satt. Tystnaden 8 sep kostade ett dygn; den ska inte upprepas.
+**Öppet:** Dualhooks vidarebefordrade livscykelhändelser har inte verifierad form. Kommer de
+med ett annat `object` än `whatsapp_business_account` landar de som VARNING med hela
+payloaden, och koden får anpassas efter första exemplaret.
+
+**Mutning per lead.** `ce_leads.custom.agent_muted = true` tystar agenten helt i den tråden,
+före autopilotgrinden. Behövdes för att `handed_off` inte stoppar något: den byter en rad i
+systemprompten och lämnar prislistan kvar. Ett kort där Gustav förhandlat eget pris hade fått
+listpris av roboten så fort autopiloten slogs på. Verifierat skarpt mot driftsatt funktion.
+Satt på Boukje Nienhuis (5 500 EUR, kortet i Överlämnad, `wa_id 31626961839`). Mutningen syns
+inte på kortet i CRM:et; speglingen lyfter bara `ce_*`-nycklar.
+
+**Prompt `2026-09-09.1`.** Boukje-tråden gav ett verkligt femdagarsprogram dag för dag, vad
+sjudagarspaketet lägger till, flygplatshämtning, flyghjälp, hur en preliminär bokning går till,
+och att erbjuda skrift om gästens talade engelska inte räcker. Rabattgreppen Gustav använde
+(bort med hundspannet, sextonåring som barn, gratis extradag, ombyggt paket) är dokumenterade
+i `gustav-ton.md` 4e som **hans**, inte robotens.
+
 ## Kända skavanker
 
 - **`coldexperience` på Netlify bygger inte om vid push till `main` (7 sep).** Allt på Netlify-sidan är kontrollerat och rätt: repot kopplat till `Onepiecedad/ColdExperience`, Build status Active, produktionsgren `main`, base `frontend`, publish `frontend/build`, functions `frontend/netlify/functions`, inget `ignore`-kommando i `frontend/netlify.toml`, inget skip i commit-meddelandet. Manuell "Trigger deploy" hämtar rätt commit och fungerar. Kvarstående misstanke: Netlifys GitHub-app saknar tillgång till just det repot (github.com/settings/installations), eller att webhooken hos GitHub tappats. Tills det är löst kräver varje deploy ett klick. MarinMekaniker och SCC autodeployar normalt.
