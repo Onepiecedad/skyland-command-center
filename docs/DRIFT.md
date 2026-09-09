@@ -761,29 +761,45 @@ flödena inte kan krocka. Flödena delar ämnesrader men inte avsändare (`gusta
 tags gör det inte. Därför använder sekvensen varken `add_tag` eller `move_stage` — stegen i
 pipelinen ägs av speglingen och hade dragit åt olika håll.
 
-## WhatsApp: signaturkontrollen kan inte fungera med Dualhook (8 sep)
+## WhatsApp: signaturkontrollen är delad efter avsändare (8–9 sep)
 
-`ce-agent-webhook` verifierar Metas `X-Hub-Signature-256` mot `META_APP_SECRET`. Efter inkopplingen
-kom första anropet in som `POST | 401` med `bad signature` i funktionsloggen, och det går inte att
-laga genom att hämta rätt hemlighet: trafiken signeras med **Dualhooks** app-hemlighet, som är
-delad mellan alla deras kunder och aldrig lämnas ut. De lägger inte heller på någon egen signatur.
-Källa och citat: `~/.openclaw/skills/scc-crm/references/tekniska-forutsattningar.md`, avsnittet
-"Det som återstår: signaturkontrollen kan inte fungera som den är byggd".
+`ce-agent-webhook` verifierade Metas `X-Hub-Signature-256` mot `META_APP_SECRET` för
+all trafik. Efter WhatsApp-inkopplingen 8 sep avvisades varje inkommande
+WhatsApp-meddelande med `401 bad signature`, och det gick inte att laga genom att hämta
+rätt hemlighet: numret onboardades genom Dualhooks Embedded Signup, så Meta signerar med
+**Dualhooks** app-hemlighet, som är delad mellan alla deras kunder och aldrig lämnas ut.
+Citat och källa i `~/.openclaw/skills/scc-crm/references/tekniska-forutsattningar.md`.
 
-**Tills detta är gjort avvisas varje inkommande WhatsApp-meddelande.** Ingen gäst drabbas, för
-autopiloten är av och Gustav ser allt i appen, men fortsätter vi svara 401 stänger Meta av
-prenumerationen och inkopplingen får göras om.
+**Åtgärdat 9 sep.** Att bara ta bort `META_APP_SECRET` vore fel, för Facebook-sidan
+ligger kvar på Cold Experiences egen app och verifieras korrekt. Kontrollen är därför
+delad på `payload.object`:
 
-1. Ta bort `META_APP_SECRET` ur Supabase (koden hoppar då över kontrollen med en varning).
-2. Validera i stället `phone_number_id` = `1289813200882119` och WABA = `1021280300798738`.
-3. Byt webhook-adressen till en med gissningssäkert slumpsegment, behandlad som hemlighet.
-4. Skapa `dh_live_`-nyckeln i Dualhook för utgående.
+| Objekt | Kontroll |
+|---|---|
+| `page` | Signaturen mot `META_APP_SECRET`, oförändrat. Rör inte den grenen. |
+| `whatsapp_business_account` | `entry[].id` mot `CE_WABA_ID` och `metadata.phone_number_id` mot `CE_PHONE_NUMBER_ID`. Kontohändelser som `account_update` saknar phone_number_id; där räcker WABA-id, annars avvisas Metas egna kontomeddelanden. |
+| annat | Kvitteras med `received: 0` utan att röra något. |
 
-**Driftregel som följer av samma inkoppling:** länkade enheter loggas ut och kan länkas om, men
-WhatsApp för Windows och WearOS stöds inte och utlöser inga `smb_message_echoes`. Vår
-`markHumanActive` bygger på de ekona för att veta att en människa svarat. Gustav har iPhone och
-Mac; Mac står inte på listan över klienter utan stöd, men det är **otestat** och ska verifieras med
-ett riktigt meddelande innan autopiloten slås på.
+Defaultvärdena i koden är Cold Experiences riktiga id:n (`1021280300798738` och
+`1289813200882119`), så inga nya hemligheter behövs för att det ska fungera.
+
+**Id-kontroll räcker inte som enda skydd**, eftersom WABA-id inte är hemligt. Därför
+finns `CE_WEBHOOK_KEY`: sätts den krävs `?k=<nyckel>` på varje POST, annars 403. Tom som
+default så att adressen kan bytas hos Dualhook utan avbrott. **Sätt den, och lägg samma
+nyckel i Webhook URL hos Dualhook.** Tills dess är adressen ett gissningsbart funktionsnamn.
+
+Verifierat mot prod i sju fall: rätt WABA och nummer 200, fel WABA 401, fel nummer 401,
+`account_update` utan metadata 200, sidan med trasig signatur 401, okänd objekttyp 200,
+GET-handskakning med fel token 403.
+
+**Kvar:** `dh_live`-nyckeln i Dualhook för utgående. Utan den kan vi ta emot men inte svara.
+
+**Driftregel som följer av samma inkoppling:** länkade enheter loggas ut vid inkoppling och
+kan länkas om, men WhatsApp för Windows och WearOS stöds inte och utlöser inga
+`smb_message_echoes`. Vår `markHumanActive` bygger på de ekona för att veta att en
+människa svarat. Gustav har iPhone och Mac; Mac står inte på listan över klienter utan
+stöd, men det är **otestat** och ska verifieras med ett riktigt meddelande innan
+autopiloten slås på.
 
 ## Kända skavanker
 
