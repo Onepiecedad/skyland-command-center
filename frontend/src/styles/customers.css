@@ -220,6 +220,11 @@
   position: relative;
   height: calc(100vh - 82px);
   overflow: hidden;
+  /* Kolumn med definit höjd, annars ärver .cv-body ingen höjd att krympa mot
+     och dess flex:1 ignoreras. Det var orsaken till att detaljpanelen klipptes
+     i stället för att scrolla: hela kedjan saknade en höjd att räkna på. */
+  display: flex;
+  flex-direction: column;
 }
 
 /* View Toggle (Finder-style) */
@@ -372,11 +377,15 @@
   flex: 1;
   display: flex;
   overflow: hidden;
+  /* min-height: 0 krävs för att en flex-item ska få krympa under sitt
+     innehålls höjd. Utan den växer raden förbi .customer-view och klipps. */
+  min-height: 0;
 }
 
 .cv-cards-area {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
   padding: 1rem 1.25rem;
   transition: flex 0.3s var(--ease-out);
 }
@@ -580,7 +589,11 @@
 /* ─── Detail Panel — Glass Inspector ─── */
 .cv-detail-panel {
   flex: 0 0 0;
-  overflow-y: auto;
+  /* Panelen är en kolumn: rubrik och flikar står stilla, innehållet scrollar. */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   background: rgba(0, 0, 0, 0.3);
   -webkit-backdrop-filter: blur(32px) saturate(1.3);
   backdrop-filter: blur(32px) saturate(1.3);
@@ -681,6 +694,10 @@
 .cv-detail-content {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  /* Luft i botten så sista raden inte klistrar mot kanten när man scrollat ned. */
+  padding-bottom: 1.5rem;
 }
 
 /* Detail Stats with Icons */
@@ -1036,4 +1053,145 @@
   margin-top: 0.45rem;
   font-size: 0.74rem;
   color: rgba(255, 255, 255, 0.55);
+}
+
+/* ─── Klickbara Fel-/Varningsrutor i detaljpanelen ─── */
+.cv-detail-stat--klickbar {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out), border-color 0.15s var(--ease-out);
+}
+.cv-detail-stat--klickbar:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.cv-detail-stat--klickbar.ar-vald {
+  border-color: var(--accent-blue);
+  background: rgba(10, 132, 255, 0.1);
+}
+.cv-detail-stat--klickbar:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* ─── Händelsemodal: vad ärendet faktiskt gäller ─── */
+.act-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.act-modal {
+  width: min(560px, 100%);
+  max-height: min(78vh, 720px);
+  overflow-y: auto;
+  padding: 1.1rem 1.25rem 1.25rem;
+  border-radius: 16px;
+  background: rgba(16, 20, 18, 0.97);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.act-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.act-modal-sev {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.act-modal-sev--error { background: rgba(255, 69, 58, 0.16); color: #FF453A; }
+.act-modal-sev--warn  { background: rgba(255, 159, 10, 0.16); color: #FF9F0A; }
+.act-modal-sev--info  { background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.7); }
+.act-modal-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 6px;
+  line-height: 1;
+}
+.act-modal-close:hover { color: rgba(255, 255, 255, 0.9); }
+.act-modal-title {
+  margin: 12px 0 4px;
+  font-size: 16px;
+  font-weight: 650;
+  word-break: break-word;
+}
+.act-modal-sub {
+  font-size: 12px;
+  opacity: 0.55;
+  margin-bottom: 14px;
+}
+.act-modal-tom {
+  font-size: 13px;
+  opacity: 0.5;
+  margin: 4px 0 14px;
+}
+.act-modal-list { margin: 0 0 14px; }
+.act-modal-rad {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.act-modal-rad dt {
+  font-size: 12px;
+  opacity: 0.55;
+  word-break: break-word;
+}
+.act-modal-rad dd { margin: 0; }
+.act-modal-rad pre {
+  margin: 0;
+  font-size: 12.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+}
+.act-modal-fot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+.act-modal-tagg {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  opacity: 0.7;
+}
+.act-modal-knapp {
+  margin-left: auto;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 7px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(10, 132, 255, 0.18);
+  border: 1px solid rgba(10, 132, 255, 0.45);
+}
+.act-modal-knapp:hover { background: rgba(10, 132, 255, 0.3); }
+
+@media (max-width: 768px) {
+  .act-modal-rad { grid-template-columns: 1fr; gap: 2px; }
+  .act-modal { max-height: 88vh; }
 }

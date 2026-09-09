@@ -123,6 +123,10 @@ export function CustomerView({ onTaskCreated }: Props) {
 
     const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
+    // Vilket filter aktivitetsloggen visar. Ligger här och inte i ActivityLog, för
+    // att Fel- och Varningsrutorna ovanför loggen ska kunna styra det.
+    const [aktivitetsFilter, setAktivitetsFilter] = useState('all');
+
     const statusCounts = useMemo(() => ({
         all: customers.length,
         error: customers.filter(c => c.status === 'error').length,
@@ -250,20 +254,32 @@ export function CustomerView({ onTaskCreated }: Props) {
                                 {detailTab === 'overview' && (
                                     <>
                                         <div className="cv-detail-stats">
-                                            <div className="cv-detail-stat">
+                                            {/* Fel och varningar filtrerar aktivitetsloggen. Klick på en ruta
+                                                som redan är vald nollställer tillbaka till Alla. */}
+                                            <button
+                                                type="button"
+                                                className={`cv-detail-stat cv-detail-stat--klickbar ${aktivitetsFilter === 'error' ? 'ar-vald' : ''}`}
+                                                onClick={() => setAktivitetsFilter(f => f === 'error' ? 'all' : 'error')}
+                                                title="Visa bara fel i aktivitetsloggen"
+                                            >
                                                 <AlertOctagon size={14} className="cv-ds-icon cv-ds-error-icon" />
                                                 <div className="cv-ds-info">
                                                     <span className="cv-ds-label">Fel (24h)</span>
                                                     <span className="cv-ds-value cv-ds-error">{selectedCustomer.errors_24h}</span>
                                                 </div>
-                                            </div>
-                                            <div className="cv-detail-stat">
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`cv-detail-stat cv-detail-stat--klickbar ${aktivitetsFilter === 'warn' ? 'ar-vald' : ''}`}
+                                                onClick={() => setAktivitetsFilter(f => f === 'warn' ? 'all' : 'warn')}
+                                                title="Visa bara varningar i aktivitetsloggen"
+                                            >
                                                 <AlertTriangle size={14} className="cv-ds-icon cv-ds-warn-icon" />
                                                 <div className="cv-ds-info">
                                                     <span className="cv-ds-label">Varningar (24h)</span>
                                                     <span className="cv-ds-value cv-ds-warn">{selectedCustomer.warnings_24h}</span>
                                                 </div>
-                                            </div>
+                                            </button>
                                             <div className="cv-detail-stat">
                                                 <ListTodo size={14} className="cv-ds-icon cv-ds-tasks-icon" />
                                                 <div className="cv-ds-info">
@@ -277,6 +293,8 @@ export function CustomerView({ onTaskCreated }: Props) {
                                             <ActivityLog
                                                 key={`act-${refreshKey}`}
                                                 selectedCustomerId={selectedCustomerId}
+                                                filter={aktivitetsFilter}
+                                                onFilterChange={setAktivitetsFilter}
                                             />
                                         </div>
 

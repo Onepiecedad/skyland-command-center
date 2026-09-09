@@ -21,6 +21,7 @@ const FILTERS: FilterConfig[] = [
     { key: 'lead', label: 'Leads', icon: '🎯', query: { event_type: 'lead' } },
     { key: 'crm', label: 'Försäljning', icon: '🤝', query: { event_type: 'crm' } },
     { key: 'todo', label: 'Att göra', icon: '✅', query: { event_type: 'todo' } },
+    { key: 'warn', label: 'Varningar', icon: '🟠', query: { severity: 'warn' } },
     { key: 'error', label: 'Fel', icon: '⚠️', query: { severity: 'error' } },
     { key: 'cron', label: 'Cron', icon: '🔄', query: { event_type: 'cron_trigger' } },
 ];
@@ -59,14 +60,41 @@ function summarize(a: Activity): string {
     return parts.join(' · ');
 }
 
-interface Props {
-    selectedCustomerId: string | null;
+/** Nycklar som inte tillför något i modalen: de står redan i huvudet eller är rena id:n. */
+const DOLDA_DETALJER = new Set(['contact_id', 'customer_id', 'agent', 'action', 'event_type', 'severity']);
+
+/** Ett värde ur details, i läsbar form. Objekt och listor får JSON, resten text. */
+function detaljVarde(v: unknown): string {
+    if (v === null || v === undefined) return '—';
+    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
+    try { return JSON.stringify(v, null, 2); } catch { return String(v); }
 }
 
-export function ActivityLog({ selectedCustomerId }: Props) {
+const NYCKEL_ETIKETT: Record<string, string> = {
+    reason: 'Skäl', channel: 'Kanal', lead_id: 'Lead', via: 'Via', to: 'Till', from: 'Från',
+    error: 'Felmeddelande', message: 'Meddelande', kind: 'Typ', note: 'Notis',
+    contact_name: 'Kontakt', status: 'Status', intent: 'Avsikt', count: 'Antal',
+};
+
+const SEVERITY_ORD: Record<string, string> = { error: 'Fel', warn: 'Varning', info: 'Info' };
+
+interface Props {
+    selectedCustomerId: string | null;
+    /** Styr filtret utifrån, t.ex. när någon klickar på Fel- eller Varningsrutan. */
+    filter?: string;
+    onFilterChange?: (key: string) => void;
+}
+
+export function ActivityLog({ selectedCustomerId, filter, onFilterChange }: Props) {
     const [activities, setActivities] = useState<Activity[]>([]);
     const [loading, setLoading] = useState(true);
-    const [activeFilter, setActiveFilter] = useState('all');
+    const [internFilter, setInternFilter] = useState('all');
+    const [vald, setVald] = useState<Activity | null>(null);
+    const activeFilter = filter ?? internFilter;
+    const setActiveFilter = useCallback((k: string) => {
+        setInternFilter(k);
+        onFilterChange?.(k);
+    }, [onFilterChange]);
 
     /* Resolve current filter config */
     const currentFilter = useMemo(
@@ -148,15 +176,13 @@ export function ActivityLog({ selectedCustomerId }: Props) {
                         </p>
                     ) : (
                         activities.map(a => {
-                            const cid = (a.details as Record<string, unknown> | null)?.contact_id;
-                            const clickable = typeof cid === 'string' && cid.length > 0;
                             return (
                             <div
                                 key={a.id}
                                 className={`activity-row ${a.severity === 'error' ? 'activity-row--error' : ''}`}
-                                onClick={clickable ? () => focusContact(cid as string) : undefined}
-                                style={clickable ? { cursor: 'pointer' } : undefined}
-                                title={clickable ? 'Öppna kontaktkortet' : undefined}
+                                onClick={() => setVald(a)}
+                                style={{ cursor: 'pointer' }}
+                                title="Visa vad händelsen gäller"
                             >
                                 <span className="activity-time">{formatTime(a.created_at)}</span>
                                 <span
@@ -183,6 +209,59 @@ export function ActivityLog({ selectedCustomerId }: Props) {
                     )}
                 </div>
             )}
+
+            {vald && (() => {
+                const d = (vald.details || {}) as Record<string, unknown>;
+                const kid = typeof d.contact_id === 'string' ? d.contact_id : null;
+                const rader = Object.entries(d).filter(([k, v]) =>
+                    !DOLDA_DETALJER.has(k) && v !== null && v !== undefined && v !== '');
+                return (
+                    <div className="act-modal-backdrop" onClick={() => setVald(null)} role="presentation">
+                        <div className="act-modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+                            <div className="act-modal-head">
+                                <div className={`act-modal-sev act-modal-sev--${vald.severity}`}>
+                                    {SEVERITY_ORD[vald.severity] ?? vald.severity}
+                                </div>
+                                <button className="act-modal-close" onClick={() => setVald(null)} aria-label="Stäng">✕</button>
+                            </div>
+
+                            <h3 className="act-modal-title">
+                                {getEventIcon(vald.event_type)} {vald.action}
+                            </h3>
+                            <div className="act-modal-sub">
+                                {vald.agent} · {vald.event_type} · {new Date(vald.created_at).toLocaleString('sv-SE')}
+                            </div>
+
+                            {rader.length === 0 ? (
+                                <p className="act-modal-tom">Händelsen bär inga ytterligare uppgifter.</p>
+                            ) : (
+                                <dl className="act-modal-list">
+                                    {rader.map(([k, v]) => (
+                                        <div key={k} className="act-modal-rad">
+                                            <dt>{NYCKEL_ETIKETT[k] ?? k}</dt>
+                                            <dd><pre>{detaljVarde(v)}</pre></dd>
+                                        </div>
+                                    ))}
+                                </dl>
+                            )}
+
+                            <div className="act-modal-fot">
+                                {vald.autonomy_level && (
+                                    <span className="act-modal-tagg">{vald.autonomy_level}</span>
+                                )}
+                                {kid && (
+                                    <button
+                                        className="act-modal-knapp"
+                                        onClick={() => { setVald(null); focusContact(kid); }}
+                                    >
+                                        Öppna kontaktkortet
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 }

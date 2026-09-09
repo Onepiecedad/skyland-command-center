@@ -109,7 +109,11 @@ html, body, #root {
     height: auto !important;
     max-height: none !important;
     overflow: visible !important;
+    min-height: 0 !important;
   }
+  /* Panelen är fullskärmsoverlay på mobil: den scrollar själv, inte innehållet. */
+  .cv-detail-panel.open { overflow-y: auto !important; }
+  .cv-detail-panel.open .cv-detail-content { overflow: visible !important; }
   .cv-cards-grid { grid-template-columns: 1fr !important; }
   .cv-toolbar { flex-wrap: wrap; gap: 8px; }
 
