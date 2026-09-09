@@ -304,16 +304,27 @@ export const ALEX_TOOLS: ToolDefinition[] = [
     },
     {
         name: 'navigate_ui',
-        description: 'Styr operatörens dashboard-UI: byt vy och/eller öppna ett specifikt kontaktkort. Använd när operatören säger t.ex. "visa CRM:et", "öppna kontoret", "visa kortet för All Gold Tattoo", "ta fram prospektkortet för X". Om contact_query anges öppnas CRM-vyn med det kortets detaljpanel. Vyer: alex (chatten), crm (kanban-pipelinen), leads, sequences (sekvenser), customers (kundinstanser), website (hemsidan), office (kontoret), archive (arkivet), system (systemöversikt), skills. Verktyget påverkar bara skärmen — det ändrar ingen data och är alltid säkert att köra direkt.',
+        description: `Styr operatörens dashboard på skärmen: byt vy, öppna ett kontaktkort i CRM:et, eller öppna en kund med en viss flik. Använd vid "visa …", "öppna …", "ta fram …", "gå till …". Påverkar bara skärmen — ändrar ingen data, alltid säkert att köra direkt. Anropa hellre en gång för mycket än att beskriva var man klickar.
+SKÄRMKARTA (vad som går att visa):
+- Vyer (view): alex (chatten), crm (kanban-pipelinen), leads, sequences (sekvenser), customers (kundinstanser), website (hemsidan), office (kontoret/agentkontoret), archive (arkivet), system (systemöversikt), skills.
+- Kontaktkort (contact_query): namn på prospekt/studio/klinik i CRM:et, t.ex. "All Gold Tattoo". Skärmen byter själv till rätt pipeline-flik (Sales, Prospecting, Cold Experience …) och öppnar kortet. Svaret säger pipeline och steg.
+- Kund (customer_query + customer_tab): namn eller slug på en kundinstans, t.ex. "Thomas", "MarinMekaniker", "Cold Experience". Öppnar kundens panel i Kunder-vyn på vald flik: overview (Översikt), contact (Kontakt), website (Hemsida, bara kunder med spårad sajt), agreements (Avtal), documents (Dokument). "Visa Thomas hemsida" = customer_query "Thomas", customer_tab "website".
+Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — fråga då vilken som menas.`,
         parameters: {
             type: 'object',
             properties: {
                 view: {
                     type: 'string',
                     enum: ['alex', 'crm', 'leads', 'sequences', 'customers', 'website', 'office', 'archive', 'system', 'skills'],
-                    description: 'Vyn som ska visas. Vid contact_query: utelämna eller sätt "crm".'
+                    description: 'Vyn som ska visas. Utelämnas när contact_query eller customer_query anges.'
                 },
-                contact_query: { type: 'string', description: 'Namn på kontakt/studio vars kort ska öppnas, t.ex. "All Gold Tattoo". Fuzzy-matchas mot CRM:et.' }
+                contact_query: { type: 'string', description: 'Namn på kontakt/studio vars CRM-kort ska öppnas. Fuzzy-matchas.' },
+                customer_query: { type: 'string', description: 'Namn eller slug på kundinstans vars panel ska öppnas i Kunder-vyn. Fuzzy-matchas.' },
+                customer_tab: {
+                    type: 'string',
+                    enum: ['overview', 'contact', 'website', 'agreements', 'documents'],
+                    description: 'Flik i kundpanelen. Standard overview.'
+                }
             }
         }
     },
@@ -1194,35 +1205,71 @@ const NAVIGATE_VIEWS = new Set(['alex', 'crm', 'leads', 'sequences', 'customers'
 async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResult> {
     const { emitSystemEvent } = await import('../routes/eventStream');
     const contactQuery = typeof args.contact_query === 'string' ? args.contact_query.trim() : '';
+    const customerQuery = typeof args.customer_query === 'string' ? args.customer_query.trim() : '';
+    const customerTab = typeof args.customer_tab === 'string' && CUSTOMER_TABS.has(args.customer_tab) ? args.customer_tab : 'overview';
     let view = typeof args.view === 'string' && NAVIGATE_VIEWS.has(args.view) ? args.view : '';
 
-    let contact: { id: string; name: string } | null = null;
-    if (contactQuery) {
-        view = 'crm'; // kontaktkort bor i CRM-vyn
-        const { data: exact } = await supabase
-            .from('contacts')
-            .select('id, name')
-            .ilike('name', `%${contactQuery}%`)
-            .limit(2);
-        if (exact && exact.length > 0) {
-            contact = exact[0];
-        } else {
-            // Fuzzy-fallback: första ordet (samma mönster som find_contact i pipelinen)
-            const firstWord = contactQuery.split(/\s+/)[0];
-            const { data: fuzzy } = await supabase
-                .from('contacts')
-                .select('id, name')
-                .ilike('name', `%${firstWord}%`)
-                .limit(2);
-            if (fuzzy && fuzzy.length > 0) contact = fuzzy[0];
+    let customer: { id: string; name: string; site_tenant_slug: string | null } | null = null;
+    let customerNote: string | null = null;
+    let tab = customerTab;
+    if (customerQuery) {
+        view = 'customers';
+        const found = await findCustomersForNavigate(customerQuery);
+        if (found.length === 0) {
+            return { success: false, error: `Hittade ingen kund som matchar "${customerQuery}".` };
         }
-        if (!contact) {
-            return { success: false, error: `Hittade ingen kontakt som matchar "${contactQuery}" i CRM:et.` };
+        if (found.length > 1) {
+            return {
+                success: false,
+                error: `Flera kunder matchar "${customerQuery}": ${found.map(c => c.name).join(', ')}. Fråga vilken som menas och anropa igen med det fullständiga namnet.`,
+            };
+        }
+        customer = found[0];
+        if (tab === 'website' && !customer.site_tenant_slug) {
+            tab = 'overview';
+            customerNote = `${customer.name} har ingen spårad hemsida kopplad, så Hemsida-fliken finns inte; öppnade Översikt i stället.`;
         }
     }
 
+    let contact: { id: string; name: string } | null = null;
+    let placement: { pipeline_id: string | null; pipeline_name: string | null; stage_name: string | null } | null = null;
+    if (contactQuery) {
+        view = 'crm'; // kontaktkort bor i CRM-vyn
+        const found = await findContactsForNavigate(contactQuery);
+        if (found.length === 0) {
+            return { success: false, error: `Hittade ingen kontakt som matchar "${contactQuery}" i CRM:et.` };
+        }
+        if (found.length > 1) {
+            // Gissa aldrig fel kort: låt Alex fråga vilket som menas.
+            return {
+                success: false,
+                error: `Flera kontakter matchar "${contactQuery}": ${found.map(c => c.name).join(', ')}. Fråga vilken som menas och anropa igen med det fullständiga namnet.`,
+            };
+        }
+        contact = found[0];
+
+        // Kortet ligger i en viss pipeline (Sales, Prospecting, Cold Experience …);
+        // skärmen måste byta flik dit innan kortet kan öppnas.
+        const { data: opp } = await supabase
+            .from('opportunities')
+            .select('pipeline_id, pipeline:pipelines(name), stage:stages(name)')
+            .eq('contact_id', contact.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        const rel = (v: unknown): string | null => {
+            const o = Array.isArray(v) ? v[0] : v;
+            return o && typeof o === 'object' && typeof (o as { name?: unknown }).name === 'string' ? (o as { name: string }).name : null;
+        };
+        placement = {
+            pipeline_id: (opp?.pipeline_id as string | undefined) ?? null,
+            pipeline_name: rel(opp?.pipeline),
+            stage_name: rel(opp?.stage),
+        };
+    }
+
     if (!view) {
-        return { success: false, error: 'Ange antingen view eller contact_query.' };
+        return { success: false, error: 'Ange view, contact_query eller customer_query.' };
     }
 
     emitSystemEvent('ui_action', {
@@ -1230,9 +1277,61 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
         view,
         contact_id: contact?.id ?? null,
         contact_name: contact?.name ?? null,
+        pipeline_id: placement?.pipeline_id ?? null,
+        customer_id: customer?.id ?? null,
+        customer_name: customer?.name ?? null,
+        customer_tab: customer ? tab : null,
     }, 'alex');
 
-    return { success: true, data: { view, contact_name: contact?.name ?? null } };
+    return {
+        success: true,
+        data: {
+            view,
+            contact_name: contact?.name ?? null,
+            ...(placement ? { pipeline: placement.pipeline_name, stage: placement.stage_name } : {}),
+            ...(contact && !placement?.pipeline_id
+                ? { note: 'Kontakten finns men har inget kort i någon pipeline, så inget kort kan öppnas.' }
+                : {}),
+            ...(customer ? { customer: customer.name, tab } : {}),
+            ...(customerNote ? { note: customerNote } : {}),
+        },
+    };
+}
+
+const CUSTOMER_TABS = new Set(['overview', 'contact', 'website', 'agreements', 'documents']);
+
+/** Kundmatchning för navigate_ui: exakt namn/slug vinner, annars delsträng i namnet. */
+async function findCustomersForNavigate(query: string): Promise<{ id: string; name: string; site_tenant_slug: string | null }[]> {
+    const q = query.replace(/[%_]/g, '').trim();
+    if (!q) return [];
+    const sel = 'id, name, site_tenant_slug';
+    const { data: exact } = await supabase.from('customer_status').select(sel)
+        .or(`name.ilike.${q},slug.ilike.${q.toLowerCase().replace(/\s+/g, '-')}`).limit(2);
+    if (exact && exact.length > 0) return exact.slice(0, 1) as { id: string; name: string; site_tenant_slug: string | null }[];
+    const { data: partial } = await supabase.from('customer_status').select(sel).ilike('name', `%${q}%`).limit(6);
+    if (partial && partial.length > 0) return partial as { id: string; name: string; site_tenant_slug: string | null }[];
+    const firstWord = q.split(/\s+/)[0];
+    if (firstWord.length < 3) return [];
+    const { data: fuzzy } = await supabase.from('customer_status').select(sel).ilike('name', `%${firstWord}%`).limit(6);
+    return (fuzzy ?? []) as { id: string; name: string; site_tenant_slug: string | null }[];
+}
+
+/**
+ * Namnmatchning för navigate_ui. Exakt namn (skiftlägesokänsligt) vinner
+ * alltid; annars delsträng; sist första ordet. Returnerar alla träffar
+ * (max 6) så anroparen kan vägra gissa när fler än en matchar.
+ */
+async function findContactsForNavigate(query: string): Promise<{ id: string; name: string }[]> {
+    const q = query.replace(/[%_]/g, '').trim();
+    if (!q) return [];
+    const { data: exact } = await supabase.from('contacts').select('id, name').ilike('name', q).limit(2);
+    if (exact && exact.length > 0) return exact.slice(0, 1);
+    const { data: partial } = await supabase.from('contacts').select('id, name').ilike('name', `%${q}%`).limit(6);
+    if (partial && partial.length > 0) return partial;
+    const firstWord = q.split(/\s+/)[0];
+    if (firstWord.length < 3) return [];
+    const { data: fuzzy } = await supabase.from('contacts').select('id, name').ilike('name', `%${firstWord}%`).limit(6);
+    return fuzzy ?? [];
 }
 
 /** start_ui_tour — trigga den skriptade guidade rundturen i frontend via SSE. */

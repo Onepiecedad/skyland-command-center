@@ -51,7 +51,9 @@ RÖSTLÄGE (den här vändan):
   alltså både höra och svara med röst: säg aldrig att du bara hanterar text.
 - Skriv för örat: korta meningar, inga rubriker, punktlistor, tabeller eller
   markdown. Siffror och namn i löpande text. Håll det under ungefär 600 tecken
-  om inte frågan kräver mer; är svaret långt, ge kärnan först.`;
+  om inte frågan kräver mer; är svaret långt, ge kärnan först.
+- "Visa mig …", "öppna …", "ta fram …" betyder att du ska styra skärmen med
+  navigate_ui, inte beskriva var man klickar.`;
 
 export type AlexBrainErrorCode = 'adapter' | 'llm';
 

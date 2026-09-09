@@ -6,7 +6,9 @@
  * och skickas vidare som window-CustomEvents som komponenterna lyssnar på:
  *   - 'scc:focus-pane'   { pane }                      → FocusNavigator
  *   - 'scc:subview'      { subview }                   → SubViewPane
- *   - 'scc:open-contact' { contactId, contactName }    → PipelineBoard
+ *   - 'scc:open-contact' { contactId, contactName, pipelineId } → CrmView (byter
+ *     pipeline-flik) + PipelineBoard (öppnar kortet)
+ *   - 'scc:open-customer' { customerId, tab }              → CustomerView
  */
 
 import { connectEventStream } from './../api/system';
@@ -34,6 +36,14 @@ const VIEW_TO_PANE: Record<string, PaneTarget> = {
 export interface OpenContactDetail {
     contactId: string;
     contactName: string | null;
+    /** Pipelinen kortet ligger i; CrmView byter flik dit innan kortet öppnas. */
+    pipelineId?: string | null;
+}
+
+export interface OpenCustomerDetail {
+    customerId: string;
+    customerName: string | null;
+    tab: string | null;
 }
 
 interface UiActionData {
@@ -41,6 +51,10 @@ interface UiActionData {
     view?: string;
     contact_id?: string | null;
     contact_name?: string | null;
+    pipeline_id?: string | null;
+    customer_id?: string | null;
+    customer_name?: string | null;
+    customer_tab?: string | null;
 }
 
 /** Navigera till en logisk vy (panel + ev. undervy). Används av SSE-bryggan och GuidedTour. */
@@ -71,7 +85,20 @@ function handleUiAction(data: UiActionData): void {
     if (data.view) navigateToView(data.view);
     if (data.contact_id) {
         window.dispatchEvent(new CustomEvent<OpenContactDetail>('scc:open-contact', {
-            detail: { contactId: data.contact_id, contactName: data.contact_name ?? null },
+            detail: {
+                contactId: data.contact_id,
+                contactName: data.contact_name ?? null,
+                pipelineId: data.pipeline_id ?? null,
+            },
+        }));
+    }
+    if (data.customer_id) {
+        window.dispatchEvent(new CustomEvent<OpenCustomerDetail>('scc:open-customer', {
+            detail: {
+                customerId: data.customer_id,
+                customerName: data.customer_name ?? null,
+                tab: data.customer_tab ?? null,
+            },
         }));
     }
 }

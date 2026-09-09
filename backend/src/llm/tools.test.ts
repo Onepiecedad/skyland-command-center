@@ -16,6 +16,9 @@ const h = vi.hoisted(() => {
         insertPayload: null as Record<string, unknown> | null,
         single: { data: { id: 't-1', title: 'Test', status: 'review' } as Record<string, unknown> | null, error: null as unknown },
         list: { data: [] as unknown[], error: null as unknown },
+        // navigate_ui: låt svaret bero på ilike-mönstret (exakt vs delsträng)
+        lastIlike: '' as string,
+        listFor: null as null | ((pattern: string) => { data: unknown[]; error: unknown }),
     };
     const emitSystemEvent = vi.fn();
     return { state, emitSystemEvent };
@@ -27,10 +30,13 @@ vi.mock('../services/supabase', () => {
         const pass = ['select', 'eq', 'in', 'gte', 'lte', 'like', 'ilike', 'order',
             'limit', 'contains', 'neq', 'is', 'update', 'delete'];
         for (const m of pass) b[m] = () => b;
+        b.ilike = (_col: string, pattern: string) => { h.state.lastIlike = pattern; return b; };
+        b.or = (filter: string) => { h.state.lastIlike = filter; return b; };
         b.insert = (payload: Record<string, unknown>) => { h.state.insertPayload = payload; return b; };
         b.single = () => Promise.resolve(h.state.single);
         b.maybeSingle = () => Promise.resolve(h.state.single);
-        b.then = (resolve: (v: unknown) => void) => resolve(h.state.list);
+        b.then = (resolve: (v: unknown) => void) =>
+            resolve(h.state.listFor ? h.state.listFor(h.state.lastIlike) : h.state.list);
         return b;
     };
     return { supabase: { from: () => build() } };
@@ -45,6 +51,8 @@ beforeEach(() => {
     h.state.insertPayload = null;
     h.state.single = { data: { id: 't-1', title: 'Test', status: 'review' }, error: null };
     h.state.list = { data: [], error: null };
+    h.state.listFor = null;
+    h.state.lastIlike = '';
     h.emitSystemEvent.mockReset();
 });
 
@@ -81,7 +89,7 @@ describe('executeToolCall — dispatch & felhantering', () => {
     it('navigate_ui utan argument → felmeddelande (ingen händelse emittas)', async () => {
         const res = await executeToolCall('navigate_ui', {});
         expect(res.success).toBe(false);
-        expect(res.error).toMatch(/view eller contact_query/i);
+        expect(res.error).toMatch(/view, contact_query eller customer_query/i);
         expect(h.emitSystemEvent).not.toHaveBeenCalled();
     });
 
@@ -93,6 +101,69 @@ describe('executeToolCall — dispatch & felhantering', () => {
             expect.objectContaining({ action: 'navigate', view: 'leads' }),
             'alex'
         );
+    });
+
+    it('navigate_ui med contact_query → byter till kortets pipeline och rapporterar steg', async () => {
+        h.state.listFor = (pattern) =>
+            pattern === 'loa ink' || pattern === '%loa ink%'
+                ? { data: [{ id: 'c-1', name: 'LOA Ink' }], error: null }
+                : { data: [], error: null };
+        h.state.single = {
+            data: { pipeline_id: 'p-agency', pipeline: { name: 'Prospecting (Agency)' }, stage: { name: 'New Prospect' } },
+            error: null,
+        };
+        const res = await executeToolCall('navigate_ui', { contact_query: 'loa ink' });
+        expect(res.success).toBe(true);
+        expect(res.data).toMatchObject({ view: 'crm', contact_name: 'LOA Ink', pipeline: 'Prospecting (Agency)', stage: 'New Prospect' });
+        expect(h.emitSystemEvent).toHaveBeenCalledWith(
+            'ui_action',
+            expect.objectContaining({ action: 'navigate', view: 'crm', contact_id: 'c-1', pipeline_id: 'p-agency' }),
+            'alex'
+        );
+    });
+
+    it('navigate_ui med tvetydigt namn → vägrar gissa, listar kandidaterna, ingen händelse', async () => {
+        h.state.listFor = (pattern) =>
+            pattern === '%tattoo%'
+                ? { data: [{ id: 'c-1', name: 'Wicked tattoo' }, { id: 'c-2', name: 'Heidi Hay Tattoo' }], error: null }
+                : { data: [], error: null };
+        const res = await executeToolCall('navigate_ui', { contact_query: 'tattoo' });
+        expect(res.success).toBe(false);
+        expect(res.error).toMatch(/Wicked tattoo, Heidi Hay Tattoo/);
+        expect(h.emitSystemEvent).not.toHaveBeenCalled();
+    });
+
+    it('navigate_ui med customer_query + website-flik → öppnar kunden på Hemsida', async () => {
+        h.state.listFor = (pattern) =>
+            pattern.startsWith('name.ilike.thomas')
+                ? { data: [{ id: 'cu-1', name: 'Thomas - MarinMekaniker', site_tenant_slug: 'marinmekaniker' }], error: null }
+                : { data: [], error: null };
+        const res = await executeToolCall('navigate_ui', { customer_query: 'thomas', customer_tab: 'website' });
+        expect(res.success).toBe(true);
+        expect(res.data).toMatchObject({ view: 'customers', customer: 'Thomas - MarinMekaniker', tab: 'website' });
+        expect(h.emitSystemEvent).toHaveBeenCalledWith(
+            'ui_action',
+            expect.objectContaining({ view: 'customers', customer_id: 'cu-1', customer_tab: 'website' }),
+            'alex'
+        );
+    });
+
+    it('navigate_ui: kund utan sajt + website-flik → Översikt med förklaring', async () => {
+        h.state.listFor = (pattern) =>
+            pattern.toLowerCase().includes('%vinnie%')
+                ? { data: [{ id: 'cu-2', name: 'Vinnie - All Gold Tattoo', site_tenant_slug: null }], error: null }
+                : { data: [], error: null };
+        const res = await executeToolCall('navigate_ui', { customer_query: 'Vinnie', customer_tab: 'website' });
+        expect(res.success).toBe(true);
+        expect(res.data).toMatchObject({ tab: 'overview' });
+        expect(String((res.data as { note?: string }).note)).toMatch(/ingen spårad hemsida/);
+        expect(h.emitSystemEvent).toHaveBeenCalledWith('ui_action', expect.objectContaining({ customer_tab: 'overview' }), 'alex');
+    });
+
+    it('navigate_ui med okänt namn → tydligt fel', async () => {
+        const res = await executeToolCall('navigate_ui', { contact_query: 'Finns Inte AB' });
+        expect(res.success).toBe(false);
+        expect(res.error).toMatch(/ingen kontakt/i);
     });
 
     it('start_ui_tour → emittar tour-händelse', async () => {

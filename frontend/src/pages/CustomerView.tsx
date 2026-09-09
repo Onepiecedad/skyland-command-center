@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
+import type { OpenCustomerDetail } from '../navigation/uiActions';
 import {
     Search,
     X,
@@ -122,6 +123,24 @@ export function CustomerView({ onTaskCreated }: Props) {
     };
 
     const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+
+    // Alex (navigate_ui): öppna en kund på en viss flik. Kundlistan är alltid
+    // laddad i bakgrunden (30 s-poll), så id:t räcker; Hemsida-fliken faller
+    // tillbaka till Översikt för kunder utan spårad sajt.
+    useEffect(() => {
+        const onOpenCustomer = (e: Event) => {
+            const d = (e as CustomEvent<OpenCustomerDetail>).detail;
+            if (!d?.customerId) return;
+            const c = customers.find(x => x.id === d.customerId);
+            const wanted = DETAIL_TABS.some(t => t.key === d.tab) ? (d.tab as DetailTab) : 'overview';
+            const tab: DetailTab = wanted === 'website' && !c?.site_tenant_slug ? 'overview' : wanted;
+            setSelectedCustomerId(d.customerId);
+            setDetailOpen(true);
+            setDetailTab(tab);
+        };
+        window.addEventListener('scc:open-customer', onOpenCustomer);
+        return () => window.removeEventListener('scc:open-customer', onOpenCustomer);
+    }, [customers]);
 
     // Vilket filter aktivitetsloggen visar. Ligger här och inte i ActivityLog, för
     // att Fel- och Varningsrutorna ovanför loggen ska kunna styra det.

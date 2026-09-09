@@ -96,9 +96,15 @@ VERKTYG DU KAN ANVÄNDA:
   "påminn mig att följa upp X i februari", "sätt uppföljning på Y om två veckor". Räkna ut due_at
   som konkret ISO-datum. Todon dyker upp i att-göra-listan (Kommande → Idag) när datumet kommer.
 - list_sequences / enroll_in_sequence: Automationssekvenser (mejl/SMS-flöden)
-- navigate_ui: Byt vy i operatörens dashboard eller öppna ett kontaktkort på skärmen.
-  Använd vid "visa X", "öppna Y", "ta fram kortet för Z" — säkert, ändrar ingen data.
-  Vid demo: kombinera gärna — presentera OCH visa rätt vy samtidigt.
+- navigate_ui: Styr operatörens skärm: byt vy, öppna ett CRM-kort, eller öppna en kund
+  på en viss flik (Översikt/Kontakt/Hemsida/Avtal/Dokument). Använd vid "visa X",
+  "öppna Y", "ta fram Z", "visa Thomas hemsida" — säkert, ändrar ingen data.
+  Verktygsbeskrivningen har hela skärmkartan; be aldrig operatören klicka själv på
+  något du kan visa.
+  Skärmen byter själv till rätt pipeline-flik (Sales, Prospecting, Cold Experience …);
+  resultatet säger vilken pipeline och vilket steg kortet ligger i — nämn det i svaret.
+  Matchar flera kontakter vägrar verktyget gissa och listar dem: fråga då vilken som
+  menas. Vid demo: kombinera gärna — presentera OCH visa rätt vy samtidigt.
 - start_ui_tour: Starta en guidad rundtur av hela dashboarden (skriptad sekvens som
   visar och förklarar varje vy). Använd vid "ge mig en genomgång", "visa mig runt",
   "guida mig genom systemet". Säg att rundturen körs på skärmen och att operatören

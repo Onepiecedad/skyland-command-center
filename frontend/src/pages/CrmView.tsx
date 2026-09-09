@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchPipelines, type Pipeline, type Opportunity, type Contact, type ContactCustom } from '../api';
 import PipelineBoard from '../components/PipelineBoard';
 import ConversationInbox from '../components/ConversationInbox';
 import MaterialPanel from '../components/MaterialPanel';
 import ContactDetail from '../components/ContactDetail';
+import type { OpenContactDetail } from '../navigation/uiActions';
 
 function tabBtn(active: boolean): React.CSSProperties {
     return {
@@ -37,6 +38,31 @@ export default function CrmView() {
         window.addEventListener('scc:tour-close-card', onTourClose);
         return () => window.removeEventListener('scc:tour-close-card', onTourClose);
     }, []);
+    // Alex (navigate_ui): kortet kan ligga i en annan pipeline än den som visas.
+    // Byt flik först. Boarden remontas vid flikbyte (key=activeId), så önskan
+    // hålls här och skickas om till den nya boarden när den monterats.
+    const pendingOpenRef = useRef<OpenContactDetail | null>(null);
+    useEffect(() => {
+        const onOpenContact = (e: Event) => {
+            const detail = (e as CustomEvent<OpenContactDetail>).detail;
+            const pid = detail?.pipelineId;
+            if (!pid || pid === activeId || !pipelines.some((p) => p.id === pid)) return;
+            pendingOpenRef.current = { contactId: detail.contactId, contactName: detail.contactName, pipelineId: null };
+            setSelected(null);
+            setActiveId(pid);
+        };
+        window.addEventListener('scc:open-contact', onOpenContact);
+        return () => window.removeEventListener('scc:open-contact', onOpenContact);
+    }, [pipelines, activeId]);
+    useEffect(() => {
+        const pending = pendingOpenRef.current;
+        if (!pending) return;
+        pendingOpenRef.current = null;
+        const t = setTimeout(() => {
+            window.dispatchEvent(new CustomEvent<OpenContactDetail>('scc:open-contact', { detail: pending }));
+        }, 0);
+        return () => clearTimeout(t);
+    }, [activeId]);
     const [detailTab, setDetailTab] = useState<'detail' | 'inbox' | 'material'>('detail');
     const [search, setSearch] = useState('');
     const [boardVersion, setBoardVersion] = useState(0);
