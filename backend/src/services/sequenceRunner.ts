@@ -236,6 +236,29 @@ async function hasReplied(contactId: string, sinceISO: string): Promise<boolean>
     return (count ?? 0) > 0;
 }
 
+/** Ligger kortet i ett steg som betyder att en människa tagit över?
+ *
+ *  hasReplied fångar bara det gästen SKRIVER. Ringer Gustav upp i stället, eller
+ *  drar han kortet till Överlämnad efter ett samtal, finns inget inkommande
+ *  meddelande och sekvensen hade fortsatt med "du har inte hört av dig" till någon
+ *  han pratade med i förrgår. Motorns exit_on-mekanism täcker inte heller det:
+ *  fireExit känner bara reply_received och bokningshändelser, och stage_changed
+ *  finns bara som TRIGGER, aldrig som exit.
+ *
+ *  Jämförelsen görs på stegets namn, inte id, så att samma sekvenskonfiguration
+ *  fungerar i flera pipelines. */
+async function inStage(enr: EnrollmentRow, namn: string[]): Promise<boolean> {
+    if (!namn.length) return false;
+    const q = supabase.from('opportunities').select('stage_id').limit(1);
+    const { data: opp } = enr.opportunity_id
+        ? await q.eq('id', enr.opportunity_id).maybeSingle()
+        : await q.eq('contact_id', enr.contact_id).order('updated_at', { ascending: false }).maybeSingle();
+    if (!opp?.stage_id) return false;
+    const { data: stage } = await supabase.from('stages').select('name').eq('id', opp.stage_id).maybeSingle();
+    const nu = (stage?.name ?? '').trim().toLowerCase();
+    return namn.some(n => n.trim().toLowerCase() === nu);
+}
+
 async function logStepRun(
     enrollmentId: string, step: StepRow | null, res: StepResult
 ): Promise<void> {
@@ -454,6 +477,11 @@ async function execBranch(step: StepRow, enr: EnrollmentRow, sinceISO: string): 
     const condition = String(step.config.condition ?? 'always');
     let met = false;
     if (condition === 'has_replied') met = await hasReplied(enr.contact_id, sinceISO);
+    // 'in_stage' + config.stages: ['Överlämnad', ...] — sant när kortet står i något
+    // av stegen. Med then_exit blir det bromsen för "en människa har tagit över".
+    else if (condition === 'in_stage') {
+        met = await inStage(enr, Array.isArray(step.config.stages) ? (step.config.stages as unknown[]).map(String) : []);
+    }
     else if (condition === 'always') met = true;
 
     if (met && step.config.then_exit) {

@@ -16,6 +16,8 @@ const h = vi.hoisted(() => {
         contactsUpdateError: null as string | null,
         suppressed: [] as { kind: string; value: string; reason: string }[],
         inserted: [] as { table: string; row: Record<string, unknown> }[],
+        // in_stage: kortets nuvarande steg, null = kortet saknar affär
+        stageName: null as string | null,
     };
     const emailSend = vi.fn();
     const smsSend = vi.fn();
@@ -84,7 +86,23 @@ vi.mock('./supabase', () => ({
             if (table === 'contacts') {
                 return { update: () => ({ eq: () => Promise.resolve({ error: h.state.contactsUpdateError }) }) };
             }
-            // activities / tasks / opportunities: enkel awaitable insert/update
+            // in_stage slår upp affärens steg och sedan stegets namn
+            if (table === 'opportunities') {
+                const chain: Record<string, unknown> = {};
+                chain.select = () => chain; chain.limit = () => chain;
+                chain.eq = () => chain; chain.order = () => chain;
+                chain.maybeSingle = () => Promise.resolve({
+                    data: h.state.stageName === null ? null : { stage_id: 'stg-1' }, error: null,
+                });
+                chain.insert = () => Promise.resolve({ error: null });
+                chain.update = () => ({ eq: () => Promise.resolve({ error: null }) });
+                return chain;
+            }
+            if (table === 'stages') {
+                return { select: () => ({ eq: () => ({ maybeSingle: () =>
+                    Promise.resolve({ data: { name: h.state.stageName }, error: null }) }) }) };
+            }
+            // activities / tasks: enkel awaitable insert/update
             return {
                 insert: () => Promise.resolve({ error: null }),
                 update: () => ({ eq: () => Promise.resolve({ error: null }) }),
@@ -119,6 +137,7 @@ beforeEach(() => {
     h.state.contactsUpdateError = null;
     h.state.suppressed = [];
     h.state.inserted = [];
+    h.state.stageName = null;
     (config as unknown as { OUTBOUND_MODE: string }).OUTBOUND_MODE = 'auto';
     (config as unknown as { TRANSACTIONAL_OUTBOUND_ENABLED: boolean }).TRANSACTIONAL_OUTBOUND_ENABLED = true;
     (config as unknown as { OUTREACH_WINDOW_ENABLED: boolean }).OUTREACH_WINDOW_ENABLED = false;
@@ -332,6 +351,50 @@ describe('execStep — förgrening & avslut', () => {
         const res = await execStep(step('branch', { condition: 'has_replied', then_exit: true }), enr, contact, ENROLLED_AT);
         expect(res.control).toBe('advance');
         expect(res.detail).toMatchObject({ met: false });
+    });
+
+    // Bromsen för "en människa har tagit över": Gustav ringer eller drar kortet till
+    // Överlämnad utan att gästen skrivit något, och då ser has_replied ingenting.
+    it('branch in_stage: kortet står i Överlämnad → exit', async () => {
+        h.state.stageName = 'Överlämnad';
+        const res = await execStep(
+            step('branch', { condition: 'in_stage', stages: ['Överlämnad', 'Bokad'], then_exit: true }),
+            enr, contact, ENROLLED_AT);
+        expect(res.control).toBe('exit');
+        expect(res.detail).toMatchObject({ met: true });
+    });
+
+    it('branch in_stage: kortet står kvar i Ny → advance', async () => {
+        h.state.stageName = 'Ny';
+        const res = await execStep(
+            step('branch', { condition: 'in_stage', stages: ['Överlämnad', 'Bokad'], then_exit: true }),
+            enr, contact, ENROLLED_AT);
+        expect(res.control).toBe('advance');
+        expect(res.detail).toMatchObject({ met: false });
+    });
+
+    it('branch in_stage: jämförelsen struntar i versaler och blanksteg', async () => {
+        h.state.stageName = ' överlämnad ';
+        const res = await execStep(
+            step('branch', { condition: 'in_stage', stages: ['Överlämnad'], then_exit: true }),
+            enr, contact, ENROLLED_AT);
+        expect(res.control).toBe('exit');
+    });
+
+    it('branch in_stage utan affär → advance, aldrig exit på tomt underlag', async () => {
+        h.state.stageName = null;
+        const res = await execStep(
+            step('branch', { condition: 'in_stage', stages: ['Överlämnad'], then_exit: true }),
+            enr, contact, ENROLLED_AT);
+        expect(res.control).toBe('advance');
+        expect(res.detail).toMatchObject({ met: false });
+    });
+
+    it('branch in_stage utan stages-lista → advance', async () => {
+        h.state.stageName = 'Överlämnad';
+        const res = await execStep(
+            step('branch', { condition: 'in_stage', then_exit: true }), enr, contact, ENROLLED_AT);
+        expect(res.control).toBe('advance');
     });
 
     it('exit-steg → success/exit', async () => {
