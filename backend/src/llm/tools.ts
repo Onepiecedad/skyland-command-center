@@ -1487,7 +1487,10 @@ async function handleDelegateTask(args: Record<string, unknown>): Promise<ToolRe
     const { dispatchToGateway, pollGatewayAnswer } = await import('../services/gatewayDelegate');
     const handle = await dispatchToGateway(uppdrag, 'SCC-panelen');
     if (!handle) {
-        return { success: false, error: 'Alex på VPS:en nås inte just nu (gatewayen svarar inte), så uppdraget gick inte iväg. Säg det rakt ut.' };
+        return {
+            success: false,
+            error: 'Uppdraget gick INTE iväg: gatewayen på VPS:en nås inte härifrån (den är bunden till tailnetet, och backenden ligger utanför). Säg det kort och hänvisa till WhatsApp-Alex för research, prospektering och inkorg tills bryggan är på plats. Påstå ingenting om resultatet.',
+        };
     }
 
     const answer = await pollGatewayAnswer(handle.historyKey, 0, DELEGATE_WAIT_MS);
