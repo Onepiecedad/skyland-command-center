@@ -182,10 +182,40 @@ describe('executeToolCall — dispatch & felhantering', () => {
         expect(res.error).toMatch(/ingen kontakt/i);
     });
 
-    it('start_ui_tour → emittar tour-händelse', async () => {
-        const res = await executeToolCall('start_ui_tour', {});
+    it('present_screens → löser varje steg och emittar EN present-händelse', async () => {
+        h.state.listFor = (pattern) =>
+            pattern.startsWith('name.ilike.thomas')
+                ? { data: [{ id: 'cu-1', name: 'Thomas - MarinMekaniker', site_tenant_slug: 'marinmekaniker' }], error: null }
+                : { data: [], error: null };
+        const res = await executeToolCall('present_screens', {
+            steps: [
+                { view: 'crm', say: 'Här är pipelinen.' },
+                { customer_query: 'thomas', customer_tab: 'website', say: 'Thomas hemsida.' },
+            ],
+        });
         expect(res.success).toBe(true);
-        expect(h.emitSystemEvent).toHaveBeenCalledWith('ui_action', { action: 'tour' }, 'alex');
+        expect(res.data).toMatchObject({ steps: 2 });
+        expect(h.emitSystemEvent).toHaveBeenCalledTimes(1);
+        expect(h.emitSystemEvent).toHaveBeenCalledWith(
+            'ui_action',
+            expect.objectContaining({
+                action: 'present',
+                steps: [
+                    expect.objectContaining({ view: 'crm', say: 'Här är pipelinen.' }),
+                    expect.objectContaining({ view: 'customers', customer_id: 'cu-1', customer_tab: 'website', say: 'Thomas hemsida.' }),
+                ],
+            }),
+            'alex'
+        );
+    });
+
+    it('present_screens med okänd kund i steg 2 → fel med stegnummer, ingen händelse', async () => {
+        const res = await executeToolCall('present_screens', {
+            steps: [{ view: 'crm', say: 'a' }, { customer_query: 'Finns Inte', say: 'b' }],
+        });
+        expect(res.success).toBe(false);
+        expect(res.error).toMatch(/Steg 2/);
+        expect(h.emitSystemEvent).not.toHaveBeenCalled();
     });
 });
 

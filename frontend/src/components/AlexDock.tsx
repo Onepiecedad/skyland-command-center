@@ -12,6 +12,8 @@ import { CollapsibleMarkdown } from './chat/CollapsibleMarkdown';
 import { Mic, X, ArrowUp, Square } from 'lucide-react';
 import { API_BASE, fetchWithAuth } from '../api';
 import { useWalkieTalkie, TALK_LABEL } from '../hooks/useWalkieTalkie';
+import { presenter, type PresenterState, type PresentStep } from '../voice/presenter';
+import { Pause, Play, SkipForward, SkipBack, Square as StopIcon } from 'lucide-react';
 import '../styles/alexdock.css';
 
 interface ChatMsg {
@@ -110,6 +112,32 @@ export function AlexDock() {
 
     // Håll-och-prata: transkriptet går in i sendText ovan, svaret läses upp.
     const talk = useWalkieTalkie({ onTranscript: (t) => sendText(t, 'voice') });
+
+    // Alex egen genomgång (present_screens): stegen spelas upp av presentern,
+    // varje stegtext landar dessutom som notis i tråden när den läses upp.
+    const [show, setShow] = useState<PresenterState | null>(null);
+    useEffect(() => presenter.subscribe(setShow), []);
+    useEffect(() => {
+        const onPresent = (e: Event) => {
+            const steps = (e as CustomEvent<{ steps: PresentStep[] }>).detail?.steps ?? [];
+            if (!steps.length) return;
+            talk.hush();
+            setOpen(true);
+            presenter.start(steps);
+        };
+        window.addEventListener('scc:present', onPresent);
+        return () => window.removeEventListener('scc:present', onPresent);
+    }, [talk]);
+    const lastNotedRef = useRef<string>('');
+    useEffect(() => {
+        if (!show || show.status === 'done') return;
+        const key = `${show.index}:${show.steps.length}`;
+        if (lastNotedRef.current === key) return;
+        lastNotedRef.current = key;
+        const step = show.steps[show.index];
+        const where = step.customer_name ?? step.contact_name ?? step.view ?? '';
+        setMessages((prev) => [...prev, { role: 'assistant', content: `${where ? where + ': ' : ''}${step.say}`, note: true }]);
+    }, [show]);
     const talking = talk.state !== 'idle';
 
     // Håll mellanslag = håll in knappen. Fungerar även när textfältet har
@@ -211,6 +239,23 @@ export function AlexDock() {
                                     )}
                                 </div>
 
+                                {show && (
+                                    <div className="alexdock-present">
+                                        <span className="alexdock-present-label">
+                                            {show.status === 'done' ? 'Klart' : `Genomgång ${show.index + 1}/${show.steps.length}`}
+                                            {' · '}
+                                            {show.steps[show.index]?.customer_name ?? show.steps[show.index]?.contact_name ?? show.steps[show.index]?.view}
+                                        </span>
+                                        <span className="alexdock-present-btns">
+                                            <button type="button" onClick={() => presenter.prev()} title="Föregående"><SkipBack size={13} /></button>
+                                            {show.status === 'playing'
+                                                ? <button type="button" onClick={() => presenter.pause()} title="Paus"><Pause size={13} /></button>
+                                                : <button type="button" onClick={() => presenter.resume()} title="Fortsätt"><Play size={13} /></button>}
+                                            <button type="button" onClick={() => presenter.next()} title="Nästa"><SkipForward size={13} /></button>
+                                            <button type="button" onClick={() => presenter.stop()} title="Avsluta"><StopIcon size={13} /></button>
+                                        </span>
+                                    </div>
+                                )}
                                 <form onSubmit={onSubmit} className="alexdock-inputrow">
                                     <input
                                         ref={inputRef}

@@ -332,6 +332,35 @@ Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — 
         }
     },
     {
+        name: 'present_screens',
+        description: `Guidad genomgång som DU håller: en lista av steg där varje steg pekar på något i skärmkartan (samma fält som navigate_ui: view / contact_query / pipeline_query+pick / customer_query+customer_tab) och har en text "say" som läses upp med din röst när skärmen visar det. Skärmen byter, texten läses upp, nästa steg. Operatören kan pausa, hoppa och avbryta. Använd vid "visa mig runt", "gå igenom vyerna", "ge mig en genomgång", "demo av systemet". Skriv "say" som tal: 1–3 meningar per steg, konkret om vad som syns och vad det används till, inga listor. Efter anropet: svara med en enda kort rad ("Kör igenom vyerna på skärmen."), säg inte om innehållet i chatten — det läses upp steg för steg.`,
+        parameters: {
+            type: 'object',
+            properties: {
+                steps: {
+                    type: 'array',
+                    description: 'Stegen i ordning. Varje steg: ett skärmmål + say.',
+                    minItems: 1,
+                    maxItems: 12,
+                    items: {
+                        type: 'object',
+                        properties: {
+                            view: { type: 'string', enum: ['alex', 'crm', 'leads', 'sequences', 'customers', 'website', 'office', 'archive', 'system', 'skills'] },
+                            contact_query: { type: 'string' },
+                            pipeline_query: { type: 'string' },
+                            pick: { type: 'string', enum: ['latest'] },
+                            customer_query: { type: 'string' },
+                            customer_tab: { type: 'string', enum: ['overview', 'contact', 'website', 'agreements', 'documents'] },
+                            say: { type: 'string', description: 'Det som läses upp när steget visas. Tal, 1–3 meningar.' }
+                        },
+                        required: ['say']
+                    }
+                }
+            },
+            required: ['steps']
+        }
+    },
+    {
         name: 'get_site_stats',
         description: 'Webbspårning för en kunds hemsida (eller Skylands egen): antal besök, engagerade, leads under perioden, samt NÄR senaste besöket och senaste leadet kom (ISO-tid, säg den i svensk tid). Använd vid "hur går Thomas hemsida", "när var senaste besökaren på …", "hur många leads har Gustavs sajt fått". Kunder med spårad sajt: Thomas (MarinMekaniker), Gustav (Cold Experience). "skyland" = skylandai.se.',
         parameters: {
@@ -346,11 +375,6 @@ Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — 
     {
         name: 'get_credits',
         description: 'Kvarvarande OpenRouter-saldo (det som betalar Alex och alla modellanrop) i USD, plus vad som förbrukats senaste dygnet och senaste 7 dagarna. Använd vid "hur mycket kredit har jag kvar", "hur länge räcker pengarna", "vad kostar Alex".',
-        parameters: { type: 'object', properties: {} }
-    },
-    {
-        name: 'start_ui_tour',
-        description: 'Starta en guidad rundtur av hela dashboarden på operatörens skärm. En skriptad sekvens visar varje vy i tur och ordning med förklaringskort (Alex-chatten, CRM-pipelinen, leads, sekvenser, kunder, kontoret, systemöversikt, skills). Använd när operatören ber om en genomgång, rundtur, guidning eller demo av systemet, t.ex. "visa mig runt", "ge mig en genomgång", "guida mig genom systemet". Påverkar bara skärmen — alltid säkert.',
         parameters: { type: 'object', properties: {} }
     },
     {
@@ -451,8 +475,8 @@ export async function executeToolCall(
                     ? { success: false, error: `Kunde inte hämta saldot: ${c.error}` }
                     : { success: true, data: c };
             }
-            case 'start_ui_tour':
-                return await handleStartUiTour();
+            case 'present_screens':
+                return await handlePresentScreens(args);
             default:
                 return { success: false, error: `Unknown tool: ${name}` };
         }
@@ -1231,8 +1255,46 @@ async function handleScheduleFollowup(args: Record<string, unknown>): Promise<To
  */
 const NAVIGATE_VIEWS = new Set(['alex', 'crm', 'leads', 'sequences', 'customers', 'website', 'office', 'archive', 'system', 'skills']);
 
+interface NavigateResolved {
+    event: Record<string, unknown>;
+    data: Record<string, unknown>;
+}
+
 async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResult> {
     const { emitSystemEvent } = await import('../routes/eventStream');
+    const r = await resolveNavigate(args);
+    if ('error' in r) return { success: false, error: r.error };
+    emitSystemEvent('ui_action', { action: 'navigate', ...r.event }, 'alex');
+    return { success: true, data: r.data };
+}
+
+/**
+ * present_screens — Alex egen guidade genomgång. Varje steg löses upp exakt
+ * som navigate_ui (samma fel om ett kort/kund inte finns), och skickas som
+ * EN händelse så att skärmen kan spela upp stegen i takt med uppläsningen.
+ */
+async function handlePresentScreens(args: Record<string, unknown>): Promise<ToolResult> {
+    const { emitSystemEvent } = await import('../routes/eventStream');
+    const raw = Array.isArray(args.steps) ? args.steps : [];
+    if (raw.length === 0) return { success: false, error: 'steps krävs (minst ett steg med say).' };
+    if (raw.length > 12) return { success: false, error: 'Max 12 steg.' };
+    const steps: Record<string, unknown>[] = [];
+    const titles: string[] = [];
+    for (let i = 0; i < raw.length; i++) {
+        const st = (raw[i] ?? {}) as Record<string, unknown>;
+        const say = typeof st.say === 'string' ? st.say.trim() : '';
+        if (!say) return { success: false, error: `Steg ${i + 1} saknar say.` };
+        const r = await resolveNavigate(st);
+        if ('error' in r) return { success: false, error: `Steg ${i + 1}: ${r.error}` };
+        steps.push({ ...r.event, say });
+        titles.push(String(r.data.customer ?? r.data.contact_name ?? r.data.pipeline ?? r.data.view));
+    }
+    emitSystemEvent('ui_action', { action: 'present', steps }, 'alex');
+    return { success: true, data: { steps: steps.length, order: titles } };
+}
+
+/** Löser upp ett skärmmål utan sidoeffekter. Delas av navigate_ui och present_screens. */
+async function resolveNavigate(args: Record<string, unknown>): Promise<NavigateResolved | { error: string }> {
     const contactQuery = typeof args.contact_query === 'string' ? args.contact_query.trim() : '';
     const customerQuery = typeof args.customer_query === 'string' ? args.customer_query.trim() : '';
     const pipelineQuery = typeof args.pipeline_query === 'string' ? args.pipeline_query.trim() : '';
@@ -1247,11 +1309,10 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
         view = 'customers';
         const found = await findCustomersForNavigate(customerQuery);
         if (found.length === 0) {
-            return { success: false, error: `Hittade ingen kund som matchar "${customerQuery}".` };
+            return { error: `Hittade ingen kund som matchar "${customerQuery}".` };
         }
         if (found.length > 1) {
             return {
-                success: false,
                 error: `Flera kunder matchar "${customerQuery}": ${found.map(c => c.name).join(', ')}. Fråga vilken som menas och anropa igen med det fullständiga namnet.`,
             };
         }
@@ -1270,10 +1331,10 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
         const q = pipelineQuery.replace(/[%_]/g, '');
         const { data: pipes } = await supabase.from('pipelines').select('id, name').ilike('name', `%${q}%`).limit(3);
         if (!pipes || pipes.length === 0) {
-            return { success: false, error: `Hittade ingen pipeline som matchar "${pipelineQuery}". Finns: Sales, Prospecting (Agency), Prospecting (Beauty), Cold Experience — leads.` };
+            return { error: `Hittade ingen pipeline som matchar "${pipelineQuery}". Finns: Sales, Prospecting (Agency), Prospecting (Beauty), Cold Experience — leads.` };
         }
         if (pipes.length > 1) {
-            return { success: false, error: `Flera pipelines matchar "${pipelineQuery}": ${pipes.map(p => p.name).join(', ')}. Fråga vilken som menas.` };
+            return { error: `Flera pipelines matchar "${pipelineQuery}": ${pipes.map(p => p.name).join(', ')}. Fråga vilken som menas.` };
         }
         placement = { pipeline_id: pipes[0].id, pipeline_name: pipes[0].name, stage_name: null };
         if (pick === 'latest') {
@@ -1290,7 +1351,7 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
                 const st = Array.isArray(latest?.stage) ? latest?.stage[0] : latest?.stage;
                 placement.stage_name = st && typeof (st as { name?: unknown }).name === 'string' ? (st as { name: string }).name : null;
             } else {
-                return { success: false, error: `${pipes[0].name} har inga kort än.` };
+                return { error: `${pipes[0].name} har inga kort än.` };
             }
         }
     }
@@ -1299,12 +1360,11 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
         view = 'crm'; // kontaktkort bor i CRM-vyn
         const found = await findContactsForNavigate(contactQuery);
         if (found.length === 0) {
-            return { success: false, error: `Hittade ingen kontakt som matchar "${contactQuery}" i CRM:et.` };
+            return { error: `Hittade ingen kontakt som matchar "${contactQuery}" i CRM:et.` };
         }
         if (found.length > 1) {
             // Gissa aldrig fel kort: låt Alex fråga vilket som menas.
             return {
-                success: false,
                 error: `Flera kontakter matchar "${contactQuery}": ${found.map(c => c.name).join(', ')}. Fråga vilken som menas och anropa igen med det fullständiga namnet.`,
             };
         }
@@ -1331,11 +1391,10 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
     }
 
     if (!view) {
-        return { success: false, error: 'Ange view, contact_query, pipeline_query eller customer_query.' };
+        return { error: 'Ange view, contact_query, pipeline_query eller customer_query.' };
     }
 
-    emitSystemEvent('ui_action', {
-        action: 'navigate',
+    const event = {
         view,
         contact_id: contact?.id ?? null,
         contact_name: contact?.name ?? null,
@@ -1343,10 +1402,10 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
         customer_id: customer?.id ?? null,
         customer_name: customer?.name ?? null,
         customer_tab: customer ? tab : null,
-    }, 'alex');
+    };
 
     return {
-        success: true,
+        event,
         data: {
             view,
             contact_name: contact?.name ?? null,
@@ -1417,13 +1476,6 @@ async function handleGetSiteStats(args: Record<string, unknown>): Promise<ToolRe
     const summary = await siteSummary(tenantSlug, days);
     if ('error' in summary) return { success: false, error: summary.error };
     return { success: true, data: { customer: label, ...summary } };
-}
-
-/** start_ui_tour — trigga den skriptade guidade rundturen i frontend via SSE. */
-async function handleStartUiTour(): Promise<ToolResult> {
-    const { emitSystemEvent } = await import('../routes/eventStream');
-    emitSystemEvent('ui_action', { action: 'tour' }, 'alex');
-    return { success: true, data: { started: true } };
 }
 
 export function formatToolResultForLLM(name: string, result: ToolResult): string {
@@ -1647,8 +1699,10 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
             }
             return r.note ? `${line} ${r.note}` : line;
         }
-        case 'start_ui_tour':
-            return '✅ Guidad rundtur startad på skärmen — den går igenom alla vyer steg för steg med förklaringar. Operatören kan pausa, hoppa eller avsluta med knapparna på kortet.';
+        case 'present_screens': {
+            const r = data as { steps: number; order: string[] };
+            return `✅ Genomgången spelas upp på skärmen: ${r.steps} steg (${r.order.join(' → ')}). Din text läses upp steg för steg — svara nu med EN kort rad, upprepa inte innehållet.`;
+        }
         default:
             return JSON.stringify(data, null, 2);
     }

@@ -47,8 +47,7 @@ export interface OpenCustomerDetail {
     tab: string | null;
 }
 
-interface UiActionData {
-    action?: string;
+export interface UiNavigateData {
     view?: string;
     contact_id?: string | null;
     contact_name?: string | null;
@@ -56,6 +55,12 @@ interface UiActionData {
     customer_id?: string | null;
     customer_name?: string | null;
     customer_tab?: string | null;
+}
+
+interface UiActionData extends UiNavigateData {
+    action?: string;
+    /** action 'present': Alex egen genomgång, spelas upp av voice/presenter. */
+    steps?: (UiNavigateData & { say: string })[];
 }
 
 /** Navigera till en logisk vy (panel + ev. undervy). Används av SSE-bryggan och GuidedTour. */
@@ -76,13 +81,8 @@ export function focusContact(contactId: string, contactName: string | null = nul
     }));
 }
 
-function handleUiAction(data: UiActionData): void {
-    if (data.action === 'tour') {
-        window.dispatchEvent(new CustomEvent('scc:start-tour'));
-        return;
-    }
-    if (data.action !== 'navigate') return;
-
+/** Utför ett upplöst skärmmål: vy, pipeline-flik, kontaktkort, kund + flik. */
+export function applyUiNavigate(data: UiNavigateData): void {
     if (data.view) navigateToView(data.view);
     if (data.pipeline_id && !data.contact_id) {
         window.dispatchEvent(new CustomEvent<{ pipelineId: string }>('scc:select-pipeline', {
@@ -107,6 +107,20 @@ function handleUiAction(data: UiActionData): void {
             },
         }));
     }
+}
+
+function handleUiAction(data: UiActionData): void {
+    if (data.action === 'tour') {
+        window.dispatchEvent(new CustomEvent('scc:start-tour'));
+        return;
+    }
+    if (data.action === 'present') {
+        const steps = (data.steps ?? []).filter((s) => s && typeof s.say === 'string' && s.say.trim());
+        if (steps.length) window.dispatchEvent(new CustomEvent('scc:present', { detail: { steps } }));
+        return;
+    }
+    if (data.action !== 'navigate') return;
+    applyUiNavigate(data);
 }
 
 /** Anslut SSE-strömmen. Returnerar cleanup. Återansluter automatiskt via EventSource. */

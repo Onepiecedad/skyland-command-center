@@ -100,13 +100,13 @@ export interface AlexChatResult {
     tool_executions: AlexToolExecution[];
     /** True when the loop ended on an error or ran out of rounds mid-work. */
     incomplete: boolean;
-    /** True when the turn only steered the screen (navigate_ui/start_ui_tour) and
+    /** True when the turn only steered the screen (navigate_ui/present_screens) and
      *  nothing failed: the client may show the reply as a note and skip speech. */
     ui_only: boolean;
 }
 
 /** Verktyg som bara rör skärmen; de ändrar ingen data och hör inte hemma i kvittot. */
-const UI_TOOLS = new Set(['navigate_ui', 'start_ui_tour']);
+const UI_TOOLS = new Set(['navigate_ui', 'present_screens']);
 
 /**
  * Kvittot finns för att avslöja när prosan påstår en ÄNDRING som inte skedde.

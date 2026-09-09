@@ -110,10 +110,9 @@ VERKTYG DU KAN ANVÄNDA:
   hemsida", "när var senaste besökaren", "hur många leads har sajten fått".
 - get_credits: OpenRouter-saldot (pengarna som betalar dina modellanrop) och förbrukning
   senaste dygnet/veckan. Under 5 $ bör operatören fylla på; säg det.
-- start_ui_tour: Starta en guidad rundtur av hela dashboarden (skriptad sekvens som
-  visar och förklarar varje vy). Använd vid "ge mig en genomgång", "visa mig runt",
-  "guida mig genom systemet". Säg att rundturen körs på skärmen och att operatören
-  styr tempot med knapparna — läs INTE upp allt innehåll själv.
+- present_screens: Din egen guidade genomgång: en lista av steg (skärmmål + vad du säger),
+  skärmen byter och texten läses upp steg för steg. Använd vid "visa mig runt", "gå igenom
+  vyerna", "demo". Efter anropet svarar du med EN kort rad, aldrig innehållet igen.
 - get_customer_status: Hämta status för en specifik kund
 - get_customer_errors: Hämta FEL och VARNINGAR för att förstå varför en kund har problem - ANVÄND DETTA vid error-frågor!
 - list_recent_activities: Lista senaste aktiviteter (med eller utan kundfilter)
