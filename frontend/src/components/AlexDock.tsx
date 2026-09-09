@@ -17,12 +17,15 @@ import '../styles/alexdock.css';
 interface ChatMsg {
     role: 'user' | 'assistant';
     content: string;
+    /** Rent skärmkommando ("visa …"): visas som en diskret notis, läses aldrig upp. */
+    note?: boolean;
 }
 
 interface ChatApiResponse {
     response?: string;
     conversation_id?: string;
     error?: string;
+    ui_only?: boolean;
 }
 
 const SUGGESTIONS = [
@@ -85,8 +88,10 @@ export function AlexDock() {
                 const data = (await res.json().catch(() => null)) as ChatApiResponse | null;
                 if (res.ok && data?.response) {
                     if (data.conversation_id) setConversationId(data.conversation_id);
-                    setMessages((prev) => [...prev, { role: 'assistant', content: data.response as string }]);
-                    return data.response;
+                    const note = data.ui_only === true;
+                    setMessages((prev) => [...prev, { role: 'assistant', content: data.response as string, note }]);
+                    // Skärmen är svaret: ingen uppläsning av "Visar Thomas, Hemsida."
+                    return note ? null : data.response;
                 }
                 setMessages((prev) => [
                     ...prev,
@@ -185,9 +190,9 @@ export function AlexDock() {
                                     {messages.map((m, i) => (
                                         <div
                                             key={i}
-                                            className={`alexdock-msg ${m.role === 'user' ? 'alexdock-msg--user' : 'alexdock-msg--assistant'}`}
+                                            className={`alexdock-msg ${m.role === 'user' ? 'alexdock-msg--user' : m.note ? 'alexdock-msg--note' : 'alexdock-msg--assistant'}`}
                                         >
-                                            {m.role === 'assistant' ? (
+                                            {m.role === 'assistant' && !m.note ? (
                                                 <CollapsibleMarkdown content={m.content} />
                                             ) : (
                                                 m.content

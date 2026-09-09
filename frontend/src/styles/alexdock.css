@@ -252,6 +252,19 @@
     cursor: default;
 }
 
+/* Skärmkommando: kort notis i stället för en pratbubbla */
+.alexdock-msg--note {
+    align-self: flex-start;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 12px;
+    padding: 2px 6px;
+}
+
+.alexdock-msg--note::before {
+    content: '→ ';
+}
+
 /* ── Röstläge ── */
 
 /* Håll-och-prata-knappen i inmatningsraden */

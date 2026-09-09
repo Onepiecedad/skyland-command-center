@@ -39,7 +39,12 @@ RAPPORTERINGSREGLER (gäller alltid):
 - Saknar du ett verktyg för något du ombetts göra, säg det rakt ut i stället
   för att beskriva det som klart.
 - Skriv begripligt för en icke-tekniker, men hellre ärligt och tråkigt än
-  trevligt och osant.`;
+  trevligt och osant.
+- Rena skärmkommandon ("visa …", "öppna …", "ta fram …") utan fråga: kör
+  navigate_ui och svara med HÖGST en kort rad, t.ex. "Visar Thomas, Hemsida."
+  Ingen förklaring, ingen fråga tillbaka, inget "vill du att jag…".
+  Innehåller meddelandet också en fråga eller "och förklara/berätta/vad …":
+  visa först, svara sedan på frågan.`;
 
 // Läggs på när användaren pratade in frågan i SCC:s Alex-panel. Texten är
 // ett transkript, svaret läses upp med Alex röst (och visas även som text).
@@ -95,7 +100,13 @@ export interface AlexChatResult {
     tool_executions: AlexToolExecution[];
     /** True when the loop ended on an error or ran out of rounds mid-work. */
     incomplete: boolean;
+    /** True when the turn only steered the screen (navigate_ui/start_ui_tour) and
+     *  nothing failed: the client may show the reply as a note and skip speech. */
+    ui_only: boolean;
 }
+
+/** Verktyg som bara rör skärmen; de ändrar ingen data och hör inte hemma i kvittot. */
+const UI_TOOLS = new Set(['navigate_ui', 'start_ui_tour']);
 
 /**
  * Kör hela Alex-pipelinen: logga inkommande, ladda kontext, LLM-loop med
@@ -297,7 +308,15 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
 
     // Deterministic receipt. Built from tool results, so it cannot over-report
     // no matter what the model wrote above it.
-    responseText += buildExecutionReceipt(toolExecutions, incomplete);
+    // Skärmstyrning är inte en dataändring: den syns på skärmen och ska inte
+    // kvitteras. Misslyckade anrop kvitteras ändå så avvikelser syns.
+    const receiptExecutions = toolExecutions.filter(e => !UI_TOOLS.has(e.tool) || !e.ok);
+    responseText += receiptExecutions.length === 0 && toolExecutions.length > 0
+        ? (incomplete ? '\n\n---\n⚠️ Körningen nådde taket för verktygsrundor eller avbröts.' : '')
+        : buildExecutionReceipt(receiptExecutions, incomplete);
+    const ui_only = toolExecutions.length > 0
+        && toolExecutions.every(e => UI_TOOLS.has(e.tool) && e.ok)
+        && !incomplete;
 
     // Log outbound assistant message
     await logMessage({
@@ -345,7 +364,8 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
         proposed_actions,
         tool_calls: allToolCallNames,
         tool_executions: toolExecutions,
-        incomplete
+        incomplete,
+        ui_only
     };
 }
 
