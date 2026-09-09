@@ -20,6 +20,8 @@ const querySchema = z.object({
     event_type: z.string().optional(),
     severity: z.enum(['info', 'warn', 'error']).optional(),
     agent: z.string().optional(),
+    action: z.string().optional(),
+    since: z.string().optional(),  // ISO-tid; används av morgonbriefen
 });
 
 // GET / — list activities with filters
@@ -34,7 +36,7 @@ router.get('/', async (req: Request, res: Response) => {
             });
         }
 
-        const { limit, offset, customer_id, event_type, severity, agent } = parsed.data;
+        const { limit, offset, customer_id, event_type, severity, agent, action, since } = parsed.data;
 
         let query = supabase
             .from('activities')
@@ -46,6 +48,8 @@ router.get('/', async (req: Request, res: Response) => {
         if (event_type) query = query.eq('event_type', event_type);
         if (severity) query = query.eq('severity', severity);
         if (agent) query = query.eq('agent', agent);
+        if (action) query = query.eq('action', action);
+        if (since) query = query.gte('created_at', since);
 
         const { data, error } = await query;
 

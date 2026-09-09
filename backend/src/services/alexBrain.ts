@@ -111,6 +111,21 @@ export interface AlexChatResult {
     ui_only: boolean;
 }
 
+/**
+ * Fraser som betyder "jag kunde inte, för jag saknar verktyget". Backstop för
+ * report_capability_gap: modellen glömmer ibland att logga, och en lucka som
+ * bara sägs i en chatt är en lucka ingen åtgärdar. Medvetet snäv — hellre
+ * missa en lucka än fylla loggen med brus.
+ */
+export const GAP_PHRASES = [
+    /jag (?:har|hittar) (?:inget|inga) verktyg/i,
+    /har inget sätt att/i,
+    /ligger utanför (?:mina|mitt)/i,
+    /(?:det|den här) (?:kan|kunde) jag (?:tyvärr )?inte (?:göra|utföra|hjälpa)/i,
+    /saknar (?:åtkomst|behörighet|verktyg) (?:till|för)/i,
+    /finns inte (?:tillgängl|bland mina)/i,
+];
+
 /** Verktyg som bara rör skärmen; de ändrar ingen data och hör inte hemma i kvittot. */
 const UI_TOOLS = new Set(['navigate_ui', 'present_screens']);
 
@@ -341,6 +356,28 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
         && toolExecutions.every(e => UI_TOOLS.has(e.tool) && e.ok)
         && !incomplete
         && proseLength <= 160;
+
+    // Backstop för luckor: sa Alex att han inte kunde, utan att logga det?
+    if (!allToolCallNames.includes('report_capability_gap')
+        && GAP_PHRASES.some(re => re.test(responseText))) {
+        await supabase.from('activities').insert({
+            customer_id: customerId,
+            agent: 'alex',
+            action: 'capability.gap',
+            event_type: 'chat',
+            severity: 'info',
+            autonomy_level: 'OBSERVE',
+            details: {
+                begaran: message.slice(0, 500),
+                saknas: null,
+                kalla: 'heuristik',
+                svar: responseText.split('\n\n---')[0].slice(0, 500),
+                conversation_id,
+            },
+        }).then(({ error }) => {
+            if (error) logger.error('alexBrain', 'Kunde inte logga capability.gap', { error: error.message });
+        });
+    }
 
     // Log outbound assistant message
     await logMessage({

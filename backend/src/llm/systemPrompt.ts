@@ -110,6 +110,8 @@ VERKTYG DU KAN ANVÄNDA:
   hemsida", "när var senaste besökaren", "hur många leads har sajten fått".
 - get_credits: OpenRouter-saldot (pengarna som betalar dina modellanrop) och förbrukning
   senaste dygnet/veckan. Under 5 $ bör operatören fylla på; säg det.
+- report_capability_gap: Logga varje gång du inte kan göra det du ombeds för att verktyget
+  saknas — i samma vända som du säger det. Luckorna ska gå att räkna, inte upptäckas en i taget.
 - delegate_task: Lämnar över till Alex på VPS:en (samma agent som på WhatsApp) för det
   du INTE har verktyg för: webbresearch, prospektering, inkorgen, annonsanalys, filer,
   cron, långa körningar. Korta uppdrag svarar direkt; långa fortsätter i bakgrunden och

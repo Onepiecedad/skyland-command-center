@@ -120,6 +120,33 @@ describe('delegate_task — uppdrag till huvud-Alex via claw-kön', () => {
     });
 });
 
+describe('report_capability_gap — luckor blir räknebara', () => {
+    it('loggar begäran och vad som saknas som capability.gap', async () => {
+        const res = await executeToolCall('report_capability_gap', {
+            begaran: 'Visa min kalender för i morgon',
+            saknas: 'ett verktyg som läser Cal.com-kalendern',
+        });
+        expect(res.success).toBe(true);
+        expect(h.state.insertPayload).toMatchObject({
+            action: 'capability.gap',
+            agent: 'alex',
+            details: { begaran: 'Visa min kalender för i morgon', kalla: 'verktyg' },
+        });
+    });
+
+    it('påminner om att ändå säga rakt ut att det inte gick', async () => {
+        const res = await executeToolCall('report_capability_gap', { begaran: 'x'.repeat(10), saknas: 'y' });
+        expect(String((res.data as { note: string }).note)).toMatch(/rakt ut/i);
+    });
+
+    it('halva argument → valideringsfel, ingen rad', async () => {
+        h.state.insertPayload = null;
+        const res = await executeToolCall('report_capability_gap', { begaran: 'Visa kalendern' });
+        expect(res.success).toBe(false);
+        expect(h.state.insertPayload).toBeNull();
+    });
+});
+
 describe('executeToolCall — dispatch & felhantering', () => {
     it('okänt verktyg → success:false med tydligt fel', async () => {
         const res = await executeToolCall('bogus_tool', {});

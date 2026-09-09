@@ -372,6 +372,18 @@ Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — 
         }
     },
     {
+        name: 'report_capability_gap',
+        description: 'Loggar att du INTE kunde göra det operatören bad om, för att verktyget saknas. Anropa det ALLTID i samma vända som du säger "det kan jag inte", "jag har inget sätt att", "det ligger utanför mina funktioner" — det är så luckorna i systemet blir synliga i stället för att upptäckas en i taget. Loggar bara; det hjälper inte operatören just nu, så säg fortfarande rakt ut att du inte kunde och föreslå närmaste väg (t.ex. WhatsApp-Alex eller ett manuellt steg). Använd INTE när något gick fel i ett verktyg du har — då är det ett fel, inte en lucka.',
+        parameters: {
+            type: 'object',
+            properties: {
+                begaran: { type: 'string', description: 'Vad operatören faktiskt bad om, i klartext.' },
+                saknas: { type: 'string', description: 'Vad som skulle ha behövts, så konkret du kan: "ett verktyg som läser kalendern", "åtkomst till Metas annonsstatistik".' }
+            },
+            required: ['begaran', 'saknas']
+        }
+    },
+    {
         name: 'get_site_stats',
         description: 'Webbspårning för en kunds hemsida (eller Skylands egen): antal besök, engagerade, leads under perioden, samt NÄR senaste besöket och senaste leadet kom (ISO-tid, säg den i svensk tid). Använd vid "hur går Thomas hemsida", "när var senaste besökaren på …", "hur många leads har Gustavs sajt fått". Kunder med spårad sajt: Thomas (MarinMekaniker), Gustav (Cold Experience). "skyland" = skylandai.se.',
         parameters: {
@@ -481,6 +493,8 @@ export async function executeToolCall(
                 return await handleGetSiteStats(args);
             case 'delegate_task':
                 return await handleDelegateTask(args);
+            case 'report_capability_gap':
+                return await handleReportGap(args);
             case 'get_credits': {
                 const { openRouterCredits } = await import('../routes/integrations');
                 const c = await openRouterCredits();
@@ -1514,6 +1528,28 @@ async function handleDelegateTask(args: Record<string, unknown>): Promise<ToolRe
             info: 'Uppdraget ligger i kön och plockas upp av Alex på VPS:en inom ungefär 15 sekunder. Svaret dyker upp i panelen av sig självt när det är klart — säg att det är igång och hur du kommer tillbaka med svaret. Hitta ALDRIG på ett resultat.',
         },
     };
+}
+
+/**
+ * report_capability_gap — skriver ner en lucka i förmågorna.
+ * Ingen sidoeffekt utåt: raden finns för att luckorna ska gå att räkna i
+ * morgonbriefen i stället för att upptäckas en i taget under ett samtal.
+ */
+async function handleReportGap(args: Record<string, unknown>): Promise<ToolResult> {
+    const begaran = typeof args.begaran === 'string' ? args.begaran.trim() : '';
+    const saknas = typeof args.saknas === 'string' ? args.saknas.trim() : '';
+    if (!begaran || !saknas) return { success: false, error: 'begaran och saknas krävs.' };
+    const { error } = await supabase.from('activities').insert({
+        customer_id: null,
+        agent: 'alex',
+        action: 'capability.gap',
+        event_type: 'chat',
+        severity: 'info',
+        autonomy_level: 'OBSERVE',
+        details: { begaran: begaran.slice(0, 500), saknas: saknas.slice(0, 500), kalla: 'verktyg' },
+    });
+    if (error) return { success: false, error: `Kunde inte logga luckan: ${error.message}` };
+    return { success: true, data: { loggad: true, note: 'Luckan är noterad. Säg ändå rakt ut att du inte kunde utföra det.' } };
 }
 
 /** get_site_stats — webbspårningens nyckeltal för en kunds sajt. Läsning, ändrar inget. */

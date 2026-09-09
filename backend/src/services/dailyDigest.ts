@@ -45,6 +45,8 @@ export interface DigestData {
     poller: { stale: boolean; secondsSince: number | null; lastWorker: string | null };
     health: { down: string[]; checked: number };
     cost: { usd: number; calls: number };
+    /** Saker Alex ombads göra men saknar verktyg för. Luckor ska räknas, inte upptäckas en i taget. */
+    gaps: { count: number; examples: string[] };
 }
 
 const STOCKHOLM = 'Europe/Stockholm';
@@ -81,6 +83,7 @@ export async function collectDigest(now: Date = new Date(), windowMs = 86_400_00
         poller: { stale: false, secondsSince: null, lastWorker: null },
         health: { down: [], checked: 0 },
         cost: { usd: 0, calls: 0 },
+        gaps: { count: 0, examples: [] },
     };
 
     try {
@@ -147,6 +150,29 @@ export async function collectDigest(now: Date = new Date(), windowMs = 86_400_00
         d.newContacts = n ?? 0;
     } catch (err) {
         logger.warn('dailyDigest', `nya kontakter: ${err instanceof Error ? err.message : err}`);
+    }
+
+    try {
+        const { data: gapRows } = await supabase
+            .from('activities')
+            .select('details')
+            .eq('action', 'capability.gap')
+            .gte('created_at', start).lte('created_at', end)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        const seen = new Set<string>();
+        for (const row of gapRows ?? []) {
+            const det = (row.details ?? {}) as { begaran?: string; saknas?: string };
+            const label = (det.saknas || det.begaran || '').trim();
+            if (!label) continue;
+            const key = label.toLowerCase().slice(0, 60);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (d.gaps.examples.length < 3) d.gaps.examples.push(label.slice(0, 120));
+        }
+        d.gaps.count = gapRows?.length ?? 0;
+    } catch (err) {
+        logger.warn('dailyDigest', `luckor: ${err instanceof Error ? err.message : err}`);
     }
 
     try {
@@ -228,6 +254,11 @@ export function renderDigest(d: DigestData): { subject: string; text: string } {
         '',
         'PIPELINE',
         `  Nya kontakter: ${d.newContacts}`,
+        // Defensivt: renderDigest kan få ett äldre digest-objekt (t.ex. sparat
+        // innan luckorna fanns). Morgonbriefen ska inte krascha på det.
+        ...(d.gaps?.count
+            ? [`  Bad om men saknade verktyg (${d.gaps.count}): ${(d.gaps.examples ?? []).join(' · ')}`]
+            : []),
         d.upcoming.length
             ? `  Kommande möten: ${d.upcoming.slice(0, 5).map(b => `${sv(b.when)} ${b.who || b.title}`).join(' · ')}`
             : '  Kommande möten: inga bokade',

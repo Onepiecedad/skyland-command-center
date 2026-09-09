@@ -160,6 +160,7 @@ describe('daglig digest', () => {
             shadow: { created: 2, pendingTotal: 7, judged: 0, verdicts: {} },
             replies: { inbound: 1, acted: 1, lowConfidence: 0, byIntent: { interested: 1 }, moved: 1, suppressed: 0 },
             newContacts: 0,
+            gaps: { count: 0, examples: [] },
             upcoming: [],
             poller: { stale: false, secondsSince: 4, lastWorker: 'alex-vps' },
             health: { down: [], checked: 6 },
@@ -190,5 +191,36 @@ describe('daglig digest', () => {
         const utanMottagare = await import('./dailyDigest');
         expect(await utanMottagare.sendDailyDigest(MORGON)).toBe('no_recipient');
         expect(h.sent).toHaveLength(0);
+    });
+});
+
+describe('luckor i morgonbriefen', () => {
+    let mod: typeof import('./dailyDigest');
+    beforeEach(async () => { mod = await import('./dailyDigest'); });
+
+    const bas = {
+        from: '2026-08-30T05:00:00Z', to: '2026-08-31T05:00:00Z',
+        sent: { email: 3, sms: 0, failed: 0 },
+        shadow: { created: 2, pendingTotal: 7, judged: 0, verdicts: {} },
+        replies: { inbound: 1, acted: 1, lowConfidence: 0, byIntent: {}, moved: 1, suppressed: 0 },
+        newContacts: 0,
+        gaps: { count: 0, examples: [] as string[] },
+        upcoming: [],
+        poller: { stale: false, secondsSince: 4, lastWorker: 'alex-vps' },
+        health: { down: [], checked: 6 },
+        cost: { usd: 1.2, calls: 40 },
+    };
+
+    it('skriver ut vad Alex ombads men saknade verktyg för', () => {
+        const text = mod.renderDigest({
+            ...bas,
+            gaps: { count: 3, examples: ['ett verktyg som läser kalendern', 'åtkomst till Metas annonsstatistik'] },
+        }).text;
+        expect(text).toMatch(/Bad om men saknade verktyg \(3\)/);
+        expect(text).toContain('ett verktyg som läser kalendern');
+    });
+
+    it('tiger när inga luckor loggats', () => {
+        expect(mod.renderDigest(bas).text).not.toMatch(/saknade verktyg/);
     });
 });
