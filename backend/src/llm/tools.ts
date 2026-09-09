@@ -308,6 +308,7 @@ export const ALEX_TOOLS: ToolDefinition[] = [
 SKÄRMKARTA (vad som går att visa):
 - Vyer (view): alex (chatten), crm (kanban-pipelinen), leads, sequences (sekvenser), customers (kundinstanser), website (hemsidan), office (kontoret/agentkontoret), archive (arkivet), system (systemöversikt), skills.
 - Kontaktkort (contact_query): namn på prospekt/studio/klinik i CRM:et, t.ex. "All Gold Tattoo". Skärmen byter själv till rätt pipeline-flik (Sales, Prospecting, Cold Experience …) och öppnar kortet. Svaret säger pipeline och steg.
+- Pipeline-flik i CRM:et (pipeline_query): "Sales", "Prospecting (Agency)" (tatueringsstudior), "Prospecting (Beauty)" (kliniker), "Cold Experience — leads" (Gustavs gäster/leads). Byter flik. Med pick "latest" öppnas dessutom det senast inkomna kortet i den pipelinen: "visa senaste leadet för Cold Experience" = pipeline_query "Cold Experience", pick "latest".
 - Kund (customer_query + customer_tab): namn eller slug på en kundinstans, t.ex. "Thomas", "MarinMekaniker", "Cold Experience". Öppnar kundens panel i Kunder-vyn på vald flik: overview (Översikt), contact (Kontakt), website (Hemsida, bara kunder med spårad sajt), agreements (Avtal), documents (Dokument). "Visa Thomas hemsida" = customer_query "Thomas", customer_tab "website".
 Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — fråga då vilken som menas.`,
         parameters: {
@@ -319,6 +320,8 @@ Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — 
                     description: 'Vyn som ska visas. Utelämnas när contact_query eller customer_query anges.'
                 },
                 contact_query: { type: 'string', description: 'Namn på kontakt/studio vars CRM-kort ska öppnas. Fuzzy-matchas.' },
+                pipeline_query: { type: 'string', description: 'Namn på pipeline-flik i CRM:et att visa, t.ex. "Cold Experience", "Beauty", "Agency", "Sales". Fuzzy-matchas.' },
+                pick: { type: 'string', enum: ['latest'], description: 'Med pipeline_query: "latest" öppnar det senast skapade kortet i den pipelinen.' },
                 customer_query: { type: 'string', description: 'Namn eller slug på kundinstans vars panel ska öppnas i Kunder-vyn. Fuzzy-matchas.' },
                 customer_tab: {
                     type: 'string',
@@ -1206,6 +1209,8 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
     const { emitSystemEvent } = await import('../routes/eventStream');
     const contactQuery = typeof args.contact_query === 'string' ? args.contact_query.trim() : '';
     const customerQuery = typeof args.customer_query === 'string' ? args.customer_query.trim() : '';
+    const pipelineQuery = typeof args.pipeline_query === 'string' ? args.pipeline_query.trim() : '';
+    const pick = args.pick === 'latest' ? 'latest' : null;
     const customerTab = typeof args.customer_tab === 'string' && CUSTOMER_TABS.has(args.customer_tab) ? args.customer_tab : 'overview';
     let view = typeof args.view === 'string' && NAVIGATE_VIEWS.has(args.view) ? args.view : '';
 
@@ -1233,6 +1238,37 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
 
     let contact: { id: string; name: string } | null = null;
     let placement: { pipeline_id: string | null; pipeline_name: string | null; stage_name: string | null } | null = null;
+
+    if (pipelineQuery && !contactQuery) {
+        view = 'crm';
+        const q = pipelineQuery.replace(/[%_]/g, '');
+        const { data: pipes } = await supabase.from('pipelines').select('id, name').ilike('name', `%${q}%`).limit(3);
+        if (!pipes || pipes.length === 0) {
+            return { success: false, error: `Hittade ingen pipeline som matchar "${pipelineQuery}". Finns: Sales, Prospecting (Agency), Prospecting (Beauty), Cold Experience — leads.` };
+        }
+        if (pipes.length > 1) {
+            return { success: false, error: `Flera pipelines matchar "${pipelineQuery}": ${pipes.map(p => p.name).join(', ')}. Fråga vilken som menas.` };
+        }
+        placement = { pipeline_id: pipes[0].id, pipeline_name: pipes[0].name, stage_name: null };
+        if (pick === 'latest') {
+            const { data: latest } = await supabase
+                .from('opportunities')
+                .select('created_at, contact:contacts(id, name), stage:stages(name)')
+                .eq('pipeline_id', pipes[0].id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            const c = Array.isArray(latest?.contact) ? latest?.contact[0] : latest?.contact;
+            if (c && typeof (c as { id?: unknown }).id === 'string') {
+                contact = { id: (c as { id: string }).id, name: String((c as { name?: unknown }).name ?? '') };
+                const st = Array.isArray(latest?.stage) ? latest?.stage[0] : latest?.stage;
+                placement.stage_name = st && typeof (st as { name?: unknown }).name === 'string' ? (st as { name: string }).name : null;
+            } else {
+                return { success: false, error: `${pipes[0].name} har inga kort än.` };
+            }
+        }
+    }
+
     if (contactQuery) {
         view = 'crm'; // kontaktkort bor i CRM-vyn
         const found = await findContactsForNavigate(contactQuery);
@@ -1269,7 +1305,7 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
     }
 
     if (!view) {
-        return { success: false, error: 'Ange view, contact_query eller customer_query.' };
+        return { success: false, error: 'Ange view, contact_query, pipeline_query eller customer_query.' };
     }
 
     emitSystemEvent('ui_action', {
@@ -1289,6 +1325,7 @@ async function handleNavigateUi(args: Record<string, unknown>): Promise<ToolResu
             view,
             contact_name: contact?.name ?? null,
             ...(placement ? { pipeline: placement.pipeline_name, stage: placement.stage_name } : {}),
+            ...(pick === 'latest' && contact ? { latest_card: contact.name } : {}),
             ...(contact && !placement?.pipeline_id
                 ? { note: 'Kontakten finns men har inget kort i någon pipeline, så inget kort kan öppnas.' }
                 : {}),

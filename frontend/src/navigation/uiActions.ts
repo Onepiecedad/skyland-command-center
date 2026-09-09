@@ -9,6 +9,7 @@
  *   - 'scc:open-contact' { contactId, contactName, pipelineId } → CrmView (byter
  *     pipeline-flik) + PipelineBoard (öppnar kortet)
  *   - 'scc:open-customer' { customerId, tab }              → CustomerView
+ *   - 'scc:select-pipeline' { pipelineId }                 → CrmView (byter flik)
  */
 
 import { connectEventStream } from './../api/system';
@@ -83,6 +84,11 @@ function handleUiAction(data: UiActionData): void {
     if (data.action !== 'navigate') return;
 
     if (data.view) navigateToView(data.view);
+    if (data.pipeline_id && !data.contact_id) {
+        window.dispatchEvent(new CustomEvent<{ pipelineId: string }>('scc:select-pipeline', {
+            detail: { pipelineId: data.pipeline_id },
+        }));
+    }
     if (data.contact_id) {
         window.dispatchEvent(new CustomEvent<OpenContactDetail>('scc:open-contact', {
             detail: {

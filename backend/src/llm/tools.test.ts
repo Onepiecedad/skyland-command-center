@@ -89,7 +89,7 @@ describe('executeToolCall — dispatch & felhantering', () => {
     it('navigate_ui utan argument → felmeddelande (ingen händelse emittas)', async () => {
         const res = await executeToolCall('navigate_ui', {});
         expect(res.success).toBe(false);
-        expect(res.error).toMatch(/view, contact_query eller customer_query/i);
+        expect(res.error).toMatch(/view, contact_query, pipeline_query eller customer_query/i);
         expect(h.emitSystemEvent).not.toHaveBeenCalled();
     });
 
@@ -158,6 +158,22 @@ describe('executeToolCall — dispatch & felhantering', () => {
         expect(res.data).toMatchObject({ tab: 'overview' });
         expect(String((res.data as { note?: string }).note)).toMatch(/ingen spårad hemsida/);
         expect(h.emitSystemEvent).toHaveBeenCalledWith('ui_action', expect.objectContaining({ customer_tab: 'overview' }), 'alex');
+    });
+
+    it('navigate_ui med pipeline_query + pick latest → byter flik och öppnar senaste kortet', async () => {
+        h.state.listFor = (pattern) =>
+            pattern === '%Cold Experience%'
+                ? { data: [{ id: 'p-ce', name: 'Cold Experience — leads' }], error: null }
+                : { data: [], error: null };
+        h.state.single = { data: { created_at: 'x', contact: { id: 'c-9', name: 'Sarah' }, stage: { name: 'Ny' } }, error: null };
+        const res = await executeToolCall('navigate_ui', { pipeline_query: 'Cold Experience', pick: 'latest' });
+        expect(res.success).toBe(true);
+        expect(res.data).toMatchObject({ view: 'crm', pipeline: 'Cold Experience — leads', stage: 'Ny', latest_card: 'Sarah' });
+        expect(h.emitSystemEvent).toHaveBeenCalledWith(
+            'ui_action',
+            expect.objectContaining({ view: 'crm', pipeline_id: 'p-ce', contact_id: 'c-9' }),
+            'alex'
+        );
     });
 
     it('navigate_ui med okänt namn → tydligt fel', async () => {

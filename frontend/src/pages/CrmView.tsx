@@ -51,8 +51,18 @@ export default function CrmView() {
             setSelected(null);
             setActiveId(pid);
         };
+        const onSelectPipeline = (e: Event) => {
+            const pid = (e as CustomEvent<{ pipelineId: string }>).detail?.pipelineId;
+            if (!pid || pid === activeId || !pipelines.some((p) => p.id === pid)) return;
+            setSelected(null);
+            setActiveId(pid);
+        };
         window.addEventListener('scc:open-contact', onOpenContact);
-        return () => window.removeEventListener('scc:open-contact', onOpenContact);
+        window.addEventListener('scc:select-pipeline', onSelectPipeline);
+        return () => {
+            window.removeEventListener('scc:open-contact', onOpenContact);
+            window.removeEventListener('scc:select-pipeline', onSelectPipeline);
+        };
     }, [pipelines, activeId]);
     useEffect(() => {
         const pending = pendingOpenRef.current;
