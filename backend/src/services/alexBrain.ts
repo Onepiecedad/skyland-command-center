@@ -133,6 +133,24 @@ export const GAP_PHRASES = [
     /\bjag saknar (?:möjlighet|funktion) att/i,
 ];
 
+/**
+ * Bredare nät, men bara när INGA verktyg ens försökte köra. Sa Alex "jag kan
+ * inte" utan att lyfta ett finger är det nästan alltid en saknad förmåga.
+ * Fraslistan ovan räcker inte: modellen hittar hela tiden nya sätt att säga
+ * det ("Tyvärr kan jag inte öppna externa appar som Spotify").
+ */
+export const CANT_GENERIC = /\b(?:jag (?:kan|kunde)|kan jag|kunde jag) (?:tyvärr |dessvärre |inte riktigt )?inte\b/i;
+
+/** Vanlig försiktighet, inte en lucka: att inte lova är inte att sakna ett verktyg. */
+export const NOT_A_GAP = /(?:kan|kunde) (?:tyvärr )?inte (?:lova|garantera|säga säkert|veta säkert|avgöra åt dig)/i;
+
+/** Ska den här vändan loggas som en lucka i förmågorna? */
+export function looksLikeGap(prose: string, toolsAttempted: number): boolean {
+    if (NOT_A_GAP.test(prose)) return false;
+    if (GAP_PHRASES.some(re => re.test(prose))) return true;
+    return toolsAttempted === 0 && CANT_GENERIC.test(prose);
+}
+
 /** Verktyg som bara rör skärmen; de ändrar ingen data och hör inte hemma i kvittot. */
 const UI_TOOLS = new Set(['navigate_ui', 'present_screens']);
 
@@ -365,8 +383,9 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
         && proseLength <= 160;
 
     // Backstop för luckor: sa Alex att han inte kunde, utan att logga det?
+    const gapProse = responseText.split('\n\n---')[0];
     if (!allToolCallNames.includes('report_capability_gap')
-        && GAP_PHRASES.some(re => re.test(responseText))) {
+        && looksLikeGap(gapProse, toolExecutions.length)) {
         await supabase.from('activities').insert({
             customer_id: customerId,
             agent: 'alex',
@@ -378,7 +397,7 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
                 begaran: message.slice(0, 500),
                 saknas: null,
                 kalla: 'heuristik',
-                svar: responseText.split('\n\n---')[0].slice(0, 500),
+                svar: gapProse.slice(0, 500),
                 conversation_id,
             },
         }).then(({ error }) => {

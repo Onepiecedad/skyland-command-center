@@ -4,7 +4,7 @@
  * mot riktiga formuleringar ur kvällens loggar.
  */
 import { describe, it, expect } from 'vitest';
-import { GAP_PHRASES } from '../alexBrain';
+import { GAP_PHRASES, looksLikeGap } from '../alexBrain';
 
 const matches = (s: string) => GAP_PHRASES.some((re) => re.test(s));
 
@@ -25,5 +25,26 @@ describe('GAP_PHRASES', () => {
         expect(matches('Jag har uppdaterat kortet för LOA Ink.')).toBe(false);
         expect(matches('Kunde inte köa uppdraget: databasen svarade med ett fel.')).toBe(false);
         expect(matches('Gustav har inte tillgång till kortet än, men det är på väg.')).toBe(false);
+    });
+});
+
+describe('looksLikeGap — bredare nät när inget verktyg ens försökte', () => {
+    it('fångar nya formuleringar när Alex inte lyfte ett finger', () => {
+        // Ordagrant ur ett skarpt test 9 sep.
+        expect(looksLikeGap('Tyvärr kan jag inte öppna externa appar som Spotify eller spela musik.', 0)).toBe(true);
+        expect(looksLikeGap('Det där kunde jag inte göra åt dig.', 0)).toBe(true);
+    });
+
+    it('tiger när verktyg faktiskt kördes — då är det ett fel, inte en lucka', () => {
+        expect(looksLikeGap('Jag kan inte flytta kortet, tabellen svarade med ett fel.', 2)).toBe(false);
+    });
+
+    it('tiger på vanlig försiktighet', () => {
+        expect(looksLikeGap('Jag kan inte lova att Gustav svarar i kväll.', 0)).toBe(false);
+        expect(looksLikeGap('Jag kan tyvärr inte garantera norrsken.', 0)).toBe(false);
+    });
+
+    it('fångar den uttalade luckan även när verktyg kördes', () => {
+        expect(looksLikeGap('Jag har inget verktyg för att läsa kalendern.', 3)).toBe(true);
     });
 });
