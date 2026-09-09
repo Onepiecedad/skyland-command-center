@@ -79,6 +79,22 @@ och säger det i loggen, i stället för att skicka ett anrop som ändå nekas.
 och gör ingenting. En öppen endpoint som läser annonsdata för fem kunder är
 inte värd risken.
 
+## Säkerhet
+
+Tre spärrar, alla verifierade 9 sep med Supabases publika anon-nyckel:
+
+- **`ads-sync` felar stängt.** Utan `META_ADS_TOKEN` och `ADS_SYNC_KEY` svarar
+  den 503. Med nycklarna satta krävs `x-ads-key` i huvudet, annars 403.
+- **`ads_sync_daglig()` är inte anropbar utifrån.** Funktionen är
+  `SECURITY DEFINER` och låg först exponerad på `/rest/v1/rpc/ads_sync_daglig`
+  för både `anon` och `authenticated` — vem som helst med den publika nyckeln
+  hade kunnat trigga hämtning och skrivning. `EXECUTE` är återkallad; anrop ger
+  nu `42501 permission denied`. Bara cron, som kör som `postgres`, når den.
+- **Vyerna körs som anroparen.** `ad_health` och `ad_funnel` skapades som
+  `SECURITY DEFINER` (Postgres standard), vilket hade kringgått RLS på
+  bastabellerna. Båda är satta till `security_invoker = true`. Testat med
+  riktig data i tabellen: anon får tom lista, inte raderna.
+
 ## Kom igång, i ordning
 
 ```bash
