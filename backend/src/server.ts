@@ -24,6 +24,7 @@ import customersRouter from './routes/customers.js';
 import tasksRouter from './routes/tasks.js';
 import runsRouter from './routes/runs.js';
 import chatRouter from './routes/chat.js';
+import uiRouter from './routes/ui.js';
 import archiveRouter from './routes/archive.js';
 import costsRouter from './routes/costs.js';
 import ideasRouter from './routes/ideas.js';
@@ -276,6 +277,8 @@ class Server {
     this.app.use('/api/v1/tasks', tasksRouter);
     this.app.use('/api/v1/runs', runsRouter);
     this.app.use('/api/v1/chat', chatLimiter, chatRouter);
+    // Skärmstyrning för Alex på VPS:en (bara navigate_ui/present_screens).
+    this.app.use('/api/v1/ui', uiRouter);
     this.app.use('/api/v1/archive', archiveRouter);
     this.app.use('/api/v1/costs', costsRouter);
     this.app.use('/api/v1/ideas', ideasRouter);
