@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
+import { isNoiseMessage } from './chat/messageNoise';
 import ReactMarkdown from 'react-markdown';
 import { CollapsibleMarkdown } from './chat/CollapsibleMarkdown';
 import remarkGfm from 'remark-gfm';
@@ -283,21 +284,10 @@ export function AlexChat({ gateway: externalGateway }: Props) {
     const alexOnline = gateway.status === 'connected';
     const alexBusy = gateway.isStreaming || gateway.alexState === 'thinking' || gateway.alexState === 'executing';
 
-    // --- Filter out noise messages (raw JSON, tool calls, system metadata) ---
-    const isNoiseMessage = useCallback((msg: { role: string; content: string }) => {
-        const c = msg.content.trim();
-        if (!c) return true;
-        if (msg.role === 'system') return true;
-        if ((c.startsWith('{') && c.endsWith('}')) || (c.startsWith('[{') && c.endsWith('}]') && c.startsWith('[{"type"'))) {
-            try { JSON.parse(c); return true; } catch { /* not JSON, show it */ }
-        }
-        if (c.startsWith('Successfully replaced text in ') || c.startsWith('Successfully edited ')) return false;
-        return false;
-    }, []);
-
+    // Vad som räknas som brus bor i chat/messageNoise.ts, med tester.
     const filteredGatewayMessages = useMemo(
         () => gateway.messages.filter(msg => !isNoiseMessage(msg)),
-        [gateway.messages, isNoiseMessage]
+        [gateway.messages]
     );
 
     return (
@@ -328,7 +318,7 @@ export function AlexChat({ gateway: externalGateway }: Props) {
             <div className="chat-messages">
                 {filteredGatewayMessages.length === 0 && !gateway.isStreaming ? (
                     <p className="empty">
-                        {alexOnline ? 'Talk to Alex…' : 'Connecting to Alex gateway…'}
+                        {alexOnline ? 'Inget sagt än. Skriv något till Alex.' : 'Ansluter till Alex…'}
                     </p>
                 ) : (
                     <>
