@@ -71,7 +71,7 @@ export function AlexDock() {
     }, [messages, busy]);
 
     const sendText = useCallback(
-        async (text: string): Promise<string | null> => {
+        async (text: string, channel: 'chat' | 'voice' = 'chat'): Promise<string | null> => {
             if (!text || busy) return null;
             setInput('');
             setMessages((prev) => [...prev, { role: 'user', content: text }]);
@@ -80,7 +80,7 @@ export function AlexDock() {
                 const res = await fetchWithAuth(`${API_BASE}/chat/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text, channel: 'chat', conversation_id: conversationId }),
+                    body: JSON.stringify({ message: text, channel, conversation_id: conversationId }),
                 });
                 const data = (await res.json().catch(() => null)) as ChatApiResponse | null;
                 if (res.ok && data?.response) {
@@ -104,23 +104,25 @@ export function AlexDock() {
     );
 
     // Håll-och-prata: transkriptet går in i sendText ovan, svaret läses upp.
-    const talk = useWalkieTalkie({ onTranscript: sendText });
+    const talk = useWalkieTalkie({ onTranscript: (t) => sendText(t, 'voice') });
     const talking = talk.state !== 'idle';
 
-    // Håll mellanslag (utan fokus i textfältet) = håll in knappen.
+    // Håll mellanslag = håll in knappen. Fungerar även när textfältet har
+    // fokus (panelen fokuserar det vid öppning), så länge fältet är tomt.
     useEffect(() => {
         if (!open || !talk.supported) return;
-        const isTyping = () => document.activeElement === inputRef.current && !!input;
         const down = (e: KeyboardEvent) => {
-            if (e.code !== 'Space' || e.repeat || isTyping()) return;
-            if (document.activeElement === inputRef.current) return;
+            if (e.code !== 'Space' || e.repeat) return;
+            const el = document.activeElement;
+            const inField = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement;
+            if (inField && el !== inputRef.current) return;
+            if (el === inputRef.current && inputRef.current?.value) return;
             e.preventDefault();
             talk.hush();
             void talk.start();
         };
         const up = (e: KeyboardEvent) => {
-            if (e.code !== 'Space') return;
-            talk.stop();
+            if (e.code === 'Space') talk.stop();
         };
         window.addEventListener('keydown', down);
         window.addEventListener('keyup', up);
@@ -128,7 +130,7 @@ export function AlexDock() {
             window.removeEventListener('keydown', down);
             window.removeEventListener('keyup', up);
         };
-    }, [open, input, talk]);
+    }, [open, talk]);
 
     const onSubmit = (e: FormEvent) => {
         e.preventDefault();

@@ -41,6 +41,18 @@ RAPPORTERINGSREGLER (gäller alltid):
 - Skriv begripligt för en icke-tekniker, men hellre ärligt och tråkigt än
   trevligt och osant.`;
 
+// Läggs på när användaren pratade in frågan i SCC:s Alex-panel. Texten är
+// ett transkript, svaret läses upp med Alex röst (och visas även som text).
+const VOICE_RULES = `
+RÖSTLÄGE (den här vändan):
+- Användaren PRATADE in meddelandet; du läser ett automatiskt transkript.
+  Tolka talspråk, hörfel och saknad interpunktion välvilligt.
+- Ditt svar LÄSES UPP med din röst i samma panel, och visas som text. Du kan
+  alltså både höra och svara med röst: säg aldrig att du bara hanterar text.
+- Skriv för örat: korta meningar, inga rubriker, punktlistor, tabeller eller
+  markdown. Siffror och namn i löpande text. Håll det under ungefär 600 tecken
+  om inte frågan kräver mer; är svaret långt, ge kärnan först.`;
+
 export type AlexBrainErrorCode = 'adapter' | 'llm';
 
 /** Deterministic record of what actually executed, built from tool results — not from the model. */
@@ -126,7 +138,8 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
         loadRecentMessages(conversation_id)
     ]);
 
-    const systemPrompt = buildSystemPrompt(customers) + '\n' + REPORTING_RULES;
+    const systemPrompt = buildSystemPrompt(customers) + '\n' + REPORTING_RULES
+        + (channel === 'voice' ? '\n' + VOICE_RULES : '');
 
     const llmMessages: ChatMessage[] = [
         ...previousMessages.slice(0, -1), // Exclude the message we just logged
