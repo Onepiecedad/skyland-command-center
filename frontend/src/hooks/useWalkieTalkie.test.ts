@@ -11,6 +11,11 @@ describe('toSpeech', () => {
         expect(out).toContain('OCEANA');
     });
 
+    it('never reads the execution receipt aloud', () => {
+        const out = toSpeech('Du kan nå Vinnie på 070-205 08 42.\n\n---\n**Faktiskt utfört:**\n\n- ✅ get_contact');
+        expect(out).toBe('Du kan nå Vinnie på 070-205 08 42.');
+    });
+
     it('cuts at a sentence boundary near the TTS cap', () => {
         const long = Array.from({ length: 60 }, (_, i) => `Mening nummer ${i} handlar om kliniken.`).join(' ');
         const out = toSpeech(long);

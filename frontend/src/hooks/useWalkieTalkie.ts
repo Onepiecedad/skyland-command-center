@@ -37,6 +37,8 @@ function pickMimeType(): string {
 /** Markdown → något som går att läsa upp. Klipper vid meningsslut nära taket. */
 export function toSpeech(md: string): string {
     let t = md
+        // Kvittot ("--- Faktiskt utfört: …") är för ögat, aldrig för örat.
+        .replace(/\n\s*---\s*\n[\s\S]*$/, '')
         .replace(/```[\s\S]*?```/g, ' ')
         .replace(/`([^`]*)`/g, '$1')
         .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')

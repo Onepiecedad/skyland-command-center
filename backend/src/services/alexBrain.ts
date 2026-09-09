@@ -109,6 +109,15 @@ export interface AlexChatResult {
 const UI_TOOLS = new Set(['navigate_ui', 'start_ui_tour']);
 
 /**
+ * Kvittot finns för att avslöja när prosan påstår en ÄNDRING som inte skedde.
+ * Läsningar (get_/list_/find_) och skärmstyrning ändrar inget; ett lyckat
+ * sådant anrop kvitteras inte. Misslyckade anrop kvitteras alltid.
+ */
+function isReadOnlyTool(name: string): boolean {
+    return UI_TOOLS.has(name) || /^(get|list|find)_/.test(name);
+}
+
+/**
  * Kör hela Alex-pipelinen: logga inkommande, ladda kontext, LLM-loop med
  * verktyg (max MAX_TOOL_ROUNDS), logga utgående. Kastar AlexBrainError vid
  * adapter-/LLM-fel i första rundan; senare rundor degraderar mjukt.
@@ -308,9 +317,9 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
 
     // Deterministic receipt. Built from tool results, so it cannot over-report
     // no matter what the model wrote above it.
-    // Skärmstyrning är inte en dataändring: den syns på skärmen och ska inte
-    // kvitteras. Misslyckade anrop kvitteras ändå så avvikelser syns.
-    const receiptExecutions = toolExecutions.filter(e => !UI_TOOLS.has(e.tool) || !e.ok);
+    // Bara ändringar och misslyckanden kvitteras; läsningar och skärmstyrning
+    // syns redan i svaret respektive på skärmen.
+    const receiptExecutions = toolExecutions.filter(e => !isReadOnlyTool(e.tool) || !e.ok);
     responseText += receiptExecutions.length === 0 && toolExecutions.length > 0
         ? (incomplete ? '\n\n---\n⚠️ Körningen nådde taket för verktygsrundor eller avbröts.' : '')
         : buildExecutionReceipt(receiptExecutions, incomplete);
