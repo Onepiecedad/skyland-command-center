@@ -296,6 +296,23 @@ function ResearchNotes({ raw }: { raw: string }) {
     );
 }
 
+/** Hur gammalt leadet är, i ord. Samma trappa som på kanban-kortet
+ *  (PipelineBoard.tsx): grönt under dygnet, orange under veckan, rött därefter. */
+function ceAlder(iso?: string): { text: string; farg: string } | null {
+    if (!iso) return null;
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return null;
+    const min = Math.max(0, Math.round((Date.now() - t) / 60000));
+    if (min < 60) return { text: min <= 1 ? 'nyss' : `${min} min sedan`, farg: '#32D74B' };
+    const tim = Math.round(min / 60);
+    if (tim < 24) return { text: `${tim} tim sedan`, farg: '#32D74B' };
+    const dag = Math.round(tim / 24);
+    if (dag === 1) return { text: '1 dag sedan', farg: '#FF9F0A' };
+    if (dag < 7) return { text: `${dag} dagar sedan`, farg: '#FF9F0A' };
+    const v = Math.floor(dag / 7);
+    return { text: v === 1 ? '1 vecka sedan' : `${v} veckor sedan`, farg: '#FF453A' };
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
     return (
         <div style={rowStyle}>
@@ -461,7 +478,17 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
                         {custom.ce_country ? ` · ${custom.ce_country}` : ''}
                     </Row>
                     <Row label="Inkom">
-                        {custom.ce_received_at ? new Date(custom.ce_received_at).toLocaleString('sv-SE').slice(0, 16) : '—'}
+                        {custom.ce_received_at ? (() => {
+                            const d = new Date(custom.ce_received_at as string);
+                            const veckodag = ['söndag','måndag','tisdag','onsdag','torsdag','fredag','lördag'][d.getDay()];
+                            const a = ceAlder(custom.ce_received_at as string);
+                            return (
+                                <>
+                                    {veckodag} {d.toLocaleString('sv-SE').slice(0, 16)}
+                                    {a && <span style={{ color: a.farg, marginLeft: 8 }}>· {a.text}</span>}
+                                </>
+                            );
+                        })() : '—'}
                     </Row>
                     <Row label="Svarad">
                         {custom.ce_answered

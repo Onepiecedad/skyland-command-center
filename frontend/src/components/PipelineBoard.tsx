@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Clock } from 'lucide-react';
 import { fetchBoard, moveOpportunity, type BoardColumn, type Opportunity } from '../api';
 
 /**
@@ -42,7 +42,30 @@ function ceTid(iso?: string): string {
     const m = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    return `${d.getDate()} ${m[d.getMonth()]} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const idag = new Date();
+    const sammaDag = d.toDateString() === idag.toDateString();
+    const igar = new Date(idag.getTime() - 864e5).toDateString() === d.toDateString();
+    const klocka = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    if (sammaDag) return `idag ${klocka}`;
+    if (igar) return `igår ${klocka}`;
+    return `${d.getDate()} ${m[d.getMonth()]} ${klocka}`;
+}
+
+/** Hur gammalt leadet är, i ord. Det är den siffra som avgör om Gustav ska ringa
+ *  nu eller inte, och den går inte att räkna ut i huvudet ur ett datum. */
+function ceAlder(iso?: string): { text: string; farg: string } | null {
+    if (!iso) return null;
+    const t = Date.parse(iso);
+    if (Number.isNaN(t)) return null;
+    const min = Math.max(0, Math.round((Date.now() - t) / 60000));
+    if (min < 60) return { text: min <= 1 ? 'nyss' : `${min} min sedan`, farg: '#32D74B' };
+    const tim = Math.round(min / 60);
+    if (tim < 24) return { text: `${tim} tim sedan`, farg: '#32D74B' };
+    const dag = Math.round(tim / 24);
+    if (dag === 1) return { text: '1 dag sedan', farg: '#FF9F0A' };
+    if (dag < 7) return { text: `${dag} dagar sedan`, farg: '#FF9F0A' };
+    const v = Math.floor(dag / 7);
+    return { text: v === 1 ? '1 vecka sedan' : `${v} veckor sedan`, farg: '#FF453A' };
 }
 
 const glassCol: React.CSSProperties = {
@@ -412,8 +435,27 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                                                 ”{String(skrev).slice(0, 110)}{String(skrev).length > 110 ? '…' : ''}”
                                             </div>
                                         )}
-                                        <div style={{ fontSize: 10.5, marginTop: 5, display: 'flex', gap: 6, alignItems: 'center' }}>
-                                            <span style={{ opacity: 0.45 }}>{ceTid(ce.ce_received_at ?? undefined)}</span>
+                                        <div style={{ fontSize: 10.5, marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                                            {(() => {
+                                                const a = ceAlder(ce.ce_received_at ?? undefined);
+                                                const nar = ceTid(ce.ce_received_at ?? undefined);
+                                                if (!nar) return <span style={{ opacity: 0.4 }}>tid okänd</span>;
+                                                return (
+                                                    <span
+                                                        title={`Kom in ${new Date(ce.ce_received_at as string).toLocaleString('sv-SE')}`}
+                                                        style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                                                            padding: '2px 7px', borderRadius: 999, fontWeight: 600,
+                                                            background: a ? `${a.farg}1F` : 'rgba(255,255,255,0.07)',
+                                                            color: a ? a.farg : 'rgba(255,255,255,0.65)',
+                                                        }}
+                                                    >
+                                                        <Clock size={11} />
+                                                        {nar}
+                                                        {a && <span style={{ opacity: 0.75, fontWeight: 500 }}>· {a.text}</span>}
+                                                    </span>
+                                                );
+                                            })()}
                                             {ce.ce_answered === false && (
                                                 <><span style={{ opacity: 0.3 }}>·</span><span style={{ color: '#FF9F0A' }}>ej svarad</span></>
                                             )}
