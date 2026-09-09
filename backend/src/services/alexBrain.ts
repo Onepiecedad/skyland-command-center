@@ -323,9 +323,14 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
     responseText += receiptExecutions.length === 0 && toolExecutions.length > 0
         ? (incomplete ? '\n\n---\n⚠️ Körningen nådde taket för verktygsrundor eller avbröts.' : '')
         : buildExecutionReceipt(receiptExecutions, incomplete);
+    // "Bara skärm" kräver också att Alex faktiskt svarade kort: bad operatören
+    // om en förklaring i samma mening ("visa … och förklara …") är svaret långt
+    // och ska både visas och läsas upp.
+    const proseLength = responseText.split('\n\n---')[0].trim().length;
     const ui_only = toolExecutions.length > 0
         && toolExecutions.every(e => UI_TOOLS.has(e.tool) && e.ok)
-        && !incomplete;
+        && !incomplete
+        && proseLength <= 160;
 
     // Log outbound assistant message
     await logMessage({

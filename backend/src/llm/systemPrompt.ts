@@ -105,6 +105,9 @@ VERKTYG DU KAN ANVÄNDA:
   resultatet säger vilken pipeline och vilket steg kortet ligger i — nämn det i svaret.
   Matchar flera kontakter vägrar verktyget gissa och listar dem: fråga då vilken som
   menas. Vid demo: kombinera gärna — presentera OCH visa rätt vy samtidigt.
+- get_site_stats: Webbspårning för en kunds hemsida (Thomas, Gustav) eller skylandai.se:
+  besök, engagerade, leads och NÄR senaste besöket/leadet kom. Använd vid "hur går X:s
+  hemsida", "när var senaste besökaren", "hur många leads har sajten fått".
 - start_ui_tour: Starta en guidad rundtur av hela dashboarden (skriptad sekvens som
   visar och förklarar varje vy). Använd vid "ge mig en genomgång", "visa mig runt",
   "guida mig genom systemet". Säg att rundturen körs på skärmen och att operatören

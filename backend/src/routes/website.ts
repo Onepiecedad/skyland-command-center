@@ -67,6 +67,44 @@ async function loadTratt(slugQuery: unknown): Promise<TrattConfig | null> {
     };
 }
 
+/**
+ * Kort sammanfattning av en sajts spårning, för Alex (get_site_stats).
+ * Samma tratt-konfiguration som /stats, men bara siffrorna som går att säga
+ * i en mening: besök, engagerade, leads, senaste besök och senaste lead.
+ */
+export async function siteSummary(tenantSlug: string, days: number): Promise<{
+    tenant: string; days: number; sessions: number; engaged: number; leads: number;
+    last_visit_at: string | null; last_lead_at: string | null; top_events: Record<string, number>;
+} | { error: string }> {
+    if (!websiteSupabase) return { error: 'Webbspårningen är inte konfigurerad.' };
+    const tratt = await loadTratt(tenantSlug);
+    if (!tratt) return { error: `Okänd sajt "${tenantSlug}".` };
+    const { data } = await websiteSupabase
+        .from('events')
+        .select('session_uuid, type, created_at')
+        .eq('tenant_id', tratt.tenantId)
+        .gte('created_at', daysAgoIso(days))
+        .order('created_at', { ascending: false })
+        .limit(10000);
+    const events = (data || []) as Pick<EventRow, 'session_uuid' | 'type' | 'created_at'>[];
+    const sessions = new Set<string>(); const engaged = new Set<string>(); const leads = new Set<string>();
+    const counts: Record<string, number> = {};
+    let lastLead: string | null = null;
+    for (const ev of events) {
+        sessions.add(ev.session_uuid);
+        counts[ev.type] = (counts[ev.type] || 0) + 1;
+        if (tratt.engage.has(ev.type)) engaged.add(ev.session_uuid);
+        if (tratt.lead.has(ev.type)) { leads.add(ev.session_uuid); if (!lastLead) lastLead = ev.created_at; }
+    }
+    return {
+        tenant: tratt.slug, days,
+        sessions: sessions.size, engaged: engaged.size, leads: leads.size,
+        last_visit_at: events[0]?.created_at ?? null,
+        last_lead_at: lastLead,
+        top_events: Object.fromEntries(Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6)),
+    };
+}
+
 // ============================================================================
 // GET /stats?days=7 — KPIs, funnel, ROI signals, language split, daily series
 // ============================================================================

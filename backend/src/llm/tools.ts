@@ -332,6 +332,18 @@ Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — 
         }
     },
     {
+        name: 'get_site_stats',
+        description: 'Webbspårning för en kunds hemsida (eller Skylands egen): antal besök, engagerade, leads under perioden, samt NÄR senaste besöket och senaste leadet kom (ISO-tid, säg den i svensk tid). Använd vid "hur går Thomas hemsida", "när var senaste besökaren på …", "hur många leads har Gustavs sajt fått". Kunder med spårad sajt: Thomas (MarinMekaniker), Gustav (Cold Experience). "skyland" = skylandai.se.',
+        parameters: {
+            type: 'object',
+            properties: {
+                customer_query: { type: 'string', description: 'Kundens namn eller slug ("Thomas", "Gustav", "MarinMekaniker", "Cold Experience") eller "skyland".' },
+                days: { type: 'number', description: 'Period i dagar, 1–90. Standard 7.' }
+            },
+            required: ['customer_query']
+        }
+    },
+    {
         name: 'start_ui_tour',
         description: 'Starta en guidad rundtur av hela dashboarden på operatörens skärm. En skriptad sekvens visar varje vy i tur och ordning med förklaringskort (Alex-chatten, CRM-pipelinen, leads, sekvenser, kunder, kontoret, systemöversikt, skills). Använd när operatören ber om en genomgång, rundtur, guidning eller demo av systemet, t.ex. "visa mig runt", "ge mig en genomgång", "guida mig genom systemet". Påverkar bara skärmen — alltid säkert.',
         parameters: { type: 'object', properties: {} }
@@ -425,6 +437,8 @@ export async function executeToolCall(
                 return await handleScheduleFollowup(args);
             case 'navigate_ui':
                 return await handleNavigateUi(args);
+            case 'get_site_stats':
+                return await handleGetSiteStats(args);
             case 'start_ui_tour':
                 return await handleStartUiTour();
             default:
@@ -1371,6 +1385,28 @@ async function findContactsForNavigate(query: string): Promise<{ id: string; nam
     return fuzzy ?? [];
 }
 
+/** get_site_stats — webbspårningens nyckeltal för en kunds sajt. Läsning, ändrar inget. */
+async function handleGetSiteStats(args: Record<string, unknown>): Promise<ToolResult> {
+    const q = typeof args.customer_query === 'string' ? args.customer_query.trim() : '';
+    if (!q) return { success: false, error: 'customer_query krävs.' };
+    const days = Math.min(Math.max(Number(args.days) || 7, 1), 90);
+    let tenantSlug: string | null = null;
+    let label = q;
+    if (/^skyland/i.test(q)) {
+        tenantSlug = 'skyland'; label = 'skylandai.se';
+    } else {
+        const found = await findCustomersForNavigate(q);
+        if (found.length === 0) return { success: false, error: `Hittade ingen kund som matchar "${q}".` };
+        if (found.length > 1) return { success: false, error: `Flera kunder matchar "${q}": ${found.map(c => c.name).join(', ')}. Fråga vilken som menas.` };
+        if (!found[0].site_tenant_slug) return { success: false, error: `${found[0].name} har ingen spårad hemsida kopplad.` };
+        tenantSlug = found[0].site_tenant_slug; label = found[0].name;
+    }
+    const { siteSummary } = await import('../routes/website');
+    const summary = await siteSummary(tenantSlug, days);
+    if ('error' in summary) return { success: false, error: summary.error };
+    return { success: true, data: { customer: label, ...summary } };
+}
+
 /** start_ui_tour — trigga den skriptade guidade rundturen i frontend via SSE. */
 async function handleStartUiTour(): Promise<ToolResult> {
     const { emitSystemEvent } = await import('../routes/eventStream');
@@ -1581,10 +1617,23 @@ export function formatToolResultForLLM(name: string, result: ToolResult): string
             return `✅ Enrollad i "${r.sequence}".${note}`;
         }
         case 'navigate_ui': {
-            const r = data as { view: string; contact_name: string | null };
-            return r.contact_name
-                ? `✅ Öppnade kortet för "${r.contact_name}" i CRM-vyn på skärmen.`
-                : `✅ Bytte till vyn "${r.view}" på skärmen.`;
+            const r = data as {
+                view: string; contact_name: string | null; pipeline?: string | null; stage?: string | null;
+                customer?: string; tab?: string; latest_card?: string; note?: string;
+            };
+            const TAB: Record<string, string> = { overview: 'Översikt', contact: 'Kontakt', website: 'Hemsida', agreements: 'Avtal', documents: 'Dokument' };
+            let line: string;
+            if (r.customer) {
+                line = `✅ Öppnade kunden ${r.customer} på fliken ${TAB[r.tab ?? 'overview'] ?? r.tab} på skärmen.`;
+            } else if (r.contact_name) {
+                const where = [r.pipeline, r.stage].filter(Boolean).join(', steg ');
+                line = `✅ Öppnade kortet för "${r.contact_name}"${r.latest_card ? ' (senast inkomna)' : ''} i CRM-vyn${where ? ` (pipeline ${where})` : ''} på skärmen.`;
+            } else if (r.pipeline) {
+                line = `✅ Visar pipeline-fliken "${r.pipeline}" i CRM-vyn på skärmen.`;
+            } else {
+                line = `✅ Bytte till vyn "${r.view}" på skärmen.`;
+            }
+            return r.note ? `${line} ${r.note}` : line;
         }
         case 'start_ui_tour':
             return '✅ Guidad rundtur startad på skärmen — den går igenom alla vyer steg för steg med förklaringar. Operatören kan pausa, hoppa eller avsluta med knapparna på kortet.';

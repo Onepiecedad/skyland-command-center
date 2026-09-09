@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toSpeech } from './useWalkieTalkie';
+import { toSpeech, cleanTranscript } from './useWalkieTalkie';
 
 describe('toSpeech', () => {
     it('strips markdown so the TTS reads words, not symbols', () => {
@@ -21,5 +21,13 @@ describe('toSpeech', () => {
         const out = toSpeech(long);
         expect(out.length).toBeLessThanOrEqual(1100);
         expect(out.endsWith('.')).toBe(true);
+    });
+});
+
+describe('cleanTranscript', () => {
+    it('drops audio-event tags so silence never becomes a question', () => {
+        expect(cleanTranscript('[outro jingle]')).toBe('');
+        expect(cleanTranscript('(music) ')).toBe('');
+        expect(cleanTranscript('[laughter] Visa Thomas hemsida')).toBe('Visa Thomas hemsida');
     });
 });

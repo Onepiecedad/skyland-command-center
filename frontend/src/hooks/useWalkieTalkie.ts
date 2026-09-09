@@ -34,6 +34,18 @@ function pickMimeType(): string {
     return candidates.find((m) => MediaRecorder.isTypeSupported(m)) ?? '';
 }
 
+/**
+ * Scribe skriver ljudhändelser som "[outro jingle]", "(music)", "[silence]"
+ * när det inte hörs något tal. Utan tal ska inget skickas till Alex.
+ */
+export function cleanTranscript(raw: string): string {
+    return raw
+        .replace(/\[[^\]]{0,60}\]/g, ' ')
+        .replace(/\([^)]{0,60}\)/g, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+}
+
 /** Markdown → något som går att läsa upp. Klipper vid meningsslut nära taket. */
 export function toSpeech(md: string): string {
     let t = md
@@ -129,7 +141,7 @@ export function useWalkieTalkie({ onTranscript }: Options) {
                 });
                 if (!stt.ok) throw new Error(`STT ${stt.status}`);
                 const { text } = (await stt.json()) as { text?: string };
-                const transcript = (text ?? '').trim();
+                const transcript = cleanTranscript(text ?? '');
                 if (!transcript) {
                     setError('Hörde inget. Håll in knappen och prata.');
                     go('idle');
