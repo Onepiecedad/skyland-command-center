@@ -158,11 +158,33 @@ router.post('/intake', intakeAuth, async (req: Request, res: Response) => {
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
     try {
         const limit = Math.min(parseInt(String(req.query.limit || '50'), 10) || 50, 200);
+        // ?all=1 visar även bro-events, för felsökning
+        const visaAllt = String(req.query.all || '') === '1';
 
-        const { data, error } = await supabase
+        let q = supabase
             .from('activities')
             .select('*')
-            .eq('event_type', 'lead')
+            .eq('event_type', 'lead');
+
+        // Kriteriet för att vara ett lead HÄR: raden bär ett eget `source` i details.
+        //
+        // `event_type='lead'` är en kategori i aktivitetsflödet, inte en lead-tabell.
+        // Cold Experience-bron (migration ce_activities_bridge) skriver sina
+        // livscykelhändelser — ce.lead.created, ce.lead.form_received,
+        // ce.lead.status_changed, ce.lead.disqualified — med samma event_type, för att
+        // de ska synas under Leads-filtret i aktivitetsloggen. Det är avsiktligt och
+        // ska inte ändras.
+        //
+        // Men de är händelser om ett lead, inte lead-intag. De saknar `name` på toppnivå
+        // (namnet ligger under `lead`) och ritades därför som "Okänd besökare", och ett och
+        // samma Cold Experience-lead dök upp tre gånger: skapat, formulär, statusbyte.
+        // 9 sep 2026 var 145 av 156 rader sådana. Webbintagen — void_form och voice_call —
+        // sätter alltid `source`, och det är samma fält vyn ritar sin källetikett ur.
+        //
+        // Cold Experience-leaden har sin egen vy: CRM-pipelinen.
+        if (!visaAllt) q = q.not('details->>source', 'is', null);
+
+        const { data, error } = await q
             .order('created_at', { ascending: false })
             .limit(limit);
 

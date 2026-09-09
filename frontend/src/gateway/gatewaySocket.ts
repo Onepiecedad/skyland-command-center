@@ -349,51 +349,63 @@ export class GatewaySocket {
         return this.request(method, params);
     }
 
+    /**
+     * Alex minne läser /api/v1/memory, inte /api/v1/alex-memory.
+     *
+     * Den gamla vägen läste MEMORY.md och memory/*.md ur OpenClaws arbetskatalog.
+     * Den katalogen finns inte på Render där backendn kör, och på VPS:en där
+     * OpenClaw kör innehåller memory/ bara sqlite-filer och MEMORY.md saknas helt.
+     * Panelen svarade alltså tomt oavsett maskin. /api/v1/memory söker i
+     * activities, messages och tasks i Supabase, alltså i det systemet faktiskt
+     * har sett, och den datan finns. Rättat 9 sep 2026.
+     */
     async searchMemory(query: string, limit = 20): Promise<MemoryEntry[]> {
-        // Use SCC backend API instead of gateway RPC
         try {
-            const apiUrl = import.meta.env.VITE_API_URL ?? '';  // tom = samma origin i prod; 127.0.0.1:3001 fungerade bara i lokal dev
-            const res = await fetch(`${apiUrl}/api/v1/alex-memory/search`, {
+            const apiUrl = import.meta.env.VITE_API_URL ?? '';  // tom = samma origin i prod
+            const res = await fetch(`${apiUrl}/api/v1/memory/search`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query, limit }),
+                credentials: 'include',
+                body: JSON.stringify({ query, limit, scope: 'all' }),
             });
             if (!res.ok) {
-                console.warn('[GW] alex/search failed:', res.status);
+                console.warn('[GW] memory/search failed:', res.status);
                 return [];
             }
             const data = await res.json();
-            return (data.entries || []).map((e: Record<string, unknown>) => ({
-                id: e.id as string,
-                content: e.content as string,
-                source: e.source as string,
-                timestamp: e.timestamp as string,
-                score: e.score as number,
+            return (data.results || []).map((e: Record<string, unknown>) => ({
+                id: String(e.source_id ?? ''),
+                content: String(e.snippet ?? ''),
+                source: String(e.source_type ?? 'okänd'),
+                timestamp: e.created_at as string,
+                score: e.relevance_score as number,
             }));
         } catch (err) {
-            console.warn('[GW] alex/search error:', err);
+            console.warn('[GW] memory/search error:', err);
             return [];
         }
     }
 
+    /** Utan sökord: senaste händelserna ur tidslinjen, alltså det färskaste minnet. */
     async getMemoryEntries(limit = 50): Promise<MemoryEntry[]> {
-        // Use SCC backend API instead of gateway RPC
         try {
-            const apiUrl = import.meta.env.VITE_API_URL ?? '';  // tom = samma origin i prod; 127.0.0.1:3001 fungerade bara i lokal dev
-            const res = await fetch(`${apiUrl}/api/v1/alex-memory/list?limit=${limit}`);
+            const apiUrl = import.meta.env.VITE_API_URL ?? '';
+            const res = await fetch(`${apiUrl}/api/v1/memory/timeline?limit=${limit}`, {
+                credentials: 'include',
+            });
             if (!res.ok) {
-                console.warn('[GW] alex/list failed:', res.status);
+                console.warn('[GW] memory/timeline failed:', res.status);
                 return [];
             }
             const data = await res.json();
-            return (data.entries || []).map((e: Record<string, unknown>) => ({
-                id: e.id as string,
-                content: e.content as string,
-                source: e.source as string,
-                timestamp: e.timestamp as string,
+            return (data.timeline || []).map((e: Record<string, unknown>) => ({
+                id: String(e.id ?? ''),
+                content: String(e.summary ?? ''),
+                source: String(e.type ?? 'okänd'),
+                timestamp: e.created_at as string,
             }));
         } catch (err) {
-            console.warn('[GW] alex/list error:', err);
+            console.warn('[GW] memory/timeline error:', err);
             return [];
         }
     }

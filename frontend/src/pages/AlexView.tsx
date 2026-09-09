@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import { API_BASE, fetchWithAuth } from '../api';
 import { BackendAlexChat } from '../components/BackendAlexChat';
 import {
@@ -13,7 +13,6 @@ import {
   Shield,
   BarChart3,
   FileText,
-  Megaphone,
   X,
   Activity,
   Layers,
@@ -25,6 +24,7 @@ import {
 import { AlexChat } from '../components/AlexChat';
 import { ThreadSidebar } from '../components/chat/ThreadSidebar';
 import { ThreadMemoryPanel } from '../components/chat/ThreadMemoryPanel';
+const CostCenter = lazy(() => import('./CostCenter').then(m => ({ default: m.CostCenter })));
 import { useGateway } from '../gateway/useGateway';
 import { CharacterSheet } from '../components/CharacterSheet';
 
@@ -140,21 +140,50 @@ export default function AlexView() {
       .catch(err => console.error('Failed to fetch skills:', err));
   }, []);
 
+  /* ─── Subagenter och MCP-servrar ───
+     Gatewayns skills.status kan bara skills; den vet ingenting om subagenter
+     eller MCP-servrar och sätter aldrig `source`. Därför stod Agenter och MCP
+     på 0 hur många skills som än laddades — filtren letade efter ett fält som
+     aldrig fanns.
+     `/api/v1/skills-aggregator` läser subagentkatalogerna och mcp_config.json
+     och sätter source korrekt, men den var aldrig inkopplad i frontenden. Den
+     läser filer på maskinen där OpenClaw kör, så på Render svarar den tomt och
+     flikarna göms i stället för att visa nollor i evighet. */
+  const [extraSkills, setExtraSkills] = useState<Skill[]>([]);
+
+  useEffect(() => {
+    fetchWithAuth(`${API_BASE}/skills-aggregator`)
+      .then(r => (r.ok ? r.json() : { skills: [] }))
+      .then(data => {
+        const rows = (data.skills || []) as Array<Record<string, unknown>>;
+        setExtraSkills(rows
+          .filter(s => s.source === 'subagent' || s.source === 'mcp')
+          .map(s => ({
+            id: String(s.id ?? s.name ?? ''),
+            name: String(s.name ?? ''),
+            description: String(s.description ?? ''),
+            category: categorizeSkill(String(s.name ?? '')),
+            source: s.source as Skill['source'],
+          })));
+      })
+      .catch(() => setExtraSkills([]));
+  }, []);
+
   useEffect(() => {
     if (gateway.skills.length > 0) {
-      setSkills(gateway.skills.map(g => ({
+      setSkills([...gateway.skills.map(g => ({
         id: g.name,
         name: g.name,
         description: g.description || '',
         category: categorizeSkill(g.name),
         source: g.bundled ? ('standalone' as const) : ('workspace' as const),
-      })));
+      })), ...extraSkills]);
       setSkillsAvailable(true);
     } else {
-      setSkills(backendSkills);
+      setSkills([...backendSkills, ...extraSkills]);
       setSkillsAvailable(backendSkillsAvailable);
     }
-  }, [gateway.skills, backendSkills, backendSkillsAvailable]);
+  }, [gateway.skills, backendSkills, backendSkillsAvailable, extraSkills]);
 
   /* ─── Rollformulär (ersätter gamla Rollfiler-modalen som läste filer
      från disk — de finns bara på operatörens dator, aldrig på Render) ─── */
@@ -383,7 +412,11 @@ export default function AlexView() {
           <div className="alex-skills-panel">
             {/* ─── Segmented Control ─── */}
             <div className="skills-segment-bar">
-              {(['all', 'skills', 'agents', 'mcp'] as SourceFilter[]).map(seg => (
+              {(['all', 'skills', 'agents', 'mcp'] as SourceFilter[])
+                // Göm Agenter och MCP när de är tomma. Källan finns bara på maskinen
+                // där OpenClaw kör, och en flik som alltid säger 0 ser ut som en bugg.
+                .filter(seg => (seg === 'agents' ? sourceCounts.agents > 0 : seg === 'mcp' ? sourceCounts.mcp > 0 : true))
+                .map(seg => (
                 <button
                   key={seg}
                   className={`skills-segment-btn ${sourceFilter === seg ? 'active' : ''}`}
@@ -483,14 +516,11 @@ export default function AlexView() {
               <Wallet size={16} />
               <span>Kostnadsöversikt</span>
             </div>
-            <div className="alex-panel-empty">
-              <Megaphone size={24} strokeWidth={1.5} />
-              <p>Kostnadsspårning är inte byggd än</p>
-              <p style={{ fontSize: 12, opacity: 0.55, maxWidth: 380, lineHeight: 1.5 }}>
-                Vyn är en platshållare utan datakälla. Kostnad per modell och tråd
-                finns i OpenRouter så länge.
-              </p>
-            </div>
+            {/* CostCenter fanns färdigbyggd mot /api/v1/costs men importerades ingenstans.
+                Platshållaren "kommer snart" stod framför en fungerande vy. */}
+            <Suspense fallback={<div className="alex-panel-empty"><p>Laddar kostnader…</p></div>}>
+              <CostCenter />
+            </Suspense>
           </div>
         )}
       </section>

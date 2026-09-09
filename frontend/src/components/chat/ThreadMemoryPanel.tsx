@@ -77,11 +77,8 @@ export function ThreadMemoryPanel({ memoryEntries, onSearch }: ThreadMemoryPanel
                         <Sparkles size={16} />
                         <span>Inget minne att visa</span>
                         <span className="memory-empty-hint">
-                            Panelen läser MEMORY.md och memory/*.md i OpenClaws
-                            arbetskatalog. Backendn kör i molnet och har ingen sådan
-                            katalog, och filerna finns inte heller på servern där
-                            OpenClaw kör. Tomt betyder alltså inte att Alex saknar
-                            minne, bara att den här vägen inte når det.
+                            Sök på ett ord för att leta i aktiviteter, meddelanden
+                            och uppgifter.
                         </span>
                     </div>
                 )}
