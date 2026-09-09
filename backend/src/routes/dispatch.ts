@@ -236,13 +236,13 @@ router.post('/claw/task-result', async (req: Request, res: Response) => {
         // Kom uppdraget från Alex-panelen (delegate_task)? Då väntar en människa
         // på svaret där, inte i en tasklista. Skicka det till skärmen.
         try {
-            const { data: t } = await supabase.from('tasks').select('input, prompt').eq('id', task_id).maybeSingle();
+            const { data: t } = await supabase.from('tasks').select('input, title').eq('id', task_id).maybeSingle();
             const input = (t?.input ?? {}) as Record<string, unknown>;
             if (input.source === 'panel') {
                 const { emitSystemEvent } = await import('./eventStream');
                 const text = success
                     ? readableOutput(output)
-                    : `Uppdraget "${String(t?.prompt ?? '').slice(0, 80)}" misslyckades: ${error ?? 'okänt fel'}`;
+                    : `Uppdraget "${String(t?.title ?? '').slice(0, 80)}" misslyckades: ${error ?? 'okänt fel'}`;
                 emitSystemEvent('ui_action', { action: 'note', text, speak: true, source: 'delegate' }, 'alex');
             }
         } catch (err) {

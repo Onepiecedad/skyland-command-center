@@ -1482,13 +1482,15 @@ async function handleDelegateTask(args: Record<string, unknown>): Promise<ToolRe
 
     const { data: task, error: taskErr } = await supabase
         .from('tasks')
+        // OBS: title är det som blir agentens prompt (/claw/pending skickar
+        // task.title vidare), så hela uppdraget måste stå där — inte en rubrik.
         .insert({
             customer_id: null,
-            title: uppdrag.slice(0, 120),
-            prompt: uppdrag,
+            title: uppdrag.slice(0, 500),
+            description: uppdrag,
             executor: 'claw:main',
             status: 'created',
-            autonomy_level: 'ACT',
+            priority: 'normal',
             input: { source: 'panel', uppdrag },
         })
         .select()

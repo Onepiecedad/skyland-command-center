@@ -91,7 +91,7 @@ describe('delegate_task — uppdrag till huvud-Alex via claw-kön', () => {
         expect(h.state.insertPayload).toMatchObject({
             executor: 'claw:main',
             status: 'created',
-            prompt: 'Kör research på LOA Ink',
+            title: 'Kör research på LOA Ink',
             input: { source: 'panel', uppdrag: 'Kör research på LOA Ink' },
         });
         expect(h.dispatchTask).toHaveBeenCalledWith('task-1', 'panel');
