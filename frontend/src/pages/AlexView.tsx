@@ -485,7 +485,11 @@ export default function AlexView() {
             </div>
             <div className="alex-panel-empty">
               <Megaphone size={24} strokeWidth={1.5} />
-              <p>Kostnadsspårning kommer snart</p>
+              <p>Kostnadsspårning är inte byggd än</p>
+              <p style={{ fontSize: 12, opacity: 0.55, maxWidth: 380, lineHeight: 1.5 }}>
+                Vyn är en platshållare utan datakälla. Kostnad per modell och tråd
+                finns i OpenRouter så länge.
+              </p>
             </div>
           </div>
         )}

@@ -2,7 +2,13 @@
 
 .archive-view {
     display: flex;
-    flex-direction: column;
+    /* Rad, inte kolumn: listan till vänster och rapporten till höger. Regeln var
+       kvar från en tidigare layout och vann över komponentens egen inline-stil,
+       som bara sätter display:flex. Följden var att rapporten hamnade UNDER
+       listan och klämdes ihop till en nästan osynlig remsa i underkanten.
+       Mobil-överstyrningen i mobile.css sätter column igen med !important. */
+    flex-direction: row;
+    min-height: 0;
     height: 100%;
     background: var(--bg-secondary, #0f0f12);
     color: var(--text-primary, #fff);
@@ -308,6 +314,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+    min-height: 0;
 }
 
 .archive-list-item {

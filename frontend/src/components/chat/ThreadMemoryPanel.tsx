@@ -75,9 +75,13 @@ export function ThreadMemoryPanel({ memoryEntries, onSearch }: ThreadMemoryPanel
                 {memoryEntries.length === 0 && !isSearching && (
                     <div className="memory-empty">
                         <Sparkles size={16} />
-                        <span>Inga minnen ännu</span>
+                        <span>Inget minne att visa</span>
                         <span className="memory-empty-hint">
-                            Alex lagrar viktig kontext automatiskt mellan trådar
+                            Panelen läser MEMORY.md och memory/*.md i OpenClaws
+                            arbetskatalog. Backendn kör i molnet och har ingen sådan
+                            katalog, och filerna finns inte heller på servern där
+                            OpenClaw kör. Tomt betyder alltså inte att Alex saknar
+                            minne, bara att den här vägen inte når det.
                         </span>
                     </div>
                 )}
