@@ -46,6 +46,60 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
 interface DeskState {
     status: AgentStatus;
     task: string;
+    /** SCC-49 etapp 2: vad noden faktiskt gör. Ur sessionens brief + nyckel. */
+    contact?: string;
+    attempt?: number;
+    startedAt?: number; // ms
+}
+
+// ── SCC-49: batchkort + utfall (backend /agents/office, källa: costs) ──
+interface BatchSummary {
+    label: string;
+    running: boolean;
+    done: number; reruns: number; failed: number; total: number;
+    costUsd: number;
+    avgDurationS: number | null;
+    lastContact: string | null;
+    lastAt: string | null;
+    etaMinutes: number | null;
+}
+interface AgentOutcome { contact: string | null; result: 'ok' | 'rerun' | 'failed'; at: string; durationS: number | null }
+
+const OUTCOME_COLOR: Record<AgentOutcome['result'], string> = { ok: '#22c55e', rerun: '#f59e0b', failed: '#ef4444' };
+const RESEARCH_BUDGET_S = 600;   // researchens tak i prospect_pipeline
+const GLOW_MS = 10 * 60_000;
+
+/** Kortets namn ur briefen ("Klinik: X" / "Studio: X" / "Namn: X"). */
+function contactFromBrief(text: string): string | null {
+    const m = /^(?:Klinik|Studio|Namn|Name|Företag|Kontakt):\s*(.+)$/im.exec(text);
+    return m ? m[1].trim().slice(0, 40) : null;
+}
+
+/** Starttid ur sessionsnyckeln: agent:researcher:hook:prospect-<unix>-<pid>. */
+function startFromKey(key: string): number | null {
+    const m = /prospect-(\d{10})-/.exec(key);
+    return m ? Number(m[1]) * 1000 : null;
+}
+
+/** Etapp 3: rå brief/JSON → människospråk i flödet. Okänt faller tillbaka på texten. */
+function humanizePreview(preview: string, contact: string | null): string {
+    if (!preview) return '';
+    if (/^RESEARCH-UPPDRAG/i.test(preview)) return `Researchar ${contact ?? 'ett kort'}`;
+    if (/^Ditt förra svar/i.test(preview)) return `Omkörning med skärpt brief: ${contact ?? ''}`.trim();
+    if (/IDENTITET VERIFIERAD/i.test(preview)) return `Identitet verifierad: ${contact ?? ''}`.trim();
+    if (/^\s*\{/.test(preview)) {
+        try {
+            const j = JSON.parse(preview);
+            if (j.query) return `Söker: ${String(j.query).replace(/"/g, '')}${j.provider ? ` (${j.provider})` : ''}`;
+            if (j.url) return `Läser: ${String(j.url).replace(/^https?:\/\//, '').slice(0, 60)}`;
+        } catch { /* rå JSON blir kvar */ }
+    }
+    return preview;
+}
+
+function fmtRemaining(s: number): string {
+    const m = Math.floor(s / 60), r = s % 60;
+    return `${m}:${String(r).padStart(2, '0')}`;
 }
 
 interface Envelope {
@@ -90,6 +144,30 @@ export default function OfficeView() {
     const [liveInfo, setLiveInfo] = useState<Record<string, AgentLiveInfo>>({});
     const prevRef = useRef<Record<string, AgentStatus>>({});
     const envIdRef = useRef(0);
+    const [batch, setBatch] = useState<BatchSummary | null>(null);
+    const [outcomes, setOutcomes] = useState<Record<string, AgentOutcome[]>>({});
+    const [nowMs, setNowMs] = useState(Date.now());
+    // Briefen per sessionsnyckel hämtas EN gång — inte var femte sekund.
+    const briefRef = useRef<Record<string, { contact: string | null; attempt: number }>>({});
+    const reduceMotion = typeof window !== 'undefined'
+        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+    // Sekundklocka för förloppsringen och glödens avklingning.
+    useEffect(() => {
+        const t = setInterval(() => setNowMs(Date.now()), 1000);
+        return () => clearInterval(t);
+    }, []);
+
+    // Batchkortet + utfall: alltid från backend, oavsett om gatewayn nås.
+    const refreshOffice = useCallback(async () => {
+        try {
+            const res = await fetchWithAuth('/api/v1/agents/office');
+            if (!res.ok) return;
+            const data = await res.json();
+            setBatch(data.batch ?? null);
+            setOutcomes(data.outcomes ?? {});
+        } catch { /* kortet uteblir, vyn lever */ }
+    }, []);
 
     const fireEnvelope = useCallback((deskId: string, dir: 'out' | 'back') => {
         const id = ++envIdRef.current;
@@ -138,20 +216,34 @@ export default function OfficeView() {
             const items: ActivityItem[] = await Promise.all(recent.map(async (s) => {
                 let preview = '';
                 try {
-                    const h = await socket.getChatHistory(s.key, 5);
-                    const withText = (h.messages || []).filter(m =>
+                    // Hela historiken första gången (briefen ligger först), sedan bara svansen.
+                    const known = briefRef.current[s.key];
+                    const h = await socket.getChatHistory(s.key, known ? 5 : 40);
+                    const msgs = h.messages || [];
+                    if (!known) {
+                        const users = msgs.filter(m => m.role === 'user' && (m.content || '').trim());
+                        const brief = users[0]?.content ?? '';
+                        briefRef.current[s.key] = {
+                            contact: contactFromBrief(brief),
+                            attempt: 1 + users.filter(m => /^Ditt förra svar|komplettera det/i.test(m.content || '')).length,
+                        };
+                    }
+                    const withText = msgs.filter(m =>
                         (m.content || '').trim() && !HEARTBEAT_NOISE.test(m.content || ''));
                     preview = withText[withText.length - 1]?.content?.slice(0, 110) ?? '';
                 } catch { /* best effort */ }
                 const deskId = deskIdForSession(s);
                 const deskName = deskId ? DESKS.find(d => d.id === deskId)?.name : undefined;
+                const b = briefRef.current[s.key];
+                const contact = b?.contact ?? null;
                 return {
                     key: s.key,
-                    label: deskName || s.label || `Alex · sub-agent ${s.key.split(':')[3]?.slice(0, 6) ?? ''}`,
+                    label: (deskName || s.label || `Alex · sub-agent ${s.key.split(':')[3]?.slice(0, 6) ?? ''}`)
+                        + (contact ? ` · ${contact}` : ''),
                     when: s.lastMessageAt,
                     tokens: s.tokenCount,
                     costUsd: s.costUsd,
-                    preview,
+                    preview: humanizePreview(preview, contact),
                 };
             }));
             setActivity(items);
@@ -165,7 +257,14 @@ export default function OfficeView() {
                     .sort((a, b) => (b.lastMessageAt ?? '').localeCompare(a.lastMessageAt ?? ''))[0];
                 const fresh = !!(sess?.lastMessageAt && nowMs - new Date(sess.lastMessageAt).getTime() < 3 * 60_000);
                 const status: AgentStatus = fresh ? 'active' : 'idle';
-                next[d.id] = { status, task: fresh ? (sess?.label || 'Arbetar…') : '' };
+                const b = sess ? briefRef.current[sess.key] : undefined;
+                next[d.id] = {
+                    status,
+                    task: fresh ? (b?.contact ? `Researchar ${b.contact}` : (sess?.label || 'Arbetar…')) : '',
+                    contact: fresh ? b?.contact ?? undefined : undefined,
+                    attempt: fresh ? b?.attempt : undefined,
+                    startedAt: fresh && sess ? startFromKey(sess.key) ?? undefined : undefined,
+                };
                 live[d.id] = {
                     status: STATUS_LABEL[status],
                     lastActivity: sess?.lastMessageAt,
@@ -231,11 +330,12 @@ export default function OfficeView() {
             const gwOk = await refreshGateway();
             const ok = gwOk || await refreshBackend();
             if (!stop) setConnected(ok);
+            await refreshOffice();
         };
         tick();
         const t = setInterval(tick, 5000);
         return () => { stop = true; clearInterval(t); };
-    }, [refreshGateway, refreshBackend]);
+    }, [refreshGateway, refreshBackend, refreshOffice]);
 
     // Esc stänger rollformuläret
     useEffect(() => {
@@ -256,15 +356,67 @@ export default function OfficeView() {
         const x = d.x - w / 2, y = d.y - h / 2;
         const active = st.status === 'active';
         const avatar = AGENT_PROFILES[d.id]?.avatar;
+
+        // Etapp 2: utfallsglöd i 10 min efter avslut (grön/bärnsten/röd) + fem prickar som minne.
+        const hist = outcomes[d.id] ?? [];
+        const last = hist[0];
+        const lastAge = last ? nowMs - new Date(last.at).getTime() : Infinity;
+        const glow = !active && last && lastAge < GLOW_MS ? last : null;
+        const glowColor = glow ? OUTCOME_COLOR[glow.result] : null;
+        const glowAlpha = glow ? Math.max(0.25, 1 - lastAge / GLOW_MS) : 0;
+        const stroke = active ? color : glowColor ? glowColor : 'rgba(148,163,184,0.25)';
+
+        // Förloppsring mot researchens 600 s-tak, från sessionens starttid.
+        const elapsedS = active && st.startedAt ? Math.max(0, Math.floor((nowMs - st.startedAt) / 1000)) : null;
+        const frac = elapsedS !== null ? Math.min(1, elapsedS / RESEARCH_BUDGET_S) : 0;
+        const ringR = 11, ringC = 2 * Math.PI * ringR;
+        const bubble = active && (st.contact || st.attempt || elapsedS !== null);
+        const bubbleLine1 = st.contact ? `Researchar ${st.contact}` : (st.task || 'Arbetar…');
+        const bubbleLine2 = [
+            st.attempt ? `försök ${st.attempt}` : null,
+            elapsedS !== null ? (elapsedS < RESEARCH_BUDGET_S ? `${fmtRemaining(RESEARCH_BUDGET_S - elapsedS)} kvar` : 'över taket') : null,
+        ].filter(Boolean).join(' · ');
+        const bw = Math.min(230, Math.max(150, 8 * Math.max(bubbleLine1.length, bubbleLine2.length) + 24));
+        const bx = d.x - bw / 2, by = y - 54;
+
         return (
             <g key={d.id} onClick={() => setSheetAgent(d.id)} style={{ cursor: 'pointer' }}>
                 <rect
                     x={x} y={y} width={w} height={h} rx={12}
                     fill="rgba(15,23,42,0.92)"
-                    stroke={active ? color : 'rgba(148,163,184,0.25)'}
-                    strokeWidth={active ? 2 : 1}
-                    style={active ? { filter: `drop-shadow(0 0 8px ${color})` } : undefined}
+                    stroke={stroke}
+                    strokeWidth={active || glow ? 2 : 1}
+                    strokeOpacity={glow ? glowAlpha : 1}
+                    style={active ? { filter: `drop-shadow(0 0 8px ${color})` }
+                        : glow ? { filter: `drop-shadow(0 0 ${Math.round(10 * glowAlpha)}px ${glowColor})` } : undefined}
                 />
+                {/* utfallsminne: senaste fem, nyast till vänster */}
+                {hist.slice(0, 5).map((o, i) => (
+                    <circle key={i} cx={x + 66 + i * 9} cy={y + h - 9} r={2.6}
+                        fill={OUTCOME_COLOR[o.result]} opacity={i === 0 ? 0.95 : 0.55}>
+                        <title>{`${o.contact ?? '?'} · ${o.result}${o.durationS ? ` · ${Math.round(o.durationS / 60)} min` : ''}`}</title>
+                    </circle>
+                ))}
+                {/* förloppsring: hur långt in i 600 s-taket researchen är */}
+                {active && elapsedS !== null && (
+                    <g transform={`translate(${x + w - 18}, ${y + h / 2})`}>
+                        <circle r={ringR} fill="none" stroke="rgba(148,163,184,0.2)" strokeWidth={2.5} />
+                        <circle r={ringR} fill="none" stroke={frac < 0.8 ? color : '#f59e0b'} strokeWidth={2.5}
+                            strokeDasharray={`${ringC * frac} ${ringC}`} strokeLinecap="round"
+                            transform="rotate(-90)" />
+                    </g>
+                )}
+                {/* pratbubbla: vad, försök, tid kvar */}
+                {bubble && (
+                    <g>
+                        <rect x={bx} y={by} width={bw} height={38} rx={9}
+                            fill="rgba(2,6,23,0.96)" stroke={color} strokeWidth={1} />
+                        <path d={`M ${d.x - 6} ${by + 38} L ${d.x} ${by + 45} L ${d.x + 6} ${by + 38} Z`} fill="rgba(2,6,23,0.96)" stroke={color} strokeWidth={1} />
+                        <rect x={d.x - 5} y={by + 36} width={10} height={3} fill="rgba(2,6,23,0.96)" />
+                        <text x={d.x} y={by + 16} textAnchor="middle" fill="#e2e8f0" fontSize={11.5} fontWeight={600}>{trunc(bubbleLine1, 30)}</text>
+                        <text x={d.x} y={by + 30} textAnchor="middle" fill="#94a3b8" fontSize={10}>{bubbleLine2}</text>
+                    </g>
+                )}
                 {avatar && (
                     <>
                         <clipPath id={`clip-${d.id}`}>
@@ -311,6 +463,12 @@ export default function OfficeView() {
             {/* Mobil: agentkartan blir oläslig liten — visa en tydlig lista i
                 stället (samma klick öppnar rollformuläret). CSS togglar. */}
             <div className="office-agent-list">
+                {batch && (
+                    <div className="office-agent-row" style={{ cursor: 'default', fontSize: 12.5 }}>
+                        <span className="office-agent-name">{batch.label} {batch.running ? '· pågår' : '· klar'}</span>
+                        <span className="office-agent-status">{batch.done} klara · {batch.failed} fel · ${batch.costUsd.toFixed(2)}</span>
+                    </div>
+                )}
                 {[{ id: 'main', name: 'Alex', cluster: 'Koordinator' } as { id: string; name: string; cluster: string }, ...DESKS].map((d) => {
                     const st = d.id === 'main' ? mainState.status : (desks[d.id]?.status ?? 'idle');
                     const avatar = AGENT_PROFILES[d.id]?.avatar;
@@ -330,17 +488,63 @@ export default function OfficeView() {
                 })}
             </div>
 
-            <div className="office-map-wrap" style={{ display: 'flex', flex: 1, minHeight: 0, gap: 12 }}>
+            <div className="office-map-wrap" style={{ display: 'flex', flex: 1, minHeight: 0, gap: 12, position: 'relative' }}>
+                {/* Etapp 1: batchkortet — EN sammanhållen körning, inte lösa delegeringar */}
+                {batch && (
+                    <div className="office-batch-card" style={{
+                        position: 'absolute', top: 6, left: 10, zIndex: 2, minWidth: 250,
+                        padding: '10px 14px', borderRadius: 12,
+                        background: 'rgba(2,6,23,0.92)',
+                        border: `1px solid ${batch.running ? 'rgba(34,197,94,0.6)' : 'rgba(148,163,184,0.25)'}`,
+                        boxShadow: batch.running ? '0 0 18px rgba(34,197,94,0.25)' : 'none',
+                        fontSize: 12.5, color: '#e2e8f0',
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13 }}>
+                            <span style={{
+                                width: 8, height: 8, borderRadius: 4, display: 'inline-block',
+                                background: batch.running ? '#22c55e' : '#64748b',
+                                animation: batch.running && !reduceMotion ? 'officePulse 1.2s ease-in-out infinite' : 'none',
+                            }} />
+                            {batch.label}
+                            <span style={{ fontWeight: 400, color: '#94a3b8' }}>{batch.running ? '· pågår' : '· klar'}</span>
+                        </div>
+                        <div style={{ marginTop: 6, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12.5, letterSpacing: 0.2 }}>
+                            <span style={{ color: '#22c55e' }}>{batch.done}</span> klara
+                            {batch.reruns > 0 && <> · <span style={{ color: '#f59e0b' }}>{batch.reruns}</span> omkörning{batch.reruns > 1 ? 'ar' : ''}</>}
+                            {' · '}<span style={{ color: batch.failed ? '#ef4444' : '#94a3b8' }}>{batch.failed}</span> fel
+                            {' · '}${batch.costUsd.toFixed(2)}
+                            {batch.avgDurationS ? ` · ~${Math.round(batch.avgDurationS / 60)} min/kort` : ''}
+                        </div>
+                        <div style={{ marginTop: 4, color: '#94a3b8', fontSize: 11.5 }}>
+                            {batch.running
+                                ? <>senast: {batch.lastContact ?? '–'}{batch.etaMinutes !== null ? ` · klar om ~${batch.etaMinutes} min` : ''}</>
+                                : <>{batch.total} kort · senast {timeAgo(batch.lastAt ?? undefined)} · {batch.lastContact ?? ''}</>}
+                        </div>
+                    </div>
+                )}
+                <style>{`@keyframes officePulse { 0%,100% { opacity: 1; transform: scale(1) } 50% { opacity: .45; transform: scale(.8) } }`}</style>
                 <svg viewBox="0 0 1000 720" style={{ flex: 1, height: '100%', minWidth: 0 }}>
                     {/* connection lines main ↔ desk */}
                     {DESKS.map((d) => {
                         const st = desks[d.id]?.status ?? 'idle';
                         const active = st === 'active';
                         return (
-                            <line key={`l-${d.id}`} x1={MAIN.x} y1={MAIN.y} x2={d.x} y2={d.y}
-                                stroke={active ? STATUS_COLOR.active : 'rgba(100,116,139,0.18)'}
-                                strokeWidth={active ? 2 : 1}
-                                strokeDasharray={active ? '0' : '4 6'} />
+                            <g key={`l-${d.id}`}>
+                                <line x1={MAIN.x} y1={MAIN.y} x2={d.x} y2={d.y}
+                                    stroke={active ? 'rgba(34,197,94,0.35)' : 'rgba(100,116,139,0.18)'}
+                                    strokeWidth={active ? 2 : 1}
+                                    strokeDasharray={active ? '0' : '4 6'} />
+                                {/* Etapp 4: pulsen längs kanten medan noden arbetar. Stilla vid reduced-motion. */}
+                                {active && (
+                                    <line x1={MAIN.x} y1={MAIN.y} x2={d.x} y2={d.y}
+                                        stroke={STATUS_COLOR.active} strokeWidth={2.5} strokeLinecap="round"
+                                        strokeDasharray="10 14" style={{ filter: 'drop-shadow(0 0 4px #22c55e)' }}>
+                                        {!reduceMotion && (
+                                            <animate attributeName="stroke-dashoffset" from="0" to="-48" dur="1.1s" repeatCount="indefinite" />
+                                        )}
+                                    </line>
+                                )}
+                            </g>
                         );
                     })}
 
