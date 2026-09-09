@@ -1,16 +1,17 @@
 /**
  * AlexDock — flytande, alltid tillgänglig Alex-chat (alla vyer).
  * Apple-känsla: glaspanel, spring-animation, ⌘J togglar, Esc stänger.
- * Kör server-Alex (/api/v1/chat/chat — full CRM-åtkomst) och kan växla till röstläge.
+ * Kör server-Alex (/api/v1/chat/chat — full CRM-åtkomst). Håll-och-prata-knappen
+ * går genom exakt samma sendText: rösten är ett annat tangentbord, inte en annan Alex.
  * Monteras på App-nivå så konversationen överlever vy-byten.
  */
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CollapsibleMarkdown } from './chat/CollapsibleMarkdown';
-import { Mic, MessageCircle, X, ArrowUp } from 'lucide-react';
+import { Mic, X, ArrowUp, Square } from 'lucide-react';
 import { API_BASE, fetchWithAuth } from '../api';
-import VoiceChat from './VoiceChat';
+import { useWalkieTalkie, TALK_LABEL } from '../hooks/useWalkieTalkie';
 import '../styles/alexdock.css';
 
 interface ChatMsg {
@@ -24,8 +25,6 @@ interface ChatApiResponse {
     error?: string;
 }
 
-type DockMode = 'text' | 'voice';
-
 const SUGGESTIONS = [
     'Var i pipelinen är Skindiver?',
     'Lista tier A-prospekten',
@@ -34,7 +33,6 @@ const SUGGESTIONS = [
 
 export function AlexDock() {
     const [open, setOpen] = useState(false);
-    const [mode, setMode] = useState<DockMode>('text');
     const [messages, setMessages] = useState<ChatMsg[]>([]);
     const [input, setInput] = useState('');
     const [busy, setBusy] = useState(false);
@@ -65,16 +63,16 @@ export function AlexDock() {
     }, []);
 
     useEffect(() => {
-        if (open && mode === 'text') inputRef.current?.focus();
-    }, [open, mode]);
+        if (open) inputRef.current?.focus();
+    }, [open]);
 
     useEffect(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
     }, [messages, busy]);
 
     const sendText = useCallback(
-        async (text: string) => {
-            if (!text || busy) return;
+        async (text: string): Promise<string | null> => {
+            if (!text || busy) return null;
             setInput('');
             setMessages((prev) => [...prev, { role: 'user', content: text }]);
             setBusy(true);
@@ -88,20 +86,49 @@ export function AlexDock() {
                 if (res.ok && data?.response) {
                     if (data.conversation_id) setConversationId(data.conversation_id);
                     setMessages((prev) => [...prev, { role: 'assistant', content: data.response as string }]);
-                } else {
-                    setMessages((prev) => [
-                        ...prev,
-                        { role: 'assistant', content: `⚠️ ${data?.error || `Serverfel (${res.status})`}` },
-                    ]);
+                    return data.response;
                 }
+                setMessages((prev) => [
+                    ...prev,
+                    { role: 'assistant', content: `⚠️ ${data?.error || `Serverfel (${res.status})`}` },
+                ]);
+                return null;
             } catch {
                 setMessages((prev) => [...prev, { role: 'assistant', content: '⚠️ Kunde inte nå servern.' }]);
+                return null;
             } finally {
                 setBusy(false);
             }
         },
         [busy, conversationId],
     );
+
+    // Håll-och-prata: transkriptet går in i sendText ovan, svaret läses upp.
+    const talk = useWalkieTalkie({ onTranscript: sendText });
+    const talking = talk.state !== 'idle';
+
+    // Håll mellanslag (utan fokus i textfältet) = håll in knappen.
+    useEffect(() => {
+        if (!open || !talk.supported) return;
+        const isTyping = () => document.activeElement === inputRef.current && !!input;
+        const down = (e: KeyboardEvent) => {
+            if (e.code !== 'Space' || e.repeat || isTyping()) return;
+            if (document.activeElement === inputRef.current) return;
+            e.preventDefault();
+            talk.hush();
+            void talk.start();
+        };
+        const up = (e: KeyboardEvent) => {
+            if (e.code !== 'Space') return;
+            talk.stop();
+        };
+        window.addEventListener('keydown', down);
+        window.addEventListener('keyup', up);
+        return () => {
+            window.removeEventListener('keydown', down);
+            window.removeEventListener('keyup', up);
+        };
+    }, [open, input, talk]);
 
     const onSubmit = (e: FormEvent) => {
         e.preventDefault();
@@ -132,13 +159,6 @@ export function AlexDock() {
                                 <span className="alexdock-header-sub">server-läge · full CRM-åtkomst</span>
                             </div>
                             <div className="alexdock-header-actions">
-                                <button
-                                    className={`alexdock-icon-btn ${mode === 'voice' ? 'alexdock-icon-btn--active' : ''}`}
-                                    onClick={() => setMode(mode === 'voice' ? 'text' : 'voice')}
-                                    title={mode === 'voice' ? 'Till textchat' : 'Till röstchat'}
-                                >
-                                    {mode === 'voice' ? <MessageCircle size={15} /> : <Mic size={15} />}
-                                </button>
                                 <button className="alexdock-icon-btn" onClick={() => setOpen(false)} title="Stäng (Esc)">
                                     <X size={15} />
                                 </button>
@@ -146,12 +166,7 @@ export function AlexDock() {
                         </div>
 
                         {/* Innehåll */}
-                        {mode === 'voice' ? (
-                            <div className="alexdock-voice">
-                                <VoiceChat />
-                            </div>
-                        ) : (
-                            <>
+                        <>
                                 <div ref={scrollRef} className="alexdock-messages">
                                     {messages.length === 0 && !busy && (
                                         <div className="alexdock-empty">
@@ -177,7 +192,16 @@ export function AlexDock() {
                                             )}
                                         </div>
                                     ))}
-                                    {busy && <div className="alexdock-thinking">Alex tänker…</div>}
+                                    {(busy || talking) && (
+                                        <div className={`alexdock-thinking ${talk.state === 'recording' ? 'alexdock-thinking--rec' : ''}`}>
+                                            {talking ? TALK_LABEL[talk.state] : 'Alex tänker…'}
+                                        </div>
+                                    )}
+                                    {talk.error && (
+                                        <div className="alexdock-thinking alexdock-thinking--err" onClick={talk.clearError}>
+                                            ⚠️ {talk.error}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <form onSubmit={onSubmit} className="alexdock-inputrow">
@@ -187,12 +211,30 @@ export function AlexDock() {
                                         onChange={(e) => setInput(e.target.value)}
                                         placeholder="Fråga Alex…"
                                     />
-                                    <button type="submit" disabled={busy || !input.trim()} title="Skicka">
+                                    {talk.supported && (
+                                        <button
+                                            type="button"
+                                            className={`alexdock-mic alexdock-mic--${talk.state}`}
+                                            disabled={busy && talk.state === 'idle'}
+                                            title={talk.state === 'speaking' ? 'Tysta Alex' : 'Håll in och prata (eller håll mellanslag)'}
+                                            onPointerDown={(e) => {
+                                                e.preventDefault();
+                                                if (talk.state === 'speaking') { talk.hush(); return; }
+                                                void talk.start();
+                                            }}
+                                            onPointerUp={talk.stop}
+                                            onPointerLeave={talk.stop}
+                                            onPointerCancel={talk.stop}
+                                            onContextMenu={(e) => e.preventDefault()}
+                                        >
+                                            {talk.state === 'speaking' ? <Square size={14} strokeWidth={2.5} /> : <Mic size={16} strokeWidth={2.25} />}
+                                        </button>
+                                    )}
+                                    <button type="submit" disabled={busy || talking || !input.trim()} title="Skicka">
                                         <ArrowUp size={16} strokeWidth={2.5} />
                                     </button>
                                 </form>
-                            </>
-                        )}
+                        </>
                     </motion.div>
                 )}
             </AnimatePresence>
