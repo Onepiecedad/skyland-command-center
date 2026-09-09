@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
-import { API_BASE, fetchWithAuth } from '../api';
+import { API_BASE, fetchWithAuth, fetchTasks, type Task } from '../api';
+import { TaskDetail } from '../components/TaskDetail';
 import { BackendAlexChat } from '../components/BackendAlexChat';
 import {
   MessageCircle,
@@ -24,6 +25,11 @@ import {
 import { AlexChat } from '../components/AlexChat';
 import { ThreadSidebar } from '../components/chat/ThreadSidebar';
 import { ThreadMemoryPanel } from '../components/chat/ThreadMemoryPanel';
+const STATUS_ORD: Record<string, string> = {
+  created: 'Skapad', assigned: 'Tilldelad', in_progress: 'Pågår',
+  review: 'Granskas', completed: 'Klar', failed: 'Misslyckad',
+};
+
 const CostCenter = lazy(() => import('./CostCenter').then(m => ({ default: m.CostCenter })));
 import { useGateway } from '../gateway/useGateway';
 import { CharacterSheet } from '../components/CharacterSheet';
@@ -150,6 +156,36 @@ export default function AlexView() {
      läser filer på maskinen där OpenClaw kör, så på Render svarar den tomt och
      flikarna göms i stället för att visa nollor i evighet. */
   const [extraSkills, setExtraSkills] = useState<Skill[]>([]);
+
+  /* ─── Aktiva uppgifter ───
+     Panelen var hårdkodad tom: den sa "Inga aktiva uppgifter just nu" oavsett
+     verklighet, medan statusraden längst ned räknade riktiga rader. Därav
+     motsägelsen "1 aktiva uppgifter" mot en tom vy. */
+  const [uppgifter, setUppgifter] = useState<Task[]>([]);
+  const [uppgifterLaddar, setUppgifterLaddar] = useState(true);
+  const [valdUppgift, setValdUppgift] = useState<Task | null>(null);
+
+  useEffect(() => {
+    let levande = true;
+    const hamta = () => {
+      Promise.all([
+        fetchTasks({ status: 'in_progress', limit: 50 }),
+        fetchTasks({ status: 'assigned', limit: 50 }),
+        fetchTasks({ status: 'review', limit: 50 }),
+      ])
+        .then(grupper => {
+          if (!levande) return;
+          const alla = grupper.flat();
+          alla.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+          setUppgifter(alla);
+        })
+        .catch(() => { if (levande) setUppgifter([]); })
+        .finally(() => { if (levande) setUppgifterLaddar(false); });
+    };
+    hamta();
+    const t = setInterval(hamta, 30000);
+    return () => { levande = false; clearInterval(t); };
+  }, []);
 
   useEffect(() => {
     fetchWithAuth(`${API_BASE}/skills-aggregator`)
@@ -400,12 +436,59 @@ export default function AlexView() {
             <div className="alex-panel-header">
               <ListTodo size={16} />
               <span>Aktiva uppgifter</span>
+              {uppgifter.length > 0 && (
+                <span className="skills-category-count">{uppgifter.length}</span>
+              )}
             </div>
-            <div className="alex-panel-empty">
-              <Clock size={24} strokeWidth={1.5} />
-              <p>Inga aktiva uppgifter just nu</p>
-            </div>
+
+            {uppgifterLaddar ? (
+              <div className="alex-panel-empty"><p>Laddar…</p></div>
+            ) : uppgifter.length === 0 ? (
+              <div className="alex-panel-empty">
+                <Clock size={24} strokeWidth={1.5} />
+                <p>Inga pågående uppgifter</p>
+              </div>
+            ) : (
+              <div className="alex-task-list">
+                {uppgifter.map(t => {
+                  const dagar = Math.floor((Date.now() - Date.parse(t.created_at)) / 864e5);
+                  // En uppgift som stått i samma läge i över ett dygn arbetar inte,
+                  // den har fastnat. Statusraden räknade den som aktiv, vilket är
+                  // hur "Producera Paket 1" kunde stå som pågående i 47 dagar.
+                  const fast = dagar >= 1;
+                  return (
+                    <button
+                      key={t.id}
+                      className="alex-task-row"
+                      onClick={() => setValdUppgift(t)}
+                      title="Öppna uppgiften"
+                    >
+                      <span className={`alex-task-status alex-task-status--${t.status}`}>
+                        {STATUS_ORD[t.status] ?? t.status}
+                      </span>
+                      <span className="alex-task-title">{t.title}</span>
+                      <span className="alex-task-meta">
+                        {t.executor}
+                        {' · '}
+                        <span style={fast ? { color: '#FF9F0A' } : undefined}>
+                          {dagar === 0 ? 'idag' : dagar === 1 ? '1 dag' : `${dagar} dagar`}
+                          {fast ? ' — fastnat?' : ''}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
+        )}
+
+        {valdUppgift && (
+          <TaskDetail
+            task={valdUppgift}
+            onClose={() => setValdUppgift(null)}
+            onTaskUpdated={t => setUppgifter(rader => rader.map(r => (r.id === t.id ? t : r)))}
+          />
         )}
 
         {activeTab === 'skills' && (

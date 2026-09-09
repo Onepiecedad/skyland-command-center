@@ -1,20 +1,19 @@
 import { useGateway } from '../gateway/useGateway';
 import { useEffect, useState, useCallback } from 'react';
-import { API_URL } from '../config';
-
-const API_BASE = API_URL;
+import { fetchTasks } from '../api';
 
 export function StatusBar() {
     const gateway = useGateway('agent:skyland:main');
     const [taskCount, setTaskCount] = useState(0);
 
+    // Gick tidigare mot `${API_URL}/api/v1/tasks` med rå fetch. Det gav dubbel
+    // prefix i alla lägen där API_URL redan pekade på /api/v1, och saknade
+    // auth-huvudet. fetchTasks bygger URL:en och autentiserar på ett ställe.
     const fetchTaskCount = useCallback(async () => {
         try {
-            const res = await fetch(`${API_BASE}/api/v1/tasks?status=in_progress&limit=100`);
-            if (!res.ok) return;
-            const data = await res.json();
-            setTaskCount((data.tasks || []).length);
-        } catch { /* silent */ }
+            const tasks = await fetchTasks({ status: 'in_progress', limit: 100 });
+            setTaskCount(tasks.length);
+        } catch { /* tyst */ }
     }, []);
 
     useEffect(() => {
