@@ -124,6 +124,13 @@ export const GAP_PHRASES = [
     /(?:det|den här) (?:kan|kunde) jag (?:tyvärr )?inte (?:göra|utföra|hjälpa)/i,
     /saknar (?:åtkomst|behörighet|verktyg) (?:till|för)/i,
     /finns inte (?:tillgängl|bland mina)/i,
+    // Tillagt 9 sep efter ett skarpt test: "Jag har ingen tillgång till att
+    // visa eller boka i din kalender" gick förbi listan ovan.
+    // "jag" måste stå med: annars fastnar rader om ANDRA som saknar något
+    // ("Gustav har inte tillgång till kortet än"), och loggen fylls med brus.
+    /\bjag har (?:ingen|inte) (?:tillgång|åtkomst|behörighet) (?:till|att)/i,
+    /\bjag har (?:ingen|inte någon) (?:funktion|möjlighet) (?:för|att)/i,
+    /\bjag saknar (?:möjlighet|funktion) att/i,
 ];
 
 /** Verktyg som bara rör skärmen; de ändrar ingen data och hör inte hemma i kvittot. */

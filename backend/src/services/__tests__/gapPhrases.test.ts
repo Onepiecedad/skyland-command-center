@@ -14,6 +14,9 @@ describe('GAP_PHRASES', () => {
         expect(matches('Jag har inget verktyg för att läsa kalendern.')).toBe(true);
         expect(matches('Jag har inget sätt att se när senaste besökaren var på sidan.')).toBe(true);
         expect(matches('Jag saknar åtkomst till Metas annonsstatistik.')).toBe(true);
+        // Ordagrant ur ett skarpt test 9 sep — den här formuleringen gled förbi först.
+        expect(matches('Jag har ingen tillgång till att visa eller boka saker i din kalender.')).toBe(true);
+        expect(matches('Jag har ingen funktion för att läsa SMS.')).toBe(true);
     });
 
     it('larmar inte på vanliga fel eller lyckade svar', () => {
@@ -21,5 +24,6 @@ describe('GAP_PHRASES', () => {
         expect(matches('Uppdraget gick inte iväg: gatewayen svarar inte.')).toBe(false);
         expect(matches('Jag har uppdaterat kortet för LOA Ink.')).toBe(false);
         expect(matches('Kunde inte köa uppdraget: databasen svarade med ett fel.')).toBe(false);
+        expect(matches('Gustav har inte tillgång till kortet än, men det är på väg.')).toBe(false);
     });
 });
