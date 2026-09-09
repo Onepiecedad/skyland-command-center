@@ -41,6 +41,10 @@ export class OpenRouterAdapter implements LLMAdapter {
         const messages = toProviderMessages(input.systemPrompt, input.messages);
         const tools = toProviderTools(input.tools);
 
+        if (input.onDelta) {
+            return this.chatStreaming(messages, tools, input.onDelta);
+        }
+
         try {
             const response = await this.client.chat.completions.create({
                 model: this.model,
@@ -65,6 +69,71 @@ export class OpenRouterAdapter implements LLMAdapter {
             };
         } catch (error) {
             logger.error('openrouter', 'Error calling OpenRouter', { error: error instanceof Error ? error.message : error });
+            throw error;
+        }
+    }
+
+    /**
+     * Samma anrop, men med stream: true. Texten skickas vidare bit för bit så
+     * att rösten kan börja läsa efter första meningen i stället för efter sista.
+     * Verktygsanrop kommer också i bitar (namn först, argumenten tecken för
+     * tecken) och sätts ihop per index innan de tolkas.
+     */
+    private async chatStreaming(
+        messages: Parameters<OpenAI['chat']['completions']['create']>[0]['messages'],
+        tools: ReturnType<typeof toProviderTools>,
+        onDelta: (text: string) => void,
+    ): Promise<ChatOutput> {
+        try {
+            const stream = await this.client.chat.completions.create({
+                model: this.model,
+                messages,
+                tools,
+                tool_choice: tools ? 'auto' : undefined,
+                stream: true,
+                stream_options: { include_usage: true },
+            });
+
+            let text = '';
+            const partials = new Map<number, { id: string; name: string; args: string }>();
+            let usage: ChatOutput['usage'];
+
+            for await (const chunk of stream) {
+                const delta = chunk.choices?.[0]?.delta as {
+                    content?: string | null;
+                    tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[];
+                } | undefined;
+
+                if (delta?.content) {
+                    text += delta.content;
+                    onDelta(delta.content);
+                }
+
+                for (const tc of delta?.tool_calls ?? []) {
+                    const idx = tc.index ?? 0;
+                    const cur = partials.get(idx) ?? { id: '', name: '', args: '' };
+                    if (tc.id) cur.id = tc.id;
+                    if (tc.function?.name) cur.name += tc.function.name;
+                    if (tc.function?.arguments) cur.args += tc.function.arguments;
+                    partials.set(idx, cur);
+                }
+
+                if (chunk.usage) {
+                    usage = {
+                        promptTokens: chunk.usage.prompt_tokens ?? 0,
+                        completionTokens: chunk.usage.completion_tokens ?? 0,
+                        totalTokens: chunk.usage.total_tokens ?? 0,
+                    };
+                }
+            }
+
+            const assembled = [...partials.entries()]
+                .sort((a, b) => a[0] - b[0])
+                .map(([, v]) => ({ id: v.id, type: 'function', function: { name: v.name, arguments: v.args } }));
+
+            return { text, toolCalls: fromProviderToolCalls(assembled), usage };
+        } catch (error) {
+            logger.error('openrouter', 'Error streaming from OpenRouter', { error: error instanceof Error ? error.message : error });
             throw error;
         }
     }

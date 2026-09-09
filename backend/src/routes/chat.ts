@@ -81,4 +81,73 @@ router.get('/chat/history', async (req: Request, res: Response) => {
     }
 });
 
+/**
+ * POST /chat/stream — samma pipeline, men svaret strömmar.
+ *
+ * Varför: rösten fick vänta på hela svaret innan den kunde börja läsa, vilket
+ * gjorde varje fråga fem till tjugo sekunder tyst. Nu skickas texten bit för
+ * bit medan modellen skriver, så uppläsningen kan starta vid första meningen.
+ *
+ * Formen är SSE-rader men över ett vanligt POST-svar (EventSource kan inte
+ * posta): { type: 'delta' | 'round' | 'final' | 'error' }. 'round' betyder att
+ * en ny LLM-runda börjat och att det som strömmats hittills var ett förspel
+ * före ett verktygsanrop — nollställ bufferten. 'final' bär hela svaret,
+ * conversation_id och ui_only, precis som det icke-strömmande svaret.
+ */
+router.post('/stream', async (req: Request, res: Response) => {
+    const parsed = chatRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+        return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
+    }
+    const { message, channel, customer_id } = parsed.data;
+    const conversation_id = parsed.data.conversation_id ?? crypto.randomUUID();
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    let closed = false;
+    req.on('close', () => { closed = true; });
+    const send = (obj: Record<string, unknown>) => {
+        if (closed) return;
+        res.write(`data: ${JSON.stringify(obj)}\n\n`);
+    };
+
+    let lastRound = 1;
+    try {
+        const result = await runAlexChat({
+            message,
+            channel,
+            conversation_id,
+            customer_id: customer_id || null,
+            onDelta: ({ text, round }) => {
+                if (round !== lastRound) {
+                    lastRound = round;
+                    send({ type: 'round', round });
+                }
+                send({ type: 'delta', text });
+            },
+        });
+        send({
+            type: 'final',
+            response: result.response,
+            conversation_id: result.conversation_id,
+            ui_only: result.ui_only,
+            tool_calls: result.tool_calls,
+            incomplete: result.incomplete,
+        });
+    } catch (err) {
+        const message = err instanceof AlexBrainError
+            ? (err.code === 'adapter' ? 'LLM adapter not configured' : 'LLM call failed')
+            : 'Internal server error';
+        logger.error('chat', 'Streaming chat failed', { error: err instanceof Error ? err.message : err });
+        send({ type: 'error', error: message });
+    } finally {
+        if (!closed) res.end();
+    }
+    return;
+});
+
 export default router;

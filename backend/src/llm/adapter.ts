@@ -46,6 +46,12 @@ export interface ChatInput {
     systemPrompt: string;
     messages: ChatMessage[];
     tools?: ToolDefinition[];
+    /**
+     * Sätts när svaret ska strömma. Adaptern kallar den för varje textbit den
+     * får, i stället för att bara returnera hela texten på slutet. Adaptrar som
+     * inte stöder strömning ignorerar den — anroparen får ändå sitt svar.
+     */
+    onDelta?: (text: string) => void;
 }
 
 // LLM chat output

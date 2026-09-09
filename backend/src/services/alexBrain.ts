@@ -81,6 +81,12 @@ export interface AlexChatInput {
     channel?: string;
     conversation_id?: string;
     customer_id?: string | null;
+    /**
+     * Sätts av strömmande anrop (/chat/stream). Kallas för varje textbit LLM:et
+     * producerar, med rundans nummer så att mottagaren kan nollställa bufferten
+     * när en ny runda börjar — bara SISTA rundans text är själva svaret.
+     */
+    onDelta?: (delta: { text: string; round: number }) => void;
 }
 
 export interface AlexActionTaken {
@@ -195,7 +201,11 @@ export async function runAlexChat(input: AlexChatInput): Promise<AlexChatResult>
 
         let llmResponse;
         try {
+            const currentRound = round;
             llmResponse = await adapter.chat({
+                onDelta: input.onDelta
+                    ? (text: string) => input.onDelta!({ text, round: currentRound })
+                    : undefined,
                 systemPrompt,
                 messages: currentMessages,
                 tools: ALEX_TOOLS
