@@ -21,6 +21,21 @@ describe('isNoiseMessage', () => {
         expect(dölj('# MEMORY.md (Long-term)')).toBe(true);
     });
 
+    it('döljer buffertfilen även när den kommer som markdown', () => {
+        // Exakt så den renderades i Alex-vyn 9 sep: rubrik och fetstil.
+        const md = [
+            '## Working Buffer (Danger Zone)',
+            '**Status:** INACTIVE **Started:** —',
+            '',
+            '---',
+            '',
+            '<!-- Aktiveras automatiskt vid ~60% kontextanvändning. -->',
+        ].join('\n');
+        expect(dölj(md, 'assistant')).toBe(true);
+        expect(dölj('**Status:** INACTIVE **Started:** —')).toBe(true);
+        expect(dölj('# Working Buffer')).toBe(true);
+    });
+
     it('döljer verktygsresultat i JSON', () => {
         expect(dölj('{"summary": "klart", "hostname": "alex"}', 'assistant')).toBe(true);
         expect(dölj('[{"type":"text","text":"hej"}]', 'assistant')).toBe(true);
@@ -31,6 +46,8 @@ describe('isNoiseMessage', () => {
         expect(dölj('ok')).toBe(false);
         expect(dölj('Sätt {kundnamn} i mallen så fyller jag i resten.', 'assistant')).toBe(false);
         expect(dölj('Statusen på Gustav är varning just nu.', 'assistant')).toBe(false);
+        // Får inte förväxlas med buffertfilens 'Status: INACTIVE'.
+        expect(dölj('Status på sekvensen: aktiv, nästa steg går i morgon.', 'assistant')).toBe(false);
     });
 
     it('döljer tomma rader och rena systemroller', () => {

@@ -17,6 +17,20 @@ export interface NoiseCandidate {
     content: string;
 }
 
+/**
+ * Raderna kommer som markdown: "## Working Buffer", "**Status:** INACTIVE".
+ * Mönstren nedan matchar mot ren text, så dekorationen skalas av först —
+ * rubriktecken, fetstil, citattecken och listprickar i radens början.
+ */
+function bar(rad: string): string {
+    return rad.replace(/^[\s>#*_\-•]+/, '').replace(/\*\*/g, '').trim();
+}
+
+/** De tre första raderna räcker: filerna avslöjar sig direkt. */
+function toppRader(c: string): string[] {
+    return c.split('\n').map(bar).filter(Boolean).slice(0, 3);
+}
+
 /** Injektioner från OpenClaw självt, inte från Joakim och inte från Alex. */
 const SYSTEM_INJECTION = [
     /^\[System\]/i,
@@ -28,9 +42,9 @@ const SYSTEM_INJECTION = [
 /** Agentens minnes- och buffertfiler, inlästa i tråden vid start eller compaction. */
 const MEMORY_SCAFFOLDING = [
     /^Working Buffer/i,
-    /^Status:\s*(INACTIVE|ACTIVE)\b[\s\S]*Started:/i,
+    /^Status:\s*(INACTIVE|ACTIVE)\b/i,
     /^No today's memory file/i,
-    /^#+\s*MEMORY\.md/i,
+    /^MEMORY\.md/i,   // rubriktecknen är redan avskalade av bar()
     /^<!--[\s\S]*-->$/,
 ];
 
@@ -52,8 +66,9 @@ export function isNoiseMessage(msg: NoiseCandidate): boolean {
     const c = (msg.content ?? '').trim();
     if (!c) return true;
     if (msg.role === 'system') return true;
-    if (SYSTEM_INJECTION.some(re => re.test(c))) return true;
-    if (MEMORY_SCAFFOLDING.some(re => re.test(c))) return true;
+    const topp = toppRader(c);
+    if (SYSTEM_INJECTION.some(re => re.test(c) || topp.some(r => re.test(r)))) return true;
+    if (MEMORY_SCAFFOLDING.some(re => topp.some(r => re.test(r)))) return true;
     if (isMachinePayload(c)) return true;
     return false;
 }
