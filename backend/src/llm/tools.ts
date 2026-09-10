@@ -342,7 +342,7 @@ Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — 
             properties: {
                 steps: {
                     type: 'array',
-                    description: 'Stegen i ordning. Varje steg: ett skärmmål + say.',
+                    description: 'Stegen i ordning. FÖRSTA steget MÅSTE ha ett skärmmål (view, eller contact_query/pipeline_query/customer_query). Senare steg utan skärmmål stannar kvar på föregående skärm — använd det när du vill säga mer om samma vy.',
                     minItems: 1,
                     maxItems: 12,
                     items: {
@@ -1338,14 +1338,37 @@ async function handlePresentScreens(args: Record<string, unknown>): Promise<Tool
     if (raw.length > 12) return { success: false, error: 'Max 12 steg.' };
     const steps: Record<string, unknown>[] = [];
     const titles: string[] = [];
+    // Ett steg utan skärmmål betyder "säg mer om samma skärm" — en normal sak i
+    // en genomgång. Förr sa schemat att bara `say` krävdes medan validatorn
+    // krävde ett mål, så ett enda sådant steg fällde HELA rundturen och
+    // operatören fick ingenting alls. Nu ärver steget föregående skärm.
+    const MALFALT = ['view', 'contact_query', 'pipeline_query', 'customer_query'];
+    let forra: Record<string, unknown> | null = null;
+    let forraTitel = '';
     for (let i = 0; i < raw.length; i++) {
         const st = (raw[i] ?? {}) as Record<string, unknown>;
         const say = typeof st.say === 'string' ? st.say.trim() : '';
         if (!say) return { success: false, error: `Steg ${i + 1} saknar say.` };
+
+        const harMal = MALFALT.some(f => typeof st[f] === 'string' && (st[f] as string).trim());
+        if (!harMal && forra) {
+            steps.push({ ...forra, say });
+            titles.push(forraTitel);
+            continue;
+        }
+        if (!harMal) {
+            return {
+                success: false,
+                error: 'Steg 1 saknar skärmmål. Ange view (t.ex. "crm"), eller contact_query/pipeline_query/customer_query. Senare steg får utelämna målet och stannar då kvar på föregående skärm.',
+            };
+        }
+
         const r = await resolveNavigate(st);
         if ('error' in r) return { success: false, error: `Steg ${i + 1}: ${r.error}` };
-        steps.push({ ...r.event, say });
-        titles.push(String(r.data.customer ?? r.data.contact_name ?? r.data.pipeline ?? r.data.view));
+        forra = r.event as Record<string, unknown>;
+        forraTitel = String(r.data.customer ?? r.data.contact_name ?? r.data.pipeline ?? r.data.view);
+        steps.push({ ...forra, say });
+        titles.push(forraTitel);
     }
     emitSystemEvent('ui_action', { action: 'present', steps }, 'alex');
     return { success: true, data: { steps: steps.length, order: titles } };

@@ -279,6 +279,37 @@ describe('executeToolCall — dispatch & felhantering', () => {
         );
     });
 
+    /**
+     * Regression, 10 sep: schemat sa att bara `say` kravdes per steg, medan
+     * validatorn krävde ett skärmmål. Alex byggde en rundtur där steg 2 bara
+     * hade text — och HELA genomgången föll, mitt i en demo för en kollega.
+     * Ett steg utan mål ska stanna kvar på föregående skärm.
+     */
+    it('steg utan skärmmål ärver föregående skärm i stället för att fälla rundturen', async () => {
+        const res = await executeToolCall('present_screens', {
+            steps: [
+                { view: 'crm', say: 'Här är pipelinen.' },
+                { say: 'Och här ser du hur korten flyttas.' },
+                { view: 'leads', say: 'Leads kommer in här.' },
+            ],
+        });
+        expect(res.success).toBe(true);
+        expect(res.data).toMatchObject({ steps: 3 });
+        expect(h.emitSystemEvent).toHaveBeenCalledTimes(1);
+        const payload = h.emitSystemEvent.mock.calls[0][1] as { steps: Array<Record<string, unknown>> };
+        expect(payload.steps[1]).toMatchObject({ view: 'crm', say: 'Och här ser du hur korten flyttas.' });
+        expect(payload.steps[2]).toMatchObject({ view: 'leads' });
+    });
+
+    it('första steget MÅSTE ha ett skärmmål — det finns inget att ärva', async () => {
+        const res = await executeToolCall('present_screens', {
+            steps: [{ say: 'Välkommen!' }, { view: 'crm', say: 'Pipelinen.' }],
+        });
+        expect(res.success).toBe(false);
+        expect(res.error).toMatch(/Steg 1/);
+        expect(h.emitSystemEvent).not.toHaveBeenCalled();
+    });
+
     it('present_screens med okänd kund i steg 2 → fel med stegnummer, ingen händelse', async () => {
         const res = await executeToolCall('present_screens', {
             steps: [{ view: 'crm', say: 'a' }, { customer_query: 'Finns Inte', say: 'b' }],
