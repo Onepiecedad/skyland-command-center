@@ -22,14 +22,39 @@ export interface IntegrationHealth {
     checked_at: string;
 }
 
+/**
+ * Ett enda långsamt svar ska inte måla rött.
+ *
+ * 10 sep visade panelen "Calcom Nere — This operation was aborted" medan
+ * tjänsten svarade 200 på under en sekund vid manuell kontroll. Timeouten hade
+ * löst ut en gång, och en engångsträff blev ett larm som såg ut som ett avbrott.
+ * Nu: ett omförsök innan vi ger upp, och ett felmeddelande skrivet för en
+ * människa i stället för Nodes interna "This operation was aborted".
+ */
+export const TIMEOUT_TEXT = (ms: number) => `svarade inte inom ${Math.round(ms / 1000)} s (två försök)`;
+
 async function timedFetch(url: string, opts: RequestInit, ms = 5000): Promise<Response> {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), ms);
-    try {
-        return await fetch(url, { ...opts, signal: ctrl.signal });
-    } finally {
-        clearTimeout(t);
+    let sistaFel: unknown = null;
+    for (let forsok = 0; forsok < 2; forsok++) {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), ms);
+        try {
+            return await fetch(url, { ...opts, signal: ctrl.signal });
+        } catch (err) {
+            sistaFel = err;
+            const avbrutet = err instanceof Error
+                && (err.name === 'AbortError' || /abort/i.test(err.message));
+            // Bara timeouts är värda ett omförsök. DNS-fel och trasiga certifikat
+            // blir inte bättre av att göras om, och att dölja dem vore värre.
+            if (!avbrutet) throw err;
+        } finally {
+            clearTimeout(t);
+        }
     }
+    const fel = new Error(TIMEOUT_TEXT(ms));
+    fel.name = 'TimeoutError';
+    fel.cause = sistaFel;
+    throw fel;
 }
 
 function mk(name: string, configured: boolean, status: HealthStatus, http?: number, detail?: string): IntegrationHealth {
