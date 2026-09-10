@@ -10,6 +10,7 @@
  *     pipeline-flik) + PipelineBoard (öppnar kortet)
  *   - 'scc:open-customer' { customerId, tab }              → CustomerView
  *   - 'scc:select-pipeline' { pipelineId }                 → CrmView (byter flik)
+ *   - 'scc:open-deliverable' { id }                        → ArchiveView (öppnar rapporten)
  */
 
 import { connectEventStream } from './../api/system';
@@ -55,6 +56,8 @@ export interface UiNavigateData {
     customer_id?: string | null;
     customer_name?: string | null;
     customer_tab?: string | null;
+    /** Arkivet: öppna en färdig rapport direkt (utredningar Alex skrivit). */
+    deliverable_id?: string | null;
 }
 
 interface UiActionData extends UiNavigateData {
@@ -104,6 +107,11 @@ export function applyUiNavigate(data: UiNavigateData): void {
                 contactName: data.contact_name ?? null,
                 pipelineId: data.pipeline_id ?? null,
             },
+        }));
+    }
+    if (data.deliverable_id) {
+        window.dispatchEvent(new CustomEvent<{ id: string }>('scc:open-deliverable', {
+            detail: { id: data.deliverable_id },
         }));
     }
     if (data.customer_id) {

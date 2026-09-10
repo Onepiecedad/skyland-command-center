@@ -91,9 +91,11 @@ describe('delegate_task — uppdrag till huvud-Alex via claw-kön', () => {
         expect(h.state.insertPayload).toMatchObject({
             executor: 'claw:main',
             status: 'created',
-            title: 'Kör research på LOA Ink',
             input: { source: 'panel', uppdrag: 'Kör research på LOA Ink' },
         });
+        // Titeln ÄR agentens prompt och bär även kravet på en uppläsbar summary.
+        expect(String(h.state.insertPayload.title)).toContain('Kör research på LOA Ink');
+        expect(String(h.state.insertPayload.title)).toContain('summary');
         expect(h.dispatchTask).toHaveBeenCalledWith('task-1', 'panel');
     });
 
@@ -331,5 +333,33 @@ describe('formatToolResultForLLM', () => {
         expect(s).toMatch(/t-1/);
         expect(s).toMatch(/Ring kund/);
         expect(s).toMatch(/godkännande/i);
+    });
+});
+
+describe('bestall_utredning — rapport i arkivet, inte ett chattsvar', () => {
+    it('köar en claw:main-task märkt som utredning', async () => {
+        h.state.single = { data: { id: 'task-9' }, error: null };
+        const res = await executeToolCall('bestall_utredning', {
+            foretag: 'FF Byggservice, Göteborg',
+            fokus: 'deras konkurrenter',
+        });
+        expect(res.success).toBe(true);
+        expect(res.data).toMatchObject({ status: 'beställd', task_id: 'task-9' });
+        expect(h.state.insertPayload).toMatchObject({
+            executor: 'claw:main',
+            input: { source: 'panel', kind: 'utredning', foretag: 'FF Byggservice, Göteborg' },
+        });
+        const title = String(h.state.insertPayload.title);
+        expect(title).toContain('FF Byggservice');
+        expect(title).toContain('deras konkurrenter');
+        expect(title).toContain('UTREDNING');
+        expect(title).toContain('deliverable_id');
+        expect(title.length).toBeLessThanOrEqual(900);
+        expect(h.dispatchTask).toHaveBeenCalledWith('task-9', 'panel');
+    });
+
+    it('kräver ett företag', async () => {
+        const res = await executeToolCall('bestall_utredning', { foretag: '  ' });
+        expect(res.success).toBe(false);
     });
 });

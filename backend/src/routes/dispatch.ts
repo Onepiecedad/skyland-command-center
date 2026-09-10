@@ -241,6 +241,33 @@ router.post('/claw/task-result', async (req: Request, res: Response) => {
             if (input.source === 'panel') {
                 const { emitSystemEvent } = await import('./eventStream');
                 const rubrik = String(t?.title ?? 'Uppdraget').slice(0, 60);
+
+                // En beställd UTREDNING landar i arkivet, inte i chatten. Kom det
+                // tillbaka ett deliverable_id så är rapporten det egentliga svaret:
+                // byt skärm dit och öppna den, och säg bara en mening om det.
+                const dId = utredningsId(output);
+                if (success && input.kind === 'utredning' && dId) {
+                    const foretag = String(input.foretag ?? '').trim();
+                    const rad = sammanfattning(output)
+                        || `Utredningen${foretag ? ` av ${foretag}` : ''} är klar och ligger i arkivet.`;
+                    emitSystemEvent('ui_action', {
+                        action: 'navigate',
+                        view: 'archive',
+                        deliverable_id: dId,
+                    }, 'alex');
+                    emitSystemEvent('ui_action', {
+                        action: 'note',
+                        text: rad,
+                        speech: rad,
+                        speak: true,
+                        source: 'delegate',
+                    }, 'alex');
+                    return res.json({
+                        message: 'Task completed',
+                        task_id, run_id, status: 'completed',
+                    });
+                }
+
                 const svar = success
                     ? readableOutput(output, rubrik)
                     : (() => {
@@ -280,6 +307,37 @@ router.post('/claw/task-result', async (req: Request, res: Response) => {
  * är det som visas i tråden, `speech` det som läses upp. Saknas prosa görs
  * en läsbar sammanställning för ögat och en kort mening för örat.
  */
+
+/** deliverable_id ur agentens svar — objekt eller JSON i en sträng. */
+export function utredningsId(output: unknown): string | null {
+    const plocka = (o: unknown): string | null => {
+        if (!o || typeof o !== 'object') return null;
+        const v = (o as Record<string, unknown>).deliverable_id;
+        return typeof v === 'string' && v.trim() ? v.trim() : null;
+    };
+    const direkt = plocka(output);
+    if (direkt) return direkt;
+    if (typeof output === 'string') {
+        try { return plocka(JSON.parse(output)); } catch { return null; }
+    }
+    return null;
+}
+
+/** summary ur agentens svar, för örat. */
+export function sammanfattning(output: unknown): string | null {
+    const plocka = (o: unknown): string | null => {
+        if (!o || typeof o !== 'object') return null;
+        const v = (o as Record<string, unknown>).summary;
+        return typeof v === 'string' && v.trim() ? v.trim().slice(0, 900) : null;
+    };
+    const direkt = plocka(output);
+    if (direkt) return direkt;
+    if (typeof output === 'string') {
+        try { return plocka(JSON.parse(output)); } catch { return null; }
+    }
+    return null;
+}
+
 export function readableOutput(output: unknown, rubrik = 'Uppdraget'): { text: string; speech: string } {
     const klipp = (v: string, n = 3000) => (v.length > n ? v.slice(0, n) + '…' : v);
 

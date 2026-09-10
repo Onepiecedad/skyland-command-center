@@ -132,6 +132,19 @@ export default function ArchiveView() {
     }
   }, []);
 
+  // Alex kan peka på en färdig rapport: när en utredning är klar navigerar
+  // backenden hit och skickar med id:t, så rapporten står öppen när vyn byts.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id;
+      if (!id) return;
+      void load();
+      void openEntry(id);
+    };
+    window.addEventListener('scc:open-deliverable', onOpen as EventListener);
+    return () => window.removeEventListener('scc:open-deliverable', onOpen as EventListener);
+  }, [load, openEntry]);
+
   const selected = useMemo(
     () => entries.find((e) => e.id === selectedId),
     [entries, selectedId],

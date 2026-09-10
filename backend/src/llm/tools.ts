@@ -375,6 +375,18 @@ Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — 
         }
     },
     {
+        name: 'bestall_utredning',
+        description: `Beställer en FULLSTÄNDIG företagsutredning av Alex på VPS:en: webbresearch om företaget, dess konkurrenter, flaskhalsar och var Skyland gör nytta. Resultatet blir en skriven rapport som sparas i ARKIVET och som operatören kan läsa och visa för andra — inte ett chattsvar. Skärmen hoppar till arkivet och öppnar rapporten av sig själv när den är klar. Använd det här, inte delegate_task, när operatören ber om "en utredning", "en rapport om", "analysera företaget X", "kolla upp X och deras konkurrenter", eller vill ha något att visa upp. Tar flera minuter; säg att den är beställd och vad som händer när den är klar. Hitta ALDRIG på innehållet.`,
+        parameters: {
+            type: 'object',
+            properties: {
+                foretag: { type: 'string', description: 'Företaget som ska utredas, som operatören sa det. Ta med ort eller webbadress om den nämnts.' },
+                fokus: { type: 'string', description: 'Valfritt: vad operatören särskilt vill ha belyst ("deras konkurrenter i Göteborg", "varför de tappar bokningar", "om de passar Skyland Beauty").' }
+            },
+            required: ['foretag']
+        }
+    },
+    {
         name: 'report_capability_gap',
         description: 'Loggar att du INTE kunde göra det operatören bad om, för att verktyget saknas. Anropa det ALLTID i samma vända som du säger "det kan jag inte", "jag har inget sätt att", "det ligger utanför mina funktioner" — det är så luckorna i systemet blir synliga i stället för att upptäckas en i taget. Loggar bara; det hjälper inte operatören just nu, så säg fortfarande rakt ut att du inte kunde och föreslå närmaste väg (t.ex. WhatsApp-Alex eller ett manuellt steg). Använd INTE när något gick fel i ett verktyg du har — då är det ett fel, inte en lucka.',
         parameters: {
@@ -496,6 +508,8 @@ export async function executeToolCall(
                 return await handleGetSiteStats(args);
             case 'delegate_task':
                 return await handleDelegateTask(args);
+            case 'bestall_utredning':
+                return await handleBestallUtredning(args);
             case 'report_capability_gap':
                 return await handleReportGap(args);
             case 'get_credits': {
@@ -1531,6 +1545,67 @@ async function handleDelegateTask(args: Record<string, unknown>): Promise<ToolRe
             status: 'köad',
             task_id: task.id,
             info: 'Uppdraget ligger i kön och plockas upp av Alex på VPS:en inom ungefär 15 sekunder. Svaret dyker upp i panelen av sig självt när det är klart — säg att det är igång och hur du kommer tillbaka med svaret. Hitta ALDRIG på ett resultat.',
+        },
+    };
+}
+
+/**
+ * bestall_utredning — beställer en skriven rapport, inte ett chattsvar.
+ *
+ * Skillnaden mot delegate_task är vad som kommer ut. Ett delegerat uppdrag
+ * svarar i panelen och försvinner med samtalet. En utredning skrivs till
+ * arkivet (tabellen `deliverables`) och blir ett dokument som går att öppna,
+ * läsa och visa för någon annan i efterhand.
+ *
+ * Mallen för rapporten bor i scc-crm-skillen på VPS:en, under UTREDNING —
+ * inte här. `tasks.title` är agentens prompt och kapas vid 900 tecken, så en
+ * mall i klartext skulle ändå inte få plats, och den hör hemma hos den som
+ * ska följa den.
+ */
+async function handleBestallUtredning(args: Record<string, unknown>): Promise<ToolResult> {
+    const foretag = typeof args.foretag === 'string' ? args.foretag.trim() : '';
+    const fokus = typeof args.fokus === 'string' ? args.fokus.trim() : '';
+    if (!foretag) return { success: false, error: 'foretag krävs.' };
+
+    const uppdrag = [
+        `Gör en företagsutredning av: ${foretag}.`,
+        fokus ? `Operatören vill särskilt ha belyst: ${fokus}` : '',
+        'Följ avsnittet UTREDNING i scc-crm-skillen exakt: research, konkurrenter, flaskhalsar med (observed)/(verified), och vad Skyland konkret gör åt dem.',
+        'Spara rapporten i arkivet med `scc.py arkiv` och svara med JSON: {"deliverable_id": "<id från arkiv-kommandot>", "summary": "<högst fyra meningar på svenska, skrivna för att läsas upp högt>"}.',
+        'Hitta inget på. Skriv "okänt" där du inte har källa.',
+    ].filter(Boolean).join('\n');
+
+    const { data: task, error: taskErr } = await supabase
+        .from('tasks')
+        .insert({
+            customer_id: null,
+            title: uppdrag.slice(0, 900),
+            description: `Utredning: ${foretag}`,
+            executor: 'claw:main',
+            status: 'created',
+            priority: 'normal',
+            input: { source: 'panel', kind: 'utredning', foretag, fokus: fokus || null },
+        })
+        .select()
+        .single();
+
+    if (taskErr || !task) {
+        return { success: false, error: `Kunde inte köa utredningen: ${taskErr?.message ?? 'okänt fel'}` };
+    }
+
+    const { dispatchTask } = await import('../services/taskService');
+    const dispatch = await dispatchTask(task.id as string, 'panel');
+    if (!dispatch.success) {
+        return { success: false, error: `Utredningen köades inte: ${dispatch.error ?? 'okänt fel'}. Påstå ingenting om resultatet.` };
+    }
+
+    return {
+        success: true,
+        data: {
+            status: 'beställd',
+            task_id: task.id,
+            foretag,
+            info: 'Utredningen körs på VPS:en och tar några minuter. När den är klar sparas den i arkivet, skärmen hoppar dit och rapporten öppnas av sig själv. Säg det till operatören — kort — och gå vidare. Hitta ALDRIG på innehållet.',
         },
     };
 }
