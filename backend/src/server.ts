@@ -48,6 +48,7 @@ import agentMemoryRouter from './routes/agentMemory.js';
 import alexRoleFilesRouter from './routes/alexRoleFiles.js';
 import agentsOfficeRouter from './routes/agentsOffice.js';
 import deliverablesRouter from './routes/deliverables.js';
+import metaAdsRouter from './routes/metaAds.js';
 import automationsRouter from './routes/automations.js';
 import sequencesRouter from './routes/sequences.js';
 import emailInboundRouter from './routes/emailInbound.js';
@@ -304,6 +305,7 @@ class Server {
     this.app.use('/api/v1/alex', alexRoleFilesRouter);
     this.app.use('/api/v1/agents', agentsOfficeRouter);
     this.app.use('/api/v1/deliverables', deliverablesRouter);
+    this.app.use('/api/v1/meta-ads', metaAdsRouter);
     this.app.use('/api/v1/automations', automationsRouter);
     this.app.use('/api/v1/sequences', sequencesRouter);   // Sekvensmotor (SCC-42)
     this.app.use('/api/v1/integrations', integrationsRouter); // Integrations-hälsa (SCC-37)

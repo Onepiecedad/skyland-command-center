@@ -17,6 +17,7 @@ import {
     FileText,
     HandMetal as Handshake,
     Inbox,
+    Megaphone,
 } from 'lucide-react';
 import type { Customer } from '../api';
 import { fetchCustomers } from '../api';
@@ -42,18 +43,21 @@ const FILTER_CONFIG: Record<string, { icon: React.ReactNode; label: string }> = 
 };
 
 type ViewMode = 'cards' | '3d';
-type DetailTab = 'overview' | 'contact' | 'website' | 'agreements' | 'documents';
+type DetailTab = 'overview' | 'contact' | 'website' | 'ads' | 'agreements' | 'documents';
 
 const DETAIL_TABS: { key: DetailTab; icon: React.ReactNode; label: string }[] = [
     { key: 'overview', icon: <LayoutGrid size={14} />, label: 'Översikt' },
     { key: 'contact', icon: <Mail size={14} />, label: 'Kontakt' },
     // Visas bara för kunder som har en spårad sajt (SCC-51).
     { key: 'website', icon: <Globe size={14} />, label: 'Hemsida' },
+    // Visas bara för kunder med ett Meta-annonskonto i config (SCC-58).
+    { key: 'ads', icon: <Megaphone size={14} />, label: 'Annonser' },
     { key: 'agreements', icon: <Handshake size={14} />, label: 'Avtal' },
     { key: 'documents', icon: <FileText size={14} />, label: 'Dokument' },
 ];
 
 const WebsiteView = lazy(() => import('./WebsiteView'));
+const AdsView = lazy(() => import('./AdsView'));
 
 interface Props {
     onTaskCreated: () => void;
@@ -133,7 +137,9 @@ export function CustomerView({ onTaskCreated }: Props) {
             if (!d?.customerId) return;
             const c = customers.find(x => x.id === d.customerId);
             const wanted = DETAIL_TABS.some(t => t.key === d.tab) ? (d.tab as DetailTab) : 'overview';
-            const tab: DetailTab = wanted === 'website' && !c?.site_tenant_slug ? 'overview' : wanted;
+            const otillganglig = (wanted === 'website' && !c?.site_tenant_slug)
+                || (wanted === 'ads' && !c?.meta_ad_account_id);
+            const tab: DetailTab = otillganglig ? 'overview' : wanted;
             setSelectedCustomerId(d.customerId);
             setDetailOpen(true);
             setDetailTab(tab);
@@ -256,7 +262,10 @@ export function CustomerView({ onTaskCreated }: Props) {
 
                             {/* Tab Navigation */}
                             <div className="cv-detail-tabs">
-                                {DETAIL_TABS.filter(tab => tab.key !== 'website' || selectedCustomer?.site_tenant_slug).map(tab => (
+                                {DETAIL_TABS.filter(tab =>
+                                    (tab.key !== 'website' || selectedCustomer?.site_tenant_slug) &&
+                                    (tab.key !== 'ads' || selectedCustomer?.meta_ad_account_id)
+                                ).map(tab => (
                                     <button
                                         key={tab.key}
                                         className={`cv-detail-tab ${detailTab === tab.key ? 'active' : ''}`}
@@ -360,6 +369,19 @@ export function CustomerView({ onTaskCreated }: Props) {
                                         <div className="cv-detail-empty-tab">
                                             <Globe size={24} strokeWidth={1.5} />
                                             <p>Ingen sajt kopplad till kunden</p>
+                                        </div>
+                                    )
+                                )}
+
+                                {detailTab === 'ads' && (
+                                    selectedCustomer?.meta_ad_account_id ? (
+                                        <Suspense fallback={<div className="cv-detail-empty-tab"><p>Laddar annonsdata…</p></div>}>
+                                            <AdsView slug={selectedCustomer.slug} />
+                                        </Suspense>
+                                    ) : (
+                                        <div className="cv-detail-empty-tab">
+                                            <Megaphone size={24} strokeWidth={1.5} />
+                                            <p>Inget annonskonto kopplat till kunden</p>
                                         </div>
                                     )
                                 )}

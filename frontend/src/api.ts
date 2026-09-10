@@ -82,6 +82,8 @@ export interface Customer {
     last_activity: string | null;
     /** Tenant-slug för kundens egen webbspårning. Null = ingen sajt kopplad. */
     site_tenant_slug?: string | null;
+    /** act_… när kunden har ett Meta-annonskonto kopplat. Null = ingen annonsflik. */
+    meta_ad_account_id?: string | null;
 }
 
 export interface Activity {

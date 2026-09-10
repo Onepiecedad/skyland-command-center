@@ -375,6 +375,18 @@ Matchar flera kontakter eller kunder vägrar verktyget gissa och listar dem — 
         }
     },
     {
+        name: 'get_ads_stats',
+        description: `Annonssiffror för en kund som annonserar på Meta: spend, antal leads, kostnad per lead, per kampanj och per dygn — plus avstämningen mot CRM:t (hur många av Metas leads som faktiskt ligger i systemet). Använd vid "hur går annonserna för Gustav", "vad kostar ett lead", "hur mycket har vi bränt den här veckan", "tappar vi leads". Idag är Cold Experience (Gustav) enda kunden med annonskonto kopplat. Siffrorna uppdateras var sjätte timme; är de gamla säg det.`,
+        parameters: {
+            type: 'object',
+            properties: {
+                customer_query: { type: 'string', description: 'Kundens namn eller slug ("Gustav", "Cold Experience").' },
+                days: { type: 'number', description: 'Period i dagar, 1–90. Standard 7.' }
+            },
+            required: ['customer_query']
+        }
+    },
+    {
         name: 'bestall_utredning',
         description: `Beställer en FULLSTÄNDIG företagsutredning av Alex på VPS:en: webbresearch om företaget, dess konkurrenter, flaskhalsar och var Skyland gör nytta. Resultatet blir en skriven rapport som sparas i ARKIVET och som operatören kan läsa och visa för andra — inte ett chattsvar. Skärmen hoppar till arkivet och öppnar rapporten av sig själv när den är klar. Använd det här, inte delegate_task, när operatören ber om "en utredning", "en rapport om", "analysera företaget X", "kolla upp X och deras konkurrenter", eller vill ha något att visa upp. Tar flera minuter; säg att den är beställd och vad som händer när den är klar. Hitta ALDRIG på innehållet.`,
         parameters: {
@@ -510,6 +522,8 @@ export async function executeToolCall(
                 return await handleDelegateTask(args);
             case 'bestall_utredning':
                 return await handleBestallUtredning(args);
+            case 'get_ads_stats':
+                return await handleGetAdsStats(args);
             case 'report_capability_gap':
                 return await handleReportGap(args);
             case 'get_credits': {
@@ -1346,7 +1360,7 @@ async function resolveNavigate(args: Record<string, unknown>): Promise<NavigateR
     const customerTab = typeof args.customer_tab === 'string' && CUSTOMER_TABS.has(args.customer_tab) ? args.customer_tab : 'overview';
     let view = typeof args.view === 'string' && NAVIGATE_VIEWS.has(args.view) ? args.view : '';
 
-    let customer: { id: string; name: string; site_tenant_slug: string | null } | null = null;
+    let customer: { id: string; name: string; slug: string; site_tenant_slug: string | null } | null = null;
     let customerNote: string | null = null;
     let tab = customerTab;
     if (customerQuery) {
@@ -1467,19 +1481,19 @@ async function resolveNavigate(args: Record<string, unknown>): Promise<NavigateR
 const CUSTOMER_TABS = new Set(['overview', 'contact', 'website', 'agreements', 'documents']);
 
 /** Kundmatchning för navigate_ui: exakt namn/slug vinner, annars delsträng i namnet. */
-async function findCustomersForNavigate(query: string): Promise<{ id: string; name: string; site_tenant_slug: string | null }[]> {
+async function findCustomersForNavigate(query: string): Promise<{ id: string; name: string; slug: string; site_tenant_slug: string | null }[]> {
     const q = query.replace(/[%_]/g, '').trim();
     if (!q) return [];
-    const sel = 'id, name, site_tenant_slug';
+    const sel = 'id, name, slug, site_tenant_slug';
     const { data: exact } = await supabase.from('customer_status').select(sel)
         .or(`name.ilike.${q},slug.ilike.${q.toLowerCase().replace(/\s+/g, '-')}`).limit(2);
-    if (exact && exact.length > 0) return exact.slice(0, 1) as { id: string; name: string; site_tenant_slug: string | null }[];
+    if (exact && exact.length > 0) return exact.slice(0, 1) as { id: string; name: string; slug: string; site_tenant_slug: string | null }[];
     const { data: partial } = await supabase.from('customer_status').select(sel).ilike('name', `%${q}%`).limit(6);
-    if (partial && partial.length > 0) return partial as { id: string; name: string; site_tenant_slug: string | null }[];
+    if (partial && partial.length > 0) return partial as { id: string; name: string; slug: string; site_tenant_slug: string | null }[];
     const firstWord = q.split(/\s+/)[0];
     if (firstWord.length < 3) return [];
     const { data: fuzzy } = await supabase.from('customer_status').select(sel).ilike('name', `%${firstWord}%`).limit(6);
-    return (fuzzy ?? []) as { id: string; name: string; site_tenant_slug: string | null }[];
+    return (fuzzy ?? []) as { id: string; name: string; slug: string; site_tenant_slug: string | null }[];
 }
 
 /**
@@ -1547,6 +1561,28 @@ async function handleDelegateTask(args: Record<string, unknown>): Promise<ToolRe
             info: 'Uppdraget ligger i kön och plockas upp av Alex på VPS:en inom ungefär 15 sekunder. Svaret dyker upp i panelen av sig självt när det är klart — säg att det är igång och hur du kommer tillbaka med svaret. Hitta ALDRIG på ett resultat.',
         },
     };
+}
+
+/**
+ * get_ads_stats — annonssiffrorna, med avstämningen mot CRM:t.
+ * Läsning; ändrar ingenting. Datan kommer från meta_ads_daily, som VPS:en
+ * fyller på var sjätte timme (tokenet bor där, inte på Render).
+ */
+async function handleGetAdsStats(args: Record<string, unknown>): Promise<ToolResult> {
+    const q = typeof args.customer_query === 'string' ? args.customer_query.trim() : '';
+    if (!q) return { success: false, error: 'customer_query krävs.' };
+    const days = Math.min(Math.max(Number(args.days) || 7, 1), 90);
+
+    const found = await findCustomersForNavigate(q);
+    if (found.length === 0) return { success: false, error: `Hittade ingen kund som matchar "${q}".` };
+    if (found.length > 1) {
+        return { success: false, error: `Flera kunder matchar "${q}": ${found.map(c => c.name).join(', ')}. Fråga vilken som menas.` };
+    }
+
+    const { adsSummary } = await import('../routes/metaAds');
+    const svar = await adsSummary(found[0].slug, days);
+    if ('error' in svar) return { success: false, error: svar.error };
+    return { success: true, data: svar };
 }
 
 /**

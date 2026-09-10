@@ -44,6 +44,7 @@ import pipelinesRouter from './routes/pipelines';
 import sequencesRouter from './routes/sequences';
 import mergeRouter from './routes/merge';
 import attributionRouter from './routes/attribution';
+import metaAdsRouter from './routes/metaAds';
 
 // --- Middleware ---
 import { authMiddleware } from './middleware/auth';
@@ -110,6 +111,7 @@ app.use('/api/v1/pipelines', pipelinesRouter);  // GET /pipelines, GET /pipeline
 app.use('/api/v1/sequences', sequencesRouter);   // GET /sequences
 app.use('/api/v1', mergeRouter);                  // POST /contacts merge
 app.use('/api/v1', attributionRouter);           // GET /contacts/:id/timeline
+app.use('/api/v1/meta-ads', metaAdsRouter);       // POST /sync (VPS), GET / (panelen)
 
 // ============================================================================
 // Reaper Timer — timeouts stuck running task_runs
