@@ -44,6 +44,13 @@ function timeAgo(iso: string | null): string {
     return `${Math.floor(hours / 24)}d sedan`;
 }
 
+interface Svar {
+    ok?: boolean;
+    queued?: boolean;
+    meddelande?: string;
+    error?: unknown;
+}
+
 export function WorkflowHealth() {
     const [workflows, setWorkflows] = useState<Workflow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -58,13 +65,32 @@ export function WorkflowHealth() {
         return `HTTP ${status}`;
     };
 
+    /**
+     * Backenden pa Render kan inte na gatewayn — knappen skriver darfor ett
+     * kommando i kon som VPS:en dranerar varje minut, och svarar 202. Det ar
+     * varken ett fel eller ett "klart": ljug inte om nagot av det. Vi visar
+     * kotexten som backenden skickar och laser om listan nar VPS:en hunnit.
+     */
+    const kvittens = (d: Svar, status: number, klartText: string): string => {
+        if (!d.ok) return `Fel: ${errText(d, status)}`;
+        if (d.queued) return d.meddelande || 'Köad — körs inom en minut.';
+        return klartText;
+    };
+
+    const efterKö = useCallback(() => {
+        // Kön dräneras varje minut; två omläsningar täcker glappet.
+        setTimeout(() => { void fetchWorkflows(); }, 35000);
+        setTimeout(() => { void fetchWorkflows(); }, 75000);
+    }, []);
+
     const runJob = useCallback(async (id: string) => {
         setActionMsg((m) => ({ ...m, [id]: 'Startar…' }));
         try {
             const r = await fetch(`${API_URL}/api/v1/automations/${encodeURIComponent(id)}/run`, { method: 'POST' });
-            let d: { ok?: boolean; error?: unknown } = {};
+            let d: Svar = {};
             try { d = await r.json(); } catch { /* non-JSON */ }
-            setActionMsg((m) => ({ ...m, [id]: d.ok ? '✓ Startad (kör i bakgrunden)' : `Fel: ${errText(d, r.status)}` }));
+            setActionMsg((m) => ({ ...m, [id]: kvittens(d, r.status, '✓ Startad (kör i bakgrunden)') }));
+            if (d.queued) efterKö();
         } catch {
             setActionMsg((m) => ({ ...m, [id]: 'Fel: kunde inte nå servern (kör backend?)' }));
         }
@@ -77,9 +103,10 @@ export function WorkflowHealth() {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ enabled: enable }),
             });
-            let d: { ok?: boolean; error?: unknown } = {};
+            let d: Svar = {};
             try { d = await r.json(); } catch { /* non-JSON */ }
-            setActionMsg((m) => ({ ...m, [id]: d.ok ? (enable ? '✓ Påslaget' : '✓ Avstängt') : `Fel: ${errText(d, r.status)}` }));
+            setActionMsg((m) => ({ ...m, [id]: kvittens(d, r.status, enable ? '✓ Påslaget' : '✓ Avstängt') }));
+            if (d.queued) efterKö();
         } catch {
             setActionMsg((m) => ({ ...m, [id]: 'Fel: kunde inte nå servern (kör backend?)' }));
         }

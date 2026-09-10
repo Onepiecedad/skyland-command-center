@@ -189,9 +189,114 @@ router.post('/sync', async (req: Request, res: Response) => {
   return res.json({ ok: true, synced: jobs.length });
 });
 
+// ── Claw-kön: knappar som fungerar trots att gatewayn är oåtkomlig ─────────
+//
+// Render kan varken nå gatewayns loopback-port eller köra `openclaw`-CLI:t.
+// Så en knapptryckning skriver en rad i `gateway_commands`; VPS:en dränerar
+// kön varje minut, kör kommandot lokalt och rapporterar tillbaka. Samma
+// riktning som all annan integration mot gatewayn: den som har datan pushar.
+
+type KommandoTyp = 'run' | 'enable' | 'disable';
+
+async function jobbNamn(jobId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('gateway_cron_jobs')
+    .select('name')
+    .eq('job_id', jobId)
+    .maybeSingle();
+  return (data?.name as string | undefined) ?? null;
+}
+
+async function köa(
+  kind: KommandoTyp,
+  jobId: string,
+  requestedBy: string | null,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const namn = await jobbNamn(jobId);
+  if (namn === null) {
+    return { status: 404, body: { ok: false, error: 'jobbet finns inte i speglingen' } };
+  }
+  const { data, error } = await supabase
+    .from('gateway_commands')
+    .insert({ kind, job_id: jobId, job_name: namn, requested_by: requestedBy })
+    .select('id')
+    .single();
+
+  if (error) {
+    // Unikt index: ett väntande kommando per (kind, job_id). Att köa två
+    // gånger är inte ett fel — operatören ska få veta att det redan ligger.
+    if (/duplicate key|unique/i.test(error.message)) {
+      return {
+        status: 202,
+        body: { ok: true, queued: true, redan: true, error: undefined,
+          meddelande: 'Ligger redan i kön — körs inom en minut.' },
+      };
+    }
+    return { status: 500, body: { ok: false, error: error.message } };
+  }
+  return {
+    status: 202,
+    body: { ok: true, queued: true, commandId: data?.id,
+      meddelande: 'Köad — VPS:en plockar upp den inom en minut.' },
+  };
+}
+
+// GET /api/v1/automations/commands/pending — VPS:en hämtar och claimar kön.
+router.get('/commands/pending', async (_req: Request, res: Response) => {
+  const { data, error } = await supabase
+    .from('gateway_commands')
+    .select('id, kind, job_id, job_name, requested_at')
+    .eq('status', 'pending')
+    .order('requested_at')
+    .limit(20);
+  if (error) return res.status(500).json({ error: error.message });
+
+  const ids = (data ?? []).map((r) => r.id);
+  if (ids.length > 0) {
+    const { error: claimErr } = await supabase
+      .from('gateway_commands')
+      .update({ status: 'claimed', claimed_at: new Date().toISOString() })
+      .in('id', ids);
+    if (claimErr) return res.status(500).json({ error: claimErr.message });
+  }
+  return res.json({ commands: data ?? [] });
+});
+
+// POST /api/v1/automations/commands/:id/result  { ok, result?, error? }
+const resultSchema = z.object({
+  ok: z.boolean(),
+  result: z.string().max(2000).nullish(),
+  error: z.string().max(2000).nullish(),
+});
+
+router.post('/commands/:id/result', async (req: Request, res: Response) => {
+  const parsed = resultSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: 'ogiltig payload', detaljer: parsed.error.flatten() });
+  }
+  const { ok, result, error } = parsed.data;
+  const { error: uppErr } = await supabase
+    .from('gateway_commands')
+    .update({
+      status: ok ? 'done' : 'failed',
+      finished_at: new Date().toISOString(),
+      result: result ?? null,
+      error: error ?? null,
+    })
+    .eq('id', req.params.id);
+  if (uppErr) return res.status(500).json({ error: uppErr.message });
+  return res.json({ ok: true });
+});
+
 // ── Actions ────────────────────────────────────────────────────────────────
 
 const GATEWAY = process.env.CLAWDBOT_GATEWAY_URL || 'http://127.0.0.1:18789';
+
+// Vem tryckte? Sessionscookien sätter req.user i authMiddleware; annars token.
+function operator(req: Request): string | null {
+  const u = (req as Request & { user?: { email?: string } }).user;
+  return u?.email ?? 'scc';
+}
 
 function hooksToken(): string {
   try {
@@ -219,12 +324,9 @@ function jobPayload(id: string): { agentId: string; message: string } | null {
 router.post('/:id/run', async (req: Request, res: Response) => {
   try {
     if (!fs.existsSync(DB)) {
-      // Backenden kör på Render; gatewayn finns bara på VPS:en. Att svara 404
-      // hade sett ut som "jobbet finns inte", vilket är fel diagnos.
-      return res.status(501).json({
-        ok: false,
-        error: 'Kan inte köra jobbet härifrån — gatewayn nås bara från VPS:en. Kör `openclaw cron run <id>` där, eller be Alex göra det.',
-      });
+      // Backenden kör på Render; gatewayn finns bara på VPS:en. Köa i stället.
+      const svar = await köa('run', req.params.id, operator(req));
+      return res.status(svar.status).json(svar.body);
     }
     const job = jobPayload(req.params.id);
     if (!job) return res.status(404).json({ ok: false, error: 'jobb hittades inte' });
@@ -248,13 +350,11 @@ router.post('/:id/run', async (req: Request, res: Response) => {
 // POST /api/v1/automations/:id/toggle  { enabled: boolean }
 // Enable/disable via the official `openclaw cron` CLI (it talks to the gateway
 // correctly — no risky direct DB writes). Best-effort: reports CLI errors back.
-router.post('/:id/toggle', (req: Request, res: Response) => {
+router.post('/:id/toggle', async (req: Request, res: Response) => {
   const enable = !!req.body?.enabled;
   if (!fs.existsSync(DB)) {
-    return res.status(501).json({
-      ok: false,
-      error: 'Kan inte slå av/på härifrån — openclaw-CLI:t finns bara på VPS:en. Kör `openclaw cron ' + (enable ? 'enable' : 'disable') + ' <id>` där.',
-    });
+    const svar = await köa(enable ? 'enable' : 'disable', req.params.id, operator(req));
+    return res.status(svar.status).json(svar.body);
   }
   try {
     const out = execFileSync('openclaw', ['cron', enable ? 'enable' : 'disable', req.params.id],
