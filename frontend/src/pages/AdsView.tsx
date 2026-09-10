@@ -20,8 +20,8 @@ interface AdsData {
     leads: number;
     cost_per_lead: number | null;
     currency: string;
-    leads_i_crm: number;
-    tapp: number;
+    leads_i_crm: number | null;
+    tapp: number | null;
     campaigns: Array<{ campaign_name: string | null; spend: number; leads: number; cost_per_lead: number | null }>;
     daily: Array<{ date: string; spend: number; leads: number }>;
     last_fetched_at: string | null;
@@ -127,22 +127,34 @@ export default function AdsView({ slug, adsManagerUrl }: { slug: string; adsMana
                 {kort('Klick', String(data.clicks))}
             </div>
 
-            {/* Avstämningen — hela poängen med vyn. */}
-            <div style={{
-                padding: '12px 14px', borderRadius: 12, fontSize: 13,
-                border: '1px solid rgba(255,255,255,' + (data.tapp !== 0 ? '0.20' : '0.08') + ')',
-                background: data.tapp !== 0 ? 'rgba(251,191,36,0.10)' : 'rgba(255,255,255,0.03)',
-                color: data.tapp !== 0 ? '#fcd34d' : 'rgba(255,255,255,0.6)',
-                display: 'flex', gap: 10, alignItems: 'flex-start',
-            }}>
-                {data.tapp !== 0 && <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />}
-                <div>
-                    Meta räknar <strong>{data.leads}</strong> leads. CRM:t har <strong>{data.leads_i_crm}</strong>.
-                    {data.tapp > 0 && ` ${data.tapp} har inte kommit fram — kontrollera inflödet innan du drar slutsatser om kampanjen.`}
-                    {data.tapp < 0 && ` CRM:t har ${-data.tapp} fler, vilket brukar betyda leads från andra källor i samma period.`}
-                    {data.tapp === 0 && ' Allt kommer fram.'}
+            {/* Avstämningen — hela poängen med vyn, när den går att göra. */}
+            {data.tapp === null ? (
+                <div style={{
+                    padding: '12px 14px', borderRadius: 12, fontSize: 13,
+                    border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)',
+                    color: 'rgba(255,255,255,0.5)',
+                }}>
+                    Ingen avstämning mot CRM:t — kundens leads landar inte i systemet.
+                    Meta räknar <strong>{data.leads}</strong> leads; hur många av dem som
+                    blev något vet bara kunden.
                 </div>
-            </div>
+            ) : (
+                <div style={{
+                    padding: '12px 14px', borderRadius: 12, fontSize: 13,
+                    border: '1px solid rgba(255,255,255,' + (data.tapp > 0 ? '0.20' : '0.08') + ')',
+                    background: data.tapp > 0 ? 'rgba(251,191,36,0.10)' : 'rgba(255,255,255,0.03)',
+                    color: data.tapp > 0 ? '#fcd34d' : 'rgba(255,255,255,0.6)',
+                    display: 'flex', gap: 10, alignItems: 'flex-start',
+                }}>
+                    {data.tapp > 0 && <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />}
+                    <div>
+                        Meta räknar <strong>{data.leads}</strong> leads. CRM:t har <strong>{data.leads_i_crm}</strong>.
+                        {data.tapp > 0 && ` ${data.tapp} har inte kommit fram — kontrollera inflödet innan du drar slutsatser om kampanjen.`}
+                        {data.tapp < 0 && ` CRM:t har ${-data.tapp} fler, vilket brukar betyda leads från andra källor i samma period.`}
+                        {data.tapp === 0 && ' Allt kommer fram.'}
+                    </div>
+                </div>
+            )}
 
             {data.campaigns.length > 0 && (
                 <div>

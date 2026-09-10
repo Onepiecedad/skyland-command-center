@@ -39,3 +39,23 @@ describe('meta-ads: kostnad per lead', () => {
         expect(kostnadPerLead(0, 0)).toBeNull();
     });
 });
+
+/**
+ * Regression, 10 sep: forsta versionen raknade alltid i ce_leads utan
+ * kundfilter. Nasta kund hade da fatt Cold Experiences leads jamforda mot sin
+ * egen spend — en pahittad siffra som ser ut som ett larm. Utan konfigurerad
+ * mottagare ska avstamningen vara null, inte noll.
+ */
+function avstamning(metaLeads: number, crmLeads: number | null): number | null {
+    return crmLeads === null ? null : metaLeads - crmLeads;
+}
+
+describe('meta-ads: kunder utan lead-mottagare', () => {
+    it('ger null i stället för noll när avstämning saknas', () => {
+        expect(avstamning(63, null)).toBeNull();
+    });
+
+    it('noll betyder fortfarande "allt kom fram", inte "ingen data"', () => {
+        expect(avstamning(63, 63)).toBe(0);
+    });
+});

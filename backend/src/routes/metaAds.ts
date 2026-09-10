@@ -83,10 +83,14 @@ export interface AdsSummary {
     leads: number;
     cost_per_lead: number | null;
     currency: string;
-    /** Leads i CRM:t under samma period — det som faktiskt kom fram. */
-    leads_i_crm: number;
-    /** Meta minus CRM. Skilt från noll = något tappas på vägen in. */
-    tapp: number;
+    /**
+     * Leads i CRM:t under samma period. null = kunden har ingen känd
+     * lead-mottagare i systemet, och då finns ingenting att stämma av mot.
+     * Att visa en nolla där vore en lögn som ser ut som ett larm.
+     */
+    leads_i_crm: number | null;
+    /** Meta minus CRM. null när avstämning inte är möjlig. */
+    tapp: number | null;
     campaigns: Array<{ campaign_name: string | null; spend: number; leads: number; cost_per_lead: number | null }>;
     daily: Array<{ date: string; spend: number; leads: number }>;
     last_fetched_at: string | null;
@@ -96,8 +100,16 @@ export interface AdsSummary {
 export async function adsSummary(slug: string, days: number): Promise<AdsSummary | { error: string }> {
     const d = Math.min(Math.max(days, 1), 90);
     const { data: kund } = await supabase
-        .from('customers').select('id, name').eq('slug', slug).maybeSingle();
+        .from('customers').select('id, name, config').eq('slug', slug).maybeSingle();
     if (!kund) return { error: `Okänd kund "${slug}".` };
+
+    // Var landar kundens leads? Cold Experience har ce_leads; andra kunder kan
+    // sakna mottagare helt (klubben ringer leadsen direkt i Metas Leadcenter).
+    // Utan explicit konfiguration stämmer vi inte av — förr räknade koden alltid
+    // i ce_leads utan kundfilter, vilket hade gett nästa kund en påhittad siffra.
+    const metaCfg = ((kund.config ?? {}) as Record<string, unknown>).meta as
+        Record<string, unknown> | undefined;
+    const mottagare = typeof metaCfg?.lead_sink === 'string' ? metaCfg.lead_sink : null;
 
     const sedan = new Date(Date.now() - d * 86400_000).toISOString().slice(0, 10);
     const { data, error } = await supabase
@@ -129,12 +141,23 @@ export async function adsSummary(slug: string, days: number): Promise<AdsSummary
     }
 
     // Avstämningen: vad Meta räknade mot vad som faktiskt ligger i CRM:t.
-    const { count } = await supabase
-        .from('ce_leads')
-        .select('id', { count: 'exact', head: true })
-        .eq('source', 'lead_ads')
-        .gte('created_at', `${sedan}T00:00:00Z`);
-    const leadsICrm = count ?? 0;
+    // Bara för kunder där vi VET var leadsen landar.
+    let leadsICrm: number | null = null;
+    if (mottagare === 'ce_leads') {
+        const { count } = await supabase
+            .from('ce_leads')
+            .select('id', { count: 'exact', head: true })
+            .eq('source', 'lead_ads')
+            .gte('created_at', `${sedan}T00:00:00Z`);
+        leadsICrm = count ?? 0;
+    } else if (mottagare === 'contacts') {
+        const { count } = await supabase
+            .from('contacts')
+            .select('id', { count: 'exact', head: true })
+            .eq('customer_id', kund.id)
+            .gte('created_at', `${sedan}T00:00:00Z`);
+        leadsICrm = count ?? 0;
+    }
 
     const rundaKr = (v: number) => Math.round(v * 100) / 100;
 
@@ -148,7 +171,7 @@ export async function adsSummary(slug: string, days: number): Promise<AdsSummary
         cost_per_lead: leads > 0 ? rundaKr(spend / leads) : null,
         currency: String(rader[0]?.currency ?? 'SEK'),
         leads_i_crm: leadsICrm,
-        tapp: leads - leadsICrm,
+        tapp: leadsICrm === null ? null : leads - leadsICrm,
         campaigns: [...perKampanj.entries()]
             .map(([campaign_name, v]) => ({
                 campaign_name,
