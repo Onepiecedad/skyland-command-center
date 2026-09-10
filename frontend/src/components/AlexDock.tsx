@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CollapsibleMarkdown } from './chat/CollapsibleMarkdown';
-import { Mic, X, ArrowUp, Square } from 'lucide-react';
+import { Mic, X, ArrowUp, Square, Minus } from 'lucide-react';
 import { API_BASE, fetchWithAuth } from '../api';
 import { useWalkieTalkie, TALK_LABEL } from '../hooks/useWalkieTalkie';
 import { presenter, type PresenterState, type PresentStep } from '../voice/presenter';
@@ -38,6 +38,9 @@ const SUGGESTIONS = [
 
 export function AlexDock() {
     const [open, setOpen] = useState(false);
+    // Minimerat = panelen krymper till en rad. Komponenten är kvar monterad,
+    // så strömmande svar och röst fortsätter medan skärmen är fri.
+    const [minimized, setMinimized] = useState(false);
     const [messages, setMessages] = useState<ChatMsg[]>([]);
     const [input, setInput] = useState('');
     const [busy, setBusy] = useState(false);
@@ -48,7 +51,7 @@ export function AlexDock() {
 
     // Öppnas från Alex-knappen i navigeringsklustret (scc:open-alex)
     useEffect(() => {
-        const onOpenAlex = () => setOpen(true);
+        const onOpenAlex = () => { setMinimized(false); setOpen(true); };
         window.addEventListener('scc:open-alex', onOpenAlex);
         return () => window.removeEventListener('scc:open-alex', onOpenAlex);
     }, []);
@@ -58,7 +61,7 @@ export function AlexDock() {
         const onKey = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
                 e.preventDefault();
-                setOpen((o) => !o);
+                setOpen((o) => { if (o) setMinimized(false); return !o; });
             } else if (e.key === 'Escape') {
                 presenter.stop();
                 speechQueue.stop();
@@ -286,27 +289,53 @@ export function AlexDock() {
                 {open && (
                     <motion.div
                         key="panel"
-                        className="alexdock-panel"
+                        className={`alexdock-panel${minimized ? ' alexdock-panel--min' : ''}`}
                         initial={{ opacity: 0, y: 24, scale: 0.97 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 24, scale: 0.97 }}
                         transition={{ type: 'spring', stiffness: 340, damping: 30 }}
                     >
                         {/* Header */}
-                        <div className="alexdock-header">
+                        <div
+                            className="alexdock-header"
+                            onClick={() => { if (minimized) setMinimized(false); }}
+                            style={minimized ? { cursor: 'pointer', borderBottom: 'none' } : undefined}
+                        >
                             <div className="alexdock-header-title">
                                 <span className="alexdock-status-dot" />
                                 <span>Alex</span>
-                                <span className="alexdock-header-sub">server-läge · full CRM-åtkomst</span>
+                                <span className="alexdock-header-sub">
+                                    {!minimized
+                                        ? 'server-läge · full CRM-åtkomst'
+                                        : talk.state === 'recording'
+                                            ? 'lyssnar…'
+                                            : queueSpeaking || talk.state === 'speaking'
+                                                ? 'pratar…'
+                                                : busy || talking
+                                                    ? 'jobbar…'
+                                                    : 'minimerad · klicka för att öppna'}
+                                </span>
                             </div>
                             <div className="alexdock-header-actions">
-                                <button className="alexdock-icon-btn" onClick={() => setOpen(false)} title="Stäng (Esc)">
+                                <button
+                                    className="alexdock-icon-btn"
+                                    onClick={(e) => { e.stopPropagation(); setMinimized((m) => !m); }}
+                                    title={minimized ? 'Visa chatten igen' : 'Minimera (Alex fortsätter prata)'}
+                                >
+                                    {minimized ? <Mic size={15} /> : <Minus size={15} />}
+                                </button>
+                                <button
+                                    className="alexdock-icon-btn"
+                                    onClick={(e) => { e.stopPropagation(); setOpen(false); }}
+                                    title="Stäng (Esc)"
+                                >
                                     <X size={15} />
                                 </button>
                             </div>
                         </div>
 
-                        {/* Innehåll */}
+                        {/* Innehåll — dolt när panelen är minimerad */}
+                        {!minimized && (
                         <>
                                 <div ref={scrollRef} className="alexdock-messages">
                                     {messages.length === 0 && !busy && (
@@ -384,6 +413,7 @@ export function AlexDock() {
                                     </button>
                                 </form>
                         </>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>

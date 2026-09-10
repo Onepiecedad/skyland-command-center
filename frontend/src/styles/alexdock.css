@@ -402,3 +402,38 @@ button.alexdock-mic--speaking {
         bottom: 16px;
     }
 }
+
+/* ── Minimerat läge ──
+   Panelen krymper till en rad så vyn bakom syns. Komponenten är kvar
+   monterad: strömmande svar, röst och mellanslags-talknappen fortsätter. */
+
+.alexdock-panel--min {
+    height: auto;
+    width: min(300px, calc(100vw - 32px));
+    border-radius: 14px;
+}
+
+.alexdock-panel--min .alexdock-header {
+    padding: 10px 10px 10px 14px;
+}
+
+.alexdock-panel--min .alexdock-header-title {
+    font-size: 13px;
+    min-width: 0;
+}
+
+.alexdock-panel--min .alexdock-header-sub {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 700px) {
+    .alexdock-panel--min {
+        height: auto !important;
+        width: auto !important;
+        right: 12px !important;
+        bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+        border-radius: 14px !important;
+    }
+}
