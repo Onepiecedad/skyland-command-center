@@ -2,7 +2,7 @@
 
 > **Den enda sanningen om driften.** Uppdateras i samma commit som ändrar något.
 > Handover-filerna under `docs/HANDOVER_*.md` är historik, inte nuläge.
-> Senast verifierad: **2026-09-08** (Claude + Joakim: Cold Experience-mejlsekvensen, dagsbudget per avsändardomän).
+> Senast verifierad: **2026-09-12** (Claude + Joakim: bumpen skrevs aldrig och motorn gick vidare till avslutet; OPENCLAW_HOME-krocken som fällde nattens research tre nätter).
 > Maskinell koll: `SCC_API_TOKEN=… python3 scripts/drift_check.py` jämför prod (`/health`,
 > `/api/v1/integrations/health`, `/api/v1/integrations/flags`) mot tabellen nedan. Exit 1 = drift.
 
@@ -138,6 +138,22 @@ omstartad. **Kolla `store_key` först om jobb slutar fyra efter en flytt.**
 (avstängd, `error`). Kundvakt var röd 10 sep men står `ok` 12 sep. Nattliga fyllningens fel
 10 sep (`KeyError: 'hooks'`, 8/8 research) är fixat i `env.py` (`cfg_require`, tre omförsök)
 och omkörd till 7/8; är den röd igen 13 sep är det något annat.
+
+**`OPENCLAW_HOME` betydde två saker och fällde researchen tre nätter (12 sep).**
+`Skyland nattlig påfyllnad` rapporterade `research: 8 misslyckade, väggtid 0 min`
+natten 10, 11 och 12 sep. Varje kort dog direkt på
+`FEL: hooks.token saknas i /home/alex/openclaw.json`. Raden
+`OPENCLAW_HOME=/home/alex` lades i `~/.openclaw/.env` den 8 sep och betyder där
+**hemkatalogen** (för `{{OPENCLAW_HOME}}` i openclaw.json-mallen). I `env.py` har
+samma namn alltid betytt **`.openclaw`-katalogen**, och `daily_fill.py` skjuter in
+hela `.env` i subprocessernas miljö — så `prospect_batch` letade efter
+`/home/alex/openclaw.json`. Manuella omkörningar lyckades, eftersom ett vanligt
+ssh-skal inte har raden satt; det är därför felet såg ut att komma och gå.
+`env.py` tolkar nu värdet som hemkatalog när `openclaw.json` inte ligger direkt i
+den men i dess `.openclaw/`. Discover, mejl, doktrin och enroll var opåverkade,
+så jobbet såg halvfriskt ut medan kön fylldes med kort utan DM.
+**Preflight fångar det inte** — den kör utan raden i miljön, och en kontroll som
+inte kör i jobbets miljö kan inte se jobbets fel.
 
 **Larm vid tystnad:** **alla aktiva jobb** har `failure-alert` på WhatsApp (5 sep
 fick Kundvakt och nattjobbet sina). Det var frånvaron av det som lät
@@ -890,6 +906,67 @@ kund hade fått Cold Experiences leads ställda mot sin egen spend. Regressionst
 Cold Experience 1–10 sep: 1 041,68 kr, 77 leads, 13,53 kr/lead. Alex: `get_ads_stats`.
 **GKMK blockerad:** deras portfölj saknar app → ingen systemanvändare → ingen token. Kräver
 beslut om Skyland-agenturportfölj med partneråtkomst.
+
+## Bumpen skrevs aldrig, och motorn gick vidare till avslutet (12 sep)
+
+Autosend-beslutet 5 sep vilar på att bumpen ligger i manuell kö. **Den låg
+aldrig där, för den skapades aldrig.** Steg 4 läser `custom.dm_bump`, som bara
+`bump_pipeline.py` skriver, och det är ett handverktyg som nattjobbet inte
+körde. Saknad text gav `sequence.step.skipped: no_dm` och motorn avancerade —
+förbi bumpen, genom wait och branch, fram till avslutsmejlet.
+
+**28 kort** inskrivna 8–10 sep passerade så bumpen och stod 13–15 sep på tur att
+få *"Jag släpper det här nu"* sju dagar efter öppnaren, utan att någon
+påminnelse gått. Inget av dem nådde Skuggvecka; det syntes bara som 28
+varningsrader i aktivitetsloggen. De sex avsluten som redan låg i kön är
+korrekta — de korten (29 aug) fick sin bump för hand.
+
+**Att lära av formen på felet:** ett steg som *hoppar* när dess indata saknas
+är rätt för en valfri del (ingen followup skriven) och fel för en obligatorisk
+(bumpen kommer alltid senare än öppnaren). Skillnaden syns inte i koden, bara i
+doktrinen. Skipraden fanns och var korrekt — men en varning som ingen läser är
+samma sak som tystnad.
+
+### Tre ändringar som hör ihop
+
+| Var | Vad |
+|---|---|
+| `services/sequenceRunner.ts` | `part=bump` utan text **väntar** (defer 6 h, `context.bump_wait_since`) i stället för att hoppa. Efter tio dygn utan text avslutas enrollmenten med `exit_reason='no_bump'` — ett kort får aldrig hänga för alltid. Öppnare och followup hoppar som förut. |
+| `daily_fill.py` → `stage_bump` | Nattens sista steg skriver bumptexten i förväg för kort som passerat öppnaren (`current_position > 0`, aktiv enrollment, `dm_hook` finns, `dm_bump` saknas). Tak `--bump-max` 12/natt, samma som `--enroll-max`, så skrivandet håller jämna steg med inflödet. Kör sist: nattens nyinskrivna kort har inte fått sin öppnare än. |
+| `bump_pipeline.py` | Nytt `--contact-id`. Namnsökningen tar `matches[0]` och kan bumpa fel klinik med rätt förnamn; nattjobbet vet exakt vilket kort som väntar. |
+
+**Rör inte den ena utan den andra.** Utan skrivaren väntar korten i tio dygn och
+avslutas. Utan väntan läcker avslutet förbi bumpen igen.
+
+### Stilgrinden uteslöt sig själv (samma dag)
+
+Ingen mejlbump i reaktiveringskedjan hade kunnat sparas ens om pipelinen körts,
+och det är värt att förstå varför. Två regler i `validate_bump` motsade varandra:
+
+- **Mejlbumpen MÅSTE bära identitetsraden** ("Joakim heter jag, jobbar med
+  kliniker i Göteborg") — Ambers-fallet 4 sep, en bump utan avsändarram lästes
+  som en kundförfrågan och besvarades med en prislista.
+- **Ingen 25-teckensträng får återanvändas ur öppnaren** — bumpen ska bära en NY
+  detalj.
+
+Reaktiveringsöppnaren innehåller redan *"Jag jobbar med kliniker i Göteborg"*,
+34 tecken. Varje mejlbump föll alltså på verbatimregeln, båda försöken, och
+avbröts utan att spara. Fixen är smal: identitetsmeningen lyfts bort ur
+jämförelsen, resten av bumpen prövas oförändrat. Verifierat att en bump som
+återanvänder öppnarens avslutsfråga fortfarande underkänns.
+
+**Mönstret:** när en regel kräver en formulering och en annan förbjuder att den
+upprepas, är det inte modellen som är dålig. Två grindar som var för sig är
+riktiga kan tillsammans stänga porten helt, och det syns bara i utfallet —
+noll sparade bumpar — aldrig i någon av reglerna var för sig.
+
+### Vad som gjordes med de 28
+
+Backade till position 4 (bumpsteget) 12 sep, `next_run_at` spridd över 90 min,
+`context.backed_to_bump` satt så åtgärden går att hitta. Urvalet var
+enrollments på position 6 med en bekräftad `no_dm`-skiprad — 28 av 28 träffade.
+Bumptexterna skrevs samma dag. Korten går därefter till Skuggvecka som vanligt
+och kräver ett klick var.
 
 ## Kända skavanker
 
