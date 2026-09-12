@@ -1,7 +1,7 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-09-12 (annonsflik per kund, Schemalagda jobb speglas från VPS:en, panelkön byggd men inte deployad, ExpandTalk-samarbetet — se HANDOVER_2026-09-11.md)
+> Senast uppdaterad: 2026-09-12 (annonsflik per kund, Schemalagda jobb speglas från VPS:en, panelkön deployad, ExpandTalk-samarbetet — se HANDOVER_2026-09-11.md)
 
 > ## 🧭 BÖRJA HÄR (läs i den här ordningen)
 >
@@ -11,7 +11,7 @@
 > 2. **`docs/STABILISERINGSPLAN.md`** — var i planen vi står. Fas 0–3 klara,
 >    Fas 4 (volym) pågår.
 > 3. **`docs/HANDOVER_2026-09-11.md`** — senaste arbetsdagboken (10–12 sep): annonsfliken,
->    Schemalagda jobb speglade från VPS:en, panelkön (byggd, EJ deployad), fem fel jag gjorde,
+>    Schemalagda jobb speglade från VPS:en, panelkön (deployad 12 sep), fem fel jag gjorde,
 >    och ExpandTalk-samarbetet (kickoff mån 14 sep, motförslag skickat, inget signerat).
 >    Föregående: `HANDOVER_2026-09-08.md` (Cold Experience-sekvensen, dagsbudget per domän),
 >    `HANDOVER_2026-09-07.md` (webbspårning per kund), `HANDOVER_2026-09-05.md` (autosend).

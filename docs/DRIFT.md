@@ -131,12 +131,13 @@ omstartad. **Kolla `store_key` först om jobb slutar fyra efter en flytt.**
 |---|---|---|
 | `meta_ads_sync.py` | `17 */6 * * *` | Meta Marketing API v23 → `POST /api/v1/meta-ads/sync` → `meta_ads_daily`. Systemanvändartoken i VPS:ens `.env`, finns bara där |
 | `cron_sync.py` | `*/10 * * * *` | Speglar `cron_jobs` + senaste körning → `POST /api/v1/automations/sync` → `gateway_cron_jobs`. Read-only mot WAL-databasen |
-| `gateway_commands.py` | `* * * * *` | **Inte installerad 12 sep.** Dränerar `gateway_commands`, kör `openclaw cron run/enable/disable`, rapporterar tillbaka, kör om `cron_sync.py` |
+| `gateway_commands.py` | `* * * * *` | Dränerar `gateway_commands`, kör `openclaw cron run/enable/disable`, rapporterar tillbaka, kör om `cron_sync.py`. Installerad 12 sep, verifierad skarpt |
 | `sync_memory.py` | timer 15 min | se Minnessynk under Kända skavanker |
 
-**Röda 10 sep, inte utredda:** Kundvakt, Skyland nattlig påfyllnad, Daily Skill Update.
-Nattliga fyllningens fel den natten (`KeyError: 'hooks'`, 8/8 research) är fixat i `env.py`
-(`cfg_require`, tre omförsök) och omkörd till 7/8; om den är röd igen är det något annat.
+**Röda 12 sep enligt speglingen:** Skyland nattlig påfyllnad (`error`), Daily Skill Update
+(avstängd, `error`). Kundvakt var röd 10 sep men står `ok` 12 sep. Nattliga fyllningens fel
+10 sep (`KeyError: 'hooks'`, 8/8 research) är fixat i `env.py` (`cfg_require`, tre omförsök)
+och omkörd till 7/8; är den röd igen 13 sep är det något annat.
 
 **Larm vid tystnad:** **alla aktiva jobb** har `failure-alert` på WhatsApp (5 sep
 fick Kundvakt och nattjobbet sina). Det var frånvaron av det som lät
@@ -871,9 +872,9 @@ en rad i `gateway_commands` och svarar 202. VPS:en hämtar `GET /commands/pendin
 — **anropet claimar raderna**, så två pollningar kör aldrig samma jobb — kör CLI:t och skriver
 `POST /commands/:id/result`. Unikt index på `(kind, job_id)` för pending/claimed: dubbeltryck
 ger 202 `redan: true`, inte ett fel. Frontenden visar kötexten och läser om efter 35 och 75 s.
-**Status 12 sep: backend och frontend committade (`d3579e6`) men inte pushade; VPS-skriptet
-inte installerat. Tills dess svarar knapparna fortfarande 501 i prod.** Migrationen
-`gateway_commands.sql` är applicerad.
+**Deployat 12 sep** (`09480d9` på Render, `14a0e65` i openclaw-config på VPS:en, cron varje
+minut). Verifierat skarpt: en `disable`-rad gick pending → claimed → `openclaw cron disable`
+→ done på två sekunder. Logg: `~/clawd/out/gateway_commands.log`.
 
 **Regeln som följer:** gatewayn är loopback-bunden och Render står utanför tailnätet. Allt
 mellan dem är VPS → SCC. Behöver SCC något från gatewayn läggs det i en tabell som VPS:en
@@ -896,8 +897,6 @@ beslut om Skyland-agenturportfölj med partneråtkomst.
   edge-funktionen `ads-sync` (9 sep) och `meta_ads_daily` på kampanjnivå per kund via VPS:en
   (10 sep). Byggda två dagar i rad utan att se varandra. Samma felfamilj som `ce_*` och
   `customers`/`tenants`. Slå ihop till en innan någon bygger vidare på endera.
-- **Panelkön är inte deployad (12 sep).** Se avsnittet ovan. Knapparna i Schemalagda jobb
-  svarar 501 i prod tills `d3579e6` är pushad och `gateway_commands.py` går på VPS:en.
 
 - **SCC deployas av Render, inte av Netlify (förtydligat 9 sep).** Står redan i infrastrukturtabellen och i "Prod = Render. Inget annat.", men det är värt att säga en gång till här, eftersom skavanken nedan handlar om `coldexperience` och lätt läses som att den skulle gälla SCC. Den gör den inte. SCC autodeployar från `main` vid varje push, typiskt 45 till 60 sekunder, och deploy-listan i Render visar commiten. Vill man veta om något är ute: jämför commit-hashen där, inte bundlenamnet i webbläsaren.
 - **`coldexperience` på Netlify bygger inte om vid push till `main` (7 sep).** *Gäller Gustavs sajt coldexperience.se, inte SCC.* Allt på Netlify-sidan är kontrollerat och rätt: repot kopplat till `Onepiecedad/ColdExperience`, Build status Active, produktionsgren `main`, base `frontend`, publish `frontend/build`, functions `frontend/netlify/functions`, inget `ignore`-kommando i `frontend/netlify.toml`, inget skip i commit-meddelandet. Manuell "Trigger deploy" hämtar rätt commit och fungerar. Kvarstående misstanke: Netlifys GitHub-app saknar tillgång till just det repot (github.com/settings/installations), eller att webhooken hos GitHub tappats. Tills det är löst kräver varje deploy ett klick. MarinMekaniker och SCC autodeployar normalt.
