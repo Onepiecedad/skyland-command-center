@@ -968,6 +968,49 @@ enrollments på position 6 med en bekräftad `no_dm`-skiprad — 28 av 28 träff
 Bumptexterna skrevs samma dag. Korten går därefter till Skuggvecka som vanligt
 och kräver ett klick var.
 
+## Researchen visste, kortet gjorde det inte (12 sep)
+
+73 beauty-kort bar i snitt 1 468 tecken research, över 200 000 tecken totalt,
+med en PAKET_PRISLISTA- och en UNIK_DETALJ-sektion på varenda ett. Bara 38 hade
+fått strukturerade fält ur det och två hade ett ägarnamn. Datan var alltså köpt
+men inte tillgänglig: den gick inte att filtrera på, och generatorn fick läsa
+1 500 tecken prosa varje gång den skulle hitta en krok.
+
+`scripts/research_extract.py` i scc-crm-skillen läser `custom.research_notes` och
+skriver ut fälten. Den hämtar ingenting utifrån. Modellen måste lämna ett
+ordagrant citat per fält och koden kontrollerar att citatet finns i källtexten,
+annars kastas fältet; citaten sparas i `research_extract_src` så varje värde går
+att spåra till meningen det kom ur. Första skarpa körningen: 73 kort, noll fel.
+
+**Två fynd som var dolda i löptexten.**
+
+**31 kort beskriver inte det företag CRM tror.** Bland dem en lasertagarena
+(LaserArena 442), en verkstadsindustri som tillverkar lasersystem (Permanova
+Lasersystem AB), en osteopatklinik, en klinik för kinesisk medicin, ett
+rygg- och rehabcenter och en utbildningsakademi. Därtill en rad kort där orten är
+fel: Malmö, Lund, Helsingborg och Höllviken ligger i basen som Göteborg.
+**Fjorton av dem har redan fått ett mejl**, och Löfvingkliniken har fått tre och
+gått hela sekvensen. Fältet `identity_warning` fanns på fyra kort; researchen
+hade fångat 35. Skillnaden är att varningen skrevs i fritext och ingen läste den.
+
+**38 kort har en paketkonflikt**, nästan alla åt samma håll: `sells_packages`
+säger `nej` medan researchen säger att de säljer kurer med paketpris. Fältet
+sätts av discover från en snabb skrapning av startsidan, researchen hittar
+sanningen dagar senare, och ingenting stämmer av dem. Det är den dyraste
+riktningen att ha fel åt, eftersom paketstrukturen ÄR reaktiveringskroken —
+ett kort med `nej` ser ut som en dålig prospekt trots att det är en av de bästa.
+**Fältet skrivs aldrig över av extraktionen.** `packages_confirmed` skrivs vid
+sidan om och `packages_conflict` flaggas; vilket värde som vinner är ett beslut
+för en människa.
+
+**Läxan är densamma som för bumpen:** ett system kan ha rätt uppgift och ändå
+agera på fel, om uppgiften ligger i ett format ingenting läser. Researchen var
+korrekt hela tiden. Den satt bara i prosa.
+
+**Kvar att göra:** döm de 31 identitetsfelen (de flesta hör hemma i No Fit),
+besluta hur `sells_packages` ska stämmas av, och koppla `owner_name` till
+DM- och bumpgenereringen — den läser fortfarande bara `research_notes`.
+
 ## Kända skavanker
 
 - **Två vägar för Meta-annonsdata (10 sep).** `ad_performance` på annonsnivå via
