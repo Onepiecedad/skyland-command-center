@@ -1,7 +1,7 @@
 # Skyland Command Center — Agent Briefing
 
 > Denna fil är till för AI-agenter som hjälper till i utvecklingen av projektet.
-> Senast uppdaterad: 2026-09-08 (Cold Experience: mejlsekvensen i draft, dagsbudget per avsändardomän, tre tysta datafel — se HANDOVER_2026-09-08.md)
+> Senast uppdaterad: 2026-09-12 (annonsflik per kund, Schemalagda jobb speglas från VPS:en, panelkön byggd men inte deployad, ExpandTalk-samarbetet — se HANDOVER_2026-09-11.md)
 
 > ## 🧭 BÖRJA HÄR (läs i den här ordningen)
 >
@@ -10,10 +10,11 @@
 >    drift.** Motsäger något annat dokument den här filen, är det andra gammalt.
 > 2. **`docs/STABILISERINGSPLAN.md`** — var i planen vi står. Fas 0–3 klara,
 >    Fas 4 (volym) pågår.
-> 3. **`docs/HANDOVER_2026-09-08.md`** — senaste arbetsdagboken (8 sep): Cold Experience-
->    mejlsekvensen, dagsbudget per avsändardomän, tre tysta datafel, och två saker jag hade
->    fel om. Föregående: `HANDOVER_2026-09-07.md` (webbspårning per kund),
->    `HANDOVER_2026-09-05.md` (autosend-beslutet, nattlig påfyllnad, doktringrinden).
+> 3. **`docs/HANDOVER_2026-09-11.md`** — senaste arbetsdagboken (10–12 sep): annonsfliken,
+>    Schemalagda jobb speglade från VPS:en, panelkön (byggd, EJ deployad), fem fel jag gjorde,
+>    och ExpandTalk-samarbetet (kickoff mån 14 sep, motförslag skickat, inget signerat).
+>    Föregående: `HANDOVER_2026-09-08.md` (Cold Experience-sekvensen, dagsbudget per domän),
+>    `HANDOVER_2026-09-07.md` (webbspårning per kund), `HANDOVER_2026-09-05.md` (autosend).
 > 4. **Jobbar du med Cold Experience:** läs `~/.openclaw/skills/scc-crm/references/` FÖRE du
 >    kallar något för en bugg. `crm-spegling.md` förklarar varför Het är en ringlista och inte
 >    en fas, `mejl-stil-coldexperience.md` varför de mejlen inte är kall utkorg, `gustav-ton.md`
@@ -21,6 +22,13 @@
 >
 > Behöver du Alex-konfigurationen: `docs/OPENCLAW_CONFIG_INVENTERING.md`.
 > Sajtflödena: `docs/SITE_FLOWS.md`. Mejlinfran: `docs/EMAIL_INFRA.md`.
+>
+> ### Husregel sedan 10 sep: den som har datan pushar
+>
+> Gatewayn är loopback-bunden på VPS:en, Render står utanför tailnätet. Allt mellan dem går
+> VPS → SCC: cron-spegling, annonsdata, minne, och sedan 10 sep en kommandokö
+> (`gateway_commands`) för det SCC vill ha utfört. Tre buggar på tre dagar hade samma rot —
+> kod skriven för Macen, körd på Render. Bygg aldrig en rutt som antar att Render når in.
 >
 > ### Var vi står (5 sep 2026)
 >

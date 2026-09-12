@@ -125,6 +125,19 @@ omstartad. **Kolla `store_key` först om jobb slutar fyra efter en flytt.**
 | Skyland morgonbrief | — | avstängd, uppgick i *Skyland morgon* |
 | Daily Skill Update | 04:00 | avstängd. Föll på `Delivering to WhatsApp requires target`; larmmålet satt 5 sep |
 
+**Systemcron på VPS:en (inte OpenClaw-cron, syns inte i `cron_jobs`), tillagt 10 sep:**
+
+| Skript (`~/openclaw-config/scripts/`) | Schema | Vad |
+|---|---|---|
+| `meta_ads_sync.py` | `17 */6 * * *` | Meta Marketing API v23 → `POST /api/v1/meta-ads/sync` → `meta_ads_daily`. Systemanvändartoken i VPS:ens `.env`, finns bara där |
+| `cron_sync.py` | `*/10 * * * *` | Speglar `cron_jobs` + senaste körning → `POST /api/v1/automations/sync` → `gateway_cron_jobs`. Read-only mot WAL-databasen |
+| `gateway_commands.py` | `* * * * *` | **Inte installerad 12 sep.** Dränerar `gateway_commands`, kör `openclaw cron run/enable/disable`, rapporterar tillbaka, kör om `cron_sync.py` |
+| `sync_memory.py` | timer 15 min | se Minnessynk under Kända skavanker |
+
+**Röda 10 sep, inte utredda:** Kundvakt, Skyland nattlig påfyllnad, Daily Skill Update.
+Nattliga fyllningens fel den natten (`KeyError: 'hooks'`, 8/8 research) är fixat i `env.py`
+(`cfg_require`, tre omförsök) och omkörd till 7/8; om den är röd igen är det något annat.
+
 **Larm vid tystnad:** **alla aktiva jobb** har `failure-alert` på WhatsApp (5 sep
 fick Kundvakt och nattjobbet sina). Det var frånvaron av det som lät
 kvällssammanfattningen krascha sju gånger i tystnad — och som lät `Skyland
@@ -841,7 +854,50 @@ och att erbjuda skrift om gästens talade engelska inte räcker. Rabattgreppen G
 (bort med hundspannet, sextonåring som barn, gratis extradag, ombyggt paket) är dokumenterade
 i `gustav-ton.md` 4e som **hans**, inte robotens.
 
+## Panelen Schemalagda jobb: spegling in, kö ut (10 sep)
+
+`routes/automations.ts` läste `~/.openclaw/state/openclaw.sqlite` **på maskinen som kör
+backenden**. Den skrevs när backenden körde på Macen bredvid filen. På Render finns den inte,
+så panelen sa "Inga schemalagda jobb hittades" i veckor medan jobben kördes varje natt.
+Samma rot som trajectory-pekarna: kod för en maskin, körd på en annan.
+
+**In:** `cron_sync.py` på VPS:en POSTar var tionde minut till `/api/v1/automations/sync`
+(zod-validerat, upsert på `job_id`, jobb som försvunnit raderas). GET läser
+`gateway_cron_jobs` och svarar `source: 'vps-synk'`. Den lokala sqlite-läsningen finns kvar
+som fallback för utveckling på samma maskin som gatewayn.
+
+**Ut:** Kör nu / av-på svarade 501 ("kör `openclaw cron run` på VPS:en"). Nu skriver knappen
+en rad i `gateway_commands` och svarar 202. VPS:en hämtar `GET /commands/pending` varje minut
+— **anropet claimar raderna**, så två pollningar kör aldrig samma jobb — kör CLI:t och skriver
+`POST /commands/:id/result`. Unikt index på `(kind, job_id)` för pending/claimed: dubbeltryck
+ger 202 `redan: true`, inte ett fel. Frontenden visar kötexten och läser om efter 35 och 75 s.
+**Status 12 sep: backend och frontend committade (`d3579e6`) men inte pushade; VPS-skriptet
+inte installerat. Tills dess svarar knapparna fortfarande 501 i prod.** Migrationen
+`gateway_commands.sql` är applicerad.
+
+**Regeln som följer:** gatewayn är loopback-bunden och Render står utanför tailnätet. Allt
+mellan dem är VPS → SCC. Behöver SCC något från gatewayn läggs det i en tabell som VPS:en
+fyller eller dränerar. Bygg aldrig en rutt som antar att Render kan nå in.
+
+## Annonsflik per kund (10 sep)
+
+`customers.meta_ad_account_id` satt → fliken Annonser på kundkortet (`AdsView.tsx`), läser
+`meta_ads_daily` via `GET /api/v1/meta-ads?customer=<slug>&days=7|14|30`. Avstämning mot CRM
+styrs av `customers.config.meta.lead_sink` (`ce_leads` | `contacts`); saknas den är `tapp`
+`null` och bannern neutral. **Första versionen räknade `ce_leads` utan kundfilter** — nästa
+kund hade fått Cold Experiences leads ställda mot sin egen spend. Regressionstest finns.
+Cold Experience 1–10 sep: 1 041,68 kr, 77 leads, 13,53 kr/lead. Alex: `get_ads_stats`.
+**GKMK blockerad:** deras portfölj saknar app → ingen systemanvändare → ingen token. Kräver
+beslut om Skyland-agenturportfölj med partneråtkomst.
+
 ## Kända skavanker
+
+- **Två vägar för Meta-annonsdata (10 sep).** `ad_performance` på annonsnivå via
+  edge-funktionen `ads-sync` (9 sep) och `meta_ads_daily` på kampanjnivå per kund via VPS:en
+  (10 sep). Byggda två dagar i rad utan att se varandra. Samma felfamilj som `ce_*` och
+  `customers`/`tenants`. Slå ihop till en innan någon bygger vidare på endera.
+- **Panelkön är inte deployad (12 sep).** Se avsnittet ovan. Knapparna i Schemalagda jobb
+  svarar 501 i prod tills `d3579e6` är pushad och `gateway_commands.py` går på VPS:en.
 
 - **SCC deployas av Render, inte av Netlify (förtydligat 9 sep).** Står redan i infrastrukturtabellen och i "Prod = Render. Inget annat.", men det är värt att säga en gång till här, eftersom skavanken nedan handlar om `coldexperience` och lätt läses som att den skulle gälla SCC. Den gör den inte. SCC autodeployar från `main` vid varje push, typiskt 45 till 60 sekunder, och deploy-listan i Render visar commiten. Vill man veta om något är ute: jämför commit-hashen där, inte bundlenamnet i webbläsaren.
 - **`coldexperience` på Netlify bygger inte om vid push till `main` (7 sep).** *Gäller Gustavs sajt coldexperience.se, inte SCC.* Allt på Netlify-sidan är kontrollerat och rätt: repot kopplat till `Onepiecedad/ColdExperience`, Build status Active, produktionsgren `main`, base `frontend`, publish `frontend/build`, functions `frontend/netlify/functions`, inget `ignore`-kommando i `frontend/netlify.toml`, inget skip i commit-meddelandet. Manuell "Trigger deploy" hämtar rätt commit och fungerar. Kvarstående misstanke: Netlifys GitHub-app saknar tillgång till just det repot (github.com/settings/installations), eller att webhooken hos GitHub tappats. Tills det är löst kräver varje deploy ett klick. MarinMekaniker och SCC autodeployar normalt.
