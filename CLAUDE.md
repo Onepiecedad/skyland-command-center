@@ -75,243 +75,155 @@
 
 ---
 
+> **Om resten av den här filen (omskriven 12 sep 2026).** Allt nedanför är nuläge per
+> 12 sep. Den gamla texten beskrev v1 MVP från juli: "Master Brain", n8n som exekutor, tre
+> kunder, fem verktyg, 187 tester. Inget av det stämde längre. Nulägesdetaljer om drift står
+> fortfarande bara i `docs/DRIFT.md`; det här är kartan, inte terrängen.
+
 ## Vad är det här?
 
-Skyland Command Center (SCC) är ett internt operatörsverktyg för att styra och övervaka ett ekosystem av AI-agenter och kunder. Tänk det som ett kontrollrum i rymden: en 3D-hexagondisk där varje struktur representerar antingen en intern modul (t.ex. Research Lab, Content Workshop) eller en kundinstans (Thomas, Axel, Gustav).
+Skyland Command Center (SCC) är Joakims operatörsverktyg för att driva Skyland AI Solutions:
+CRM, utskickssekvenser, lead-intag från sajter och Meta, kundkort med hemsida- och
+annonsflikar, arkiv för rapporter, och kontrollrum för AI-agenten Alex. Frontenden har en
+3D-vy (Realm3D) men den är en del av UI:t, inte hela.
 
-**Operatör:** Joakim (ägare av Skyland-ekosystemet)
+**Operatör:** Joakim (ensam). Ingen annan användare finns.
 
-**Kärnan:** En AI som kallas "Master Brain" sitter i mitten och koordinerar allt — den kan svara på frågor, kolla kundstatus, föreslå uppgifter och delegera till sub-agenter.
+**Två Alex, inte en:**
 
----
+| | Server-Alex | Gateway-Alex |
+|---|---|---|
+| Kod | `backend/src/services/alexBrain.ts` | OpenClaw på VPS:en `alex@62.238.113.151`, 123 skills |
+| Kör på | Render | VPS:en |
+| Äger | CRM-verktygen, skärmen (SSE `ui_action`), rösten i SCC | WhatsApp, cron-jobben, minnet, research, utskick |
+| Pratar med | Supabase direkt | SCC:s API med `SCC_API_TOKEN` (skill `scc-crm`) |
 
-## Vad har vi byggt hittills (v1 MVP — alla core tickets klara)
+"Master Brain" var det gamla namnet på server-Alex. Ordet finns kvar i `agent_configs` och
+någon kommentar; det betyder samma sak.
 
-### Backend (Express + TypeScript, port 3001)
-- REST API med 20+ endpoints under `/api/v1`
-- Supabase (PostgreSQL) som databas — kärntabeller + CRM-tabeller (contacts/pipelines/stages/opportunities) + customer_status-view
-- Master Brain AI-chat med intent-klassificering och tool calling
-- Task-system med approve-flöde (SUGGEST → review → approve → dispatch)
-- Dispatcher som kan köra uppgifter via:
-  - `local:echo` — lokal test-executor
-  - `n8n:*` — (legacy, n8n avvecklat 2026-08-30)
-  - `claw:*` — OpenClaw sub-agenter via hook
-- LLM-adapter med stöd för **OpenAI**, **DeepSeek** och **OpenRouter** (500+ modeller via en nyckel)
+## Vad som kör (kort — DRIFT.md har detaljerna)
 
-### Frontend (React 19 + Three.js, port 5173)
-- 3D-hexagondisk med kundsfärer (klickbara, färgkodade efter status)
-- Dashboard med: kundlista, aktivitetslogg, task-kö, Master Brain-chat
-- System Monitor med run-historik och task-detaljer
-- Mörkt tema med glassmorphism-stil
+**Backend** (Express 5 + TypeScript, Render, `https://scc.skylandai.se`): 59 rutt-moduler under
+`backend/src/routes/`, global Bearer/cookie-auth, SSE-hubb för skärmstyrning, WebSocket-gateway.
+Dispatchern kör `local:echo` och `claw:*`. **`n8n:*`-grenarna i `taskService.ts` är död kod**
+(n8n avvecklat 30 aug) och kan rivas; rör dem inte annat än för att ta bort dem.
 
-### Databas (Supabase / PostgreSQL)
-- `customers` — kunder med config (charter, mål, scope)
-- `activities` — audit log för allt som händer (agent, severity, autonomy_level)
-- `tasks` — uppgifter med hierarki (parent_task_id), executor och approve-flöde
-- `messages` — chatthistorik (alla kanaler: chat, voice, email, webhook...)
-- `agent_configs` — agentregistret (Master Brain konfigurerad)
-- `customer_status` — VIEW som härleder kundstatus automatiskt (error/warning/active)
+**Frontend** (React 19 + Vite 7): flikarna Alex, Försäljning (CRM, Skuggvecka, Sekvenser,
+Leads), Kunder (kundkort med Hemsida- och Annonser-flik), Innehåll, System (Schemalagda jobb,
+integrationshälsa, kostnader). Flytande Alex-panel med röst, minimerbar.
 
-### Dokumentation
-- `SPEC.md` — fullständig v1.1-specifikation
-- `docs/AGENT_POLICY.md` — säkerhetspolicy för agenter
-- `docs/DRIFT.md` — vad som kör just nu (enda sanningen)
-- `docs/SITE_FLOWS.md` — sajtens flöden i SCC (ersätter n8n)
-- `docs/N8N_CONTRACT.md` — (legacy) callback-kontrakt för n8n-workflows
-- `docs/OPENCLAW_HOOK_SCC_DISPATCH.md` — OpenClaw-integration
-- `logg.md` — utvecklingslogg (alla tickets)
+**Databas** (Supabase `wfwqjxsuvbacvcmpiesl`, RLS på, backend som `service_role`):
 
----
+| Område | Tabeller |
+|---|---|
+| CRM | `contacts`, `opportunities`, `pipelines`, `stages`, `customers` (+ vyn `customer_status`) |
+| Sekvenser | `sequences`, `sequence_steps`, `enrollments`, `messages` |
+| Cold Experience | `ce_leads`, `ce_messages`, `ce_lead_events`, `ce_settings` — **källan**, speglas till CRM via `ce_mirror_*` |
+| Sajt | `tenants`, `sessions`, `events` (flerkund via `tenant_id`) |
+| Annonser | `meta_ads_daily` (kampanj/dag, från VPS:en) och `ad_performance` (annonsnivå, edge-funktion) — två vägar, ska bli en |
+| Agent | `tasks`, `task_runs`, `activities`, `deliverables`, `agent_memory`, `gateway_cron_jobs`, `gateway_commands` |
+| Övrigt | `costs`, `bookings`, `mk_*` (mäklarvertikalen) |
 
-## Tech Stack
+**VPS → SCC, aldrig tvärtom.** Gatewayn är loopback-bunden; Render står utanför tailnätet.
+Allt som SCC behöver från VPS:en pushas dit (`cron_sync.py`, `meta_ads_sync.py`,
+`sync_memory.py`) och allt SCC vill ha utfört köas (`gateway_commands`, dräneras varje minut).
 
-| Lager | Teknologi |
-|-------|-----------|
-| Frontend | React 19 + TypeScript 5.9 + Vite 7 |
-| 3D | Three.js + react-three-fiber |
-| Backend | Express 5 + TypeScript |
-| Databas | Supabase (PostgreSQL) |
-| AI/LLM | OpenRouter (rekommenderat) → OpenAI, DeepSeek, Anthropic, 500+ modeller |
-| Workflows | (n8n avvecklat 2026-08-30 — flöden ligger i SCC-routes) |
-| Sub-agenter | OpenClaw |
+## Alex verktyg (`backend/src/llm/tools.ts`, 25 st)
 
----
+| Grupp | Verktyg |
+|---|---|
+| Läsa | `get_customer_status`, `get_customer_errors`, `list_recent_activities`, `get_crm_stats`, `get_site_stats`, `get_ads_stats`, `get_credits`, `list_open_tasks` |
+| CRM | `get_contact`, `list_contacts`, `update_contact`, `list_opportunities`, `move_opportunity`, `log_interaction`, `find_prospects` |
+| Sekvenser | `list_sequences`, `enroll_in_sequence`, `schedule_followup` |
+| Skärm | `navigate_ui`, `present_screens` (steg utan mål ärver föregående skärm) |
+| Delegera | `delegate_task` (till gateway-Alex via claw-kön), `bestall_utredning` (rapport till arkivet), `produce_package`, `create_task_proposal` |
+| Meta | `report_capability_gap` |
 
-## Hur LLM-lagret fungerar
+Nya verktyg: definition + handler i `tools.ts`, test i `tools.test.ts`. Allt som påverkar
+omvärlden går via `create_task_proposal` (status `review`) — se AGENT_POLICY.
 
-Vi har ett adapter-mönster i `backend/src/llm/`:
+## Regler (AGENT_POLICY, oförändrade)
 
-```
-LLM_PROVIDER env → adapter.ts factory → OpenAI / DeepSeek / OpenRouter adapter
-```
+1. **Projektisolering** — varje operation tillhör en kund (`customer_id`).
+2. **Charter First** — kundens mål, scope och guardrails i `customers.config`.
+3. **SUGGEST som standard** — det som påverkar en kund skapas som review-task.
+4. **Inget externt utan godkännande** — mejl, SMS, WhatsApp, bokningar. Undantag är de
+   flöden som uttryckligen släppts i DRIFT.md (öppnaren i reaktiveringen, Gustav-roboten).
+5. **Allt loggas** — activities, messages, actions_taken.
+6. **Säkerhet före fart** — osäker? skapa en review-task.
 
-- **OpenRouter är rekommenderat** — en enda API-nyckel ger tillgång till alla modeller
-- Modellval via `LLM_MODEL` env var (t.ex. `openai/gpt-4o`, `anthropic/claude-sonnet-4-5-20250929`)
-- Alla adapters använder OpenAI-kompatibelt format (`openai` npm-paket)
-- Tool calling (function calling) stöds av alla adapters
+Autonominivåer: OBSERVE (läs), SUGGEST (föreslå, kräver ok), ACT (utför godkänt), SILENT (intern housekeeping).
 
-### Master Brain verktyg (tools.ts)
+## Kunder (`customers`, 12 sep 2026)
 
-| Verktyg | Vad det gör |
-|---------|------------|
-| `get_customer_status` | Hämtar kundstatus från customer_status-view |
-| `get_customer_errors` | Hämtar fel och varningar för diagnostik |
-| `list_recent_activities` | Listar aktivitetshistorik |
-| `create_task_proposal` | Skapar task med status=review (kräver godkännande) |
-| `list_open_tasks` | Listar öppna uppgifter |
+| Slug | Namn | Sajt spårad | Annonsflik |
+|---|---|---|---|
+| `gustav` | Cold Experience | ja | ja (`config.meta`, token på VPS:en) |
+| `thomas` | MarinMekaniker | ja | nej |
+| `gkmk` | Göteborgs Krav Maga Klubb | nej | blockerad (ingen app i deras Meta-portfölj) |
+| `axel` | Hasselblads Livs | nej | nej |
+| `allgold` | All Gold Tattoo | nej | nej |
 
----
+`tenants` är ett parallellt register (7 rader) som sajtspårningen och `ce_leads` använder.
+De överlappar delvis med `customers`. Rör inget av dem "för att städa" utan ett beslut om
+vilket som är sanningen — se DRIFT, Kända skavanker.
 
-## Regler att följa (AGENT_POLICY)
-
-1. **Projektisolering** — Varje operation tillhör en kund (`customer_id`). Ingen kund = inga externa effekter.
-2. **Charter First** — Varje kund har en charter i `customers.config` med mål, scope och guardrails.
-3. **SUGGEST som standard** — Allt som påverkar en kund skapas som SUGGEST-task (status `review`) och kräver godkännande.
-4. **Inget externt utan godkännande** — Mail, SMS, WhatsApp, bokningar = alltid SUGGEST i v1.
-5. **Allt loggas** — Activities, messages, actions_taken. Om det hände ska det vara synligt.
-6. **Säkerhet före fart** — Osäker? Fråga. Skapa en review-task istället för att gissa.
-
-### Autonominivåer
-
-| Nivå | Betydelse | Kräver godkännande |
-|------|-----------|-------------------|
-| OBSERVE | Läs och analysera | Nej |
-| SUGGEST | Föreslå (skapar review-task) | Ja |
-| ACT | Utför godkänd åtgärd | Nej (redan godkänd) |
-| SILENT | Intern housekeeping | Nej |
-
----
-
-## Projektstruktur
+## Repo och struktur
 
 ```
 skyland-command-center/
-├── backend/
-│   └── src/
-│       ├── server.ts             # Express-app (entrypoint). index.ts är legacy, körs inte
-│       ├── routes/               # ~57 modulfiler, en per API-område (sequences, dispatch, whatsappWebhook …)
-│       ├── middleware/auth.ts    # Global Bearer/cookie-auth för /api/v1/*
-│       ├── services/             # supabase.ts, sequenceRunner.ts, outreach.ts, comms.ts, email.ts …
-│       └── llm/
-│           ├── adapter.ts        # Provider-interface + factory
-│           ├── openaiAdapter.ts
-│           ├── deepseekAdapter.ts
-│           ├── openrouterAdapter.ts  ← NY
-│           ├── systemPrompt.ts   # Dynamisk systemprompt
-│           └── tools.ts          # Tool definitions + handlers
-├── frontend/
-│   └── src/
-│       ├── App.tsx               # Huvud-layout: Alex, Försäljning, Kunder, Innehåll, System
-│       ├── api.ts                # API-klient + typer
-│       ├── pages/                # Vyer: CrmView, ShadowReviewView (Skuggvecka), SequencesView,
-│       │                         #   CalendarView, TodoView, LeadsView, SystemDashboard …
-│       └── components/           # Realm3D (3D-disken, en del av UI:t — inte hela),
-│                                 #   PipelineBoard, ConversationInbox, PendingApprovals …
-├── database/
-│   ├── schema.sql
-│   ├── seed.sql
-│   └── migrations/
-├── docs/
-│   ├── AGENT_POLICY.md
-│   ├── N8N_CONTRACT.md
-│   └── OPENCLAW_HOOK_SCC_DISPATCH.md
-├── SPEC.md                       # Fullständig specifikation
-└── logg.md                       # Utvecklingslogg
+├── backend/src/
+│   ├── server.ts            # entrypoint (index.ts är legacy, körs inte)
+│   ├── routes/              # 59 moduler, en per API-område
+│   ├── services/            # alexBrain, sequenceRunner, comms, email, integrationHealth …
+│   ├── middleware/          # auth, rateLimiter, sharedSecret
+│   └── llm/                 # adapter + tools.ts + systemPrompt
+├── frontend/src/            # App.tsx, api.ts, pages/, components/, navigation/
+├── database/migrations/     # applicerade via Supabase MCP; filen är facit, inte körordning
+├── docs/                    # DRIFT.md (nuläge), HANDOVER_*.md (historik), SITE_FLOWS, EMAIL_INFRA …
+├── maklare/                 # mäklarvertikalen (HusmanHagberg/Bjurfors, ElevenLabs-agent), committad 12 sep
+├── scripts/                 # drift_check.py m.fl.
+└── sales/                   # säljunderlag med media — GITIGNORERAD (55 MB), bara på disk
 ```
 
----
+**Andra repon:** `openclaw-config` (Alex konfiguration, skills, VPS-skript; ligger i
+`~/openclaw-config` på VPS:en och deployas med `deploy_vps.sh`), `Skyland_AI_System`
+(sajten skylandai.se, Netlify), `ColdExperience` och `MarinMekaniker` (kundsajter).
 
-## Miljövariabler (backend/.env)
+## Miljövariabler
 
-```bash
-# Databas
-SUPABASE_URL=https://wfwqjxsuvbacvcmpiesl.supabase.co   # projekt: skyland-command-center
-SUPABASE_SERVICE_ROLE_KEY=<hemlig>
+Backend-flaggorna i produktion ligger i Render och är listade i `docs/DRIFT.md` under
+Produktionsflaggor; kopiera inte listan hit, den driver isär. Lokalt: `backend/.env` med
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SCC_API_TOKEN`, `LLM_PROVIDER=openrouter`,
+`LLM_MODEL`, `OPENROUTER_API_KEY`, `OPENCLAW_HOOK_URL`, `OPENCLAW_HOOK_TOKEN`. Allt som
+heter `N8N_*` är dött. Meta-tokens ligger inte i backend alls; de bor på VPS:en.
 
-# Server
-PORT=3001
+## Testning & CI
 
-# LLM (välj EN provider)
-LLM_PROVIDER=openrouter        # openai | deepseek | openrouter
-LLM_MODEL=openai/gpt-4o        # modellnamn (OpenRouter: provider/modell)
-OPENROUTER_API_KEY=<hemlig>     # Rekommenderat — en nyckel, alla modeller
+Backend: vitest, **52 suiter, 497 tester** (12 sep). `npm test` i `backend/`. Mock-mönster:
+per-tabell-FIFO via `vi.hoisted` eller `src/__tests__/helpers/mockSupabase.ts` för supertest.
+Test-env sätts i `src/tests/setup.ts`. Frontend: vitest + testing-library, komponent-smokes;
+`tsc` är rött enbart i `*.test.tsx` (jest-dom-typer saknas), `vite build` grönt. E2E:
+Playwright i `frontend/e2e/`, inte i CI. CI: GitHub Actions vid varje push. **Bryt inte gröna
+tester.** Kända röda: `routes/skills.test.ts` (två tester slår mot riktig DB).
 
-# Direktnycklar (om du INTE använder OpenRouter)
-OPENAI_API_KEY=<hemlig>
-DEEPSEEK_API_KEY=<hemlig>
+## Att tänka på när du jobbar här
 
-# Integrations
-N8N_WEBHOOK_URL=<webhook-url>
-OPENCLAW_HOOK_URL=<hook-url>
-OPENCLAW_HOOK_TOKEN=<hemlig>
-SCC_PUBLIC_BASE_URL=<publik URL för callbacks>
-```
-
----
-
-## Kunder (nuvarande)
-
-| Namn | Slug | Beskrivning |
-|------|------|-------------|
-| Thomas — MarinMekaniker | `thomas` | Marinmekaniker-verksamhet |
-| Axel — Hasselblads Livs | `axel` | Livsmedelsbutik |
-| Gustav — Cold Experience | `gustav` | Upplevelse-/eventföretag |
-
----
-
-## Vad som återstår / nästa steg
-
-### Klart (v1 MVP)
-- Alla core tickets (1-21) ✅
-- Backend API komplett
-- Frontend dashboard med 3D
-- Master Brain AI med tool calling
-- Task approve/dispatch-flöde
-- n8n + OpenClaw integration
-- OpenRouter-adapter (multi-modell)
-
-### Möjliga nästa steg (v2+)
-- Sub-agenter med egen UI (Research, Content, Dev, Comms)
-- Proaktiva triggers (agenter agerar utan prompt)
-- Kundinstanser med egen dashboard (klickbar i 3D)
-- Röst-input/output (Web Speech API + ElevenLabs)
-- Docker/deployment-konfiguration
-- The Stream (realtidsdata-flöde)
-- Energilinjer mellan strukturer i 3D
-
-> **Tester + CI/CD är LEVERERAT (2026-07-21)** — se avsnittet "Testning & CI" nedan.
-
----
-
-## Testning & CI (levererat 2026-07-21)
-
-Testinfran påstods tidigare saknas helt. Det stämmer INTE längre — den var delvis
-trasig (4 HTTP-suiter kraschade pga saknad `supertest`) och är nu lagad + kraftigt utbyggd.
-
-- **Backend:** vitest, ~187 tester över 27 suiter. Kör `npm test` i `backend/`. Täcker de
-  högsta riskytorna: utskicksgrind (`comms`/`sequenceRunner` — kill switch + dagsbudget),
-  dispatch-policy & routing (`taskService`), claw-rate-limits, sekvens-triggrar (drip-stopp),
-  CRM dedupe/merge, webhook-token-auth (leads/email/igDm/calcom), LLM-verktygslager +
-  adapter-parsing, samt route-lagret (auth/validering/404).
-- **Frontend:** vitest + `@testing-library` (jsdom), komponent-smokes. Kör `npm test` i
-  `frontend/`. Vitest är begränsad till `src/**` (se `vite.config.ts`) — `e2e/` ägs av Playwright.
-- **E2E:** Playwright (`frontend/e2e/`, `playwright.config.ts`). Kör `npm run test:e2e`
-  (kräver backend igång + `E2E_PASSWORD`). Se `frontend/e2e/README.md`. Ingår INTE i CI än.
-- **CI:** GitHub Actions (`.github/workflows/ci.yml`) kör backend + frontend vid varje push/PR.
-
-**Mock-mönster:** supabase mockas per testfil — vanligast en "per-tabell-FIFO" (`vi.hoisted`
-state + `from(table)` som köar svar), eller `src/__tests__/helpers/mockSupabase.ts` för
-HTTP-tester (supertest). Test-env/token sätts i `src/tests/setup.ts` (global setupFile) —
-lägg nya test-env-vars DÄR, inte i `.env`. **Bryt aldrig gröna tester; CI gatekeepar.**
-
----
-
-## Att tänka på när du jobbar med koden
-
-1. **Entrypoint är `server.ts`, routing ligger i `routes/`** — en modul per område. `index.ts` är en 127-raders legacy-fil som inte körs; rör den inte, bygg inte på den. (Gammal not sa "index.ts ~2300 rader" — det var före uppdelningen.)
-2. **Tester finns nu (~190 st) + CI** — kör `npm test` i `backend/` och `frontend/` innan du pushar; GitHub Actions kör dem vid varje push. Se avsnittet "Testning & CI". Bryt inte gröna tester.
-3. **Inga node_modules i repot** — kör `npm install` i både `backend/` och `frontend/` först.
-4. **Supabase-credentials krävs** — utan `.env` med rätt nycklar startar inte backend.
-5. **customer_status är en VIEW** — den beräknas automatiskt från activities + tasks. Ändra aldrig status manuellt.
-6. **Tasks med status `review`** = väntar på godkännande. Skippa aldrig approve-steget.
-7. **Commit-stil:** `feat(scope): beskrivning` — se git log för exempel.
+1. **Läs DRIFT.md först.** Motsäger något annat dokument den, är det andra gammalt.
+2. **Git mot repot går genom Desktop Commander, inte `device_bash`.** Det senare skalet får
+   inte radera filer, så varje skrivande git-kommando lämnar en `.lock` som blockerar nästa.
+   Från en molnsession: commit i molnklonen → `git format-patch` → fil till `_to_delete/` på
+   Macen → `git am` + `git push` via Desktop Commander → `git reset --hard origin/main` i molnet.
+3. **VPS → SCC, aldrig tvärtom.** Se ovan. En rutt som antar att Render når gatewayn kommer
+   att fungera i utveckling och tyst fela i prod.
+4. **Displayer får inte ljuga.** `null` betyder "vet inte", `0` betyder noll. En panel som
+   inte kan nå sin källa ska säga det, inte visa tomt. Tre buggar 10–12 sep var den familjen.
+5. **Cold Experience-mekaniken står i `~/.openclaw/skills/scc-crm/references/`.** Läs
+   `crm-spegling.md` innan du kallar något där för en bugg.
+6. **Inget skickas till en riktig gäst i Cold Experience-sekvensen** förrän Joakim stämt av
+   med Gustav. Sekvensen står i draft med noll inskrivna, med flit.
+7. **`customer_status` är en VIEW.** Ändra aldrig status för hand.
+8. **Commit-stil:** en rubrik som säger vad som ändrades och varför, på svenska, som i loggen.
+   Prefix som `feat(scope):` förekommer i äldre historik men är inte kravet.
+9. **Skriv en handover när dagen är slut** (`docs/HANDOVER_ÅÅÅÅ-MM-DD.md`) och peka på den
+   från BÖRJA HÄR ovan. Skriv felen du gjorde i klartext; det är de som sparar tid nästa gång.
