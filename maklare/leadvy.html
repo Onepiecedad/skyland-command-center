@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inkommande leads</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --card:#fff; --line:#e4e2dd; --ink:#1c1b19; --dim:#6f6b64;
+    --accent:#1f6f4a; --accent-soft:#e8f2ec; --hot:#b4462a; --hot-soft:#fbeae5;
+    --shadow:0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#141412; --card:#1e1d1b; --line:#312f2b; --ink:#f0eeea; --dim:#a09a90;
+           --accent:#5cba8b; --accent-soft:#1a2f26; --hot:#e08063; --hot-soft:#33201a;
+           --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25); }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+       padding:24px 16px 64px}
+  .wrap{max-width:760px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:baseline;gap:16px;
+         flex-wrap:wrap;margin-bottom:20px}
+  h1{font-size:20px;font-weight:600;margin:0;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);
+       margin-right:6px;vertical-align:middle;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .setup{background:var(--card);border:1px solid var(--line);border-radius:12px;
+         padding:20px;box-shadow:var(--shadow)}
+  .setup p{margin:0 0 14px;color:var(--dim);font-size:14px}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  input,select{font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:8px;
+        background:var(--bg);color:var(--ink);flex:1;min-width:200px}
+  button{font:inherit;font-weight:500;padding:9px 18px;border:0;border-radius:8px;
+         background:var(--ink);color:var(--bg);cursor:pointer}
+  button:hover{opacity:.88}
+
+  .lead{background:var(--card);border:1px solid var(--line);border-radius:12px;
+        padding:16px 18px;margin-bottom:10px;box-shadow:var(--shadow);
+        animation:in .35s ease both}
+  @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .lead.ny{border-color:var(--accent)}
+  .top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .namn{font-weight:600;font-size:17px}
+  .tel{font-variant-numeric:tabular-nums;color:var(--ink);text-decoration:none;
+       border-bottom:1px solid var(--line)}
+  .tid{color:var(--dim);font-size:13px;white-space:nowrap}
+  .taggar{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0}
+  .tag{font-size:12px;padding:3px 9px;border-radius:99px;background:var(--accent-soft);
+       color:var(--accent);font-weight:500}
+  .tag.hot{background:var(--hot-soft);color:var(--hot)}
+  .meta{color:var(--dim);font-size:14px;margin-top:8px}
+  .msg{margin-top:10px;padding-top:10px;border-top:1px solid var(--line);
+       font-size:14.5px;color:var(--ink)}
+  .tom{text-align:center;color:var(--dim);padding:56px 20px;font-size:15px}
+  .fel{background:var(--hot-soft);color:var(--hot);padding:12px 14px;border-radius:8px;
+       font-size:14px;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Inkommande leads</h1>
+      <div class="sub" id="sub">Samtal som agenten tagit emot</div>
+    </div>
+    <div class="sub" id="status"></div>
+  </header>
+
+  <div id="setup" class="setup">
+    <p>Nyckeln sparas bara i det här webbläsarfönstret och lämnar aldrig sidan
+       annat än till din egen Supabase-funktion.</p>
+    <div class="row">
+      <select id="tenant">
+        <option value="husman-hagberg-molndal">HusmanHagberg Mölndal</option>
+        <option value="husmanhagberg-goteborg">HusmanHagberg Göteborg</option>
+        <option value="bjurfors-molndal">Bjurfors Mölndal</option>
+        <option value="studio-molndal">Studio Fastighetsmäkleri</option>
+      </select>
+      <input id="secret" type="password" placeholder="MK_AGENT_SECRET" autocomplete="off">
+      <button id="start">Visa</button>
+    </div>
+  </div>
+
+  <div id="fel" class="fel" hidden></div>
+  <div id="lista"></div>
+</div>
+
+<script>
+const API = "https://wfwqjxsuvbacvcmpiesl.supabase.co/functions/v1/mk-agent/list_leads";
+let secret = "", tenant = "", sedda = new Set(), timer = null;
+
+const ARENDE = {
+  kopa:      { text: "vill köpa",     hot: false },
+  salja:     { text: "vill sälja",    hot: true  },
+  vardering: { text: "vill värdera",  hot: true  },
+  visning:   { text: "vill på visning", hot: false },
+  ovrigt:    { text: "övrigt",        hot: false },
+};
+
+function nar(iso){
+  const d = new Date(iso), nu = new Date(), sek = (nu - d) / 1000;
+  if (sek < 60) return "just nu";
+  if (sek < 3600) return Math.floor(sek/60) + " min sedan";
+  if (d.toDateString() === nu.toDateString())
+    return "kl. " + d.toLocaleTimeString("sv-SE",{hour:"2-digit",minute:"2-digit"});
+  return d.toLocaleString("sv-SE",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+}
+
+function rita(leads){
+  const lista = document.getElementById("lista");
+  if (!leads.length){
+    lista.innerHTML = '<div class="tom">Inga leads än.<br>Ring agenten och lämna dina uppgifter, så dyker du upp här.</div>';
+    return;
+  }
+  lista.innerHTML = leads.map(l => {
+    const a = ARENDE[l.arende] || ARENDE.ovrigt;
+    const ny = !sedda.has(l.id);
+    const taggar = [
+      `<span class="tag${a.hot ? " hot" : ""}">${a.text}</span>`,
+      l.aterkoppling ? '<span class="tag hot">vill bli uppringd</span>' : "",
+      l.samtycke ? '<span class="tag">samtycke</span>' : "",
+      l.maklare ? `<span class="tag">${l.maklare}</span>` : "",
+    ].filter(Boolean).join("");
+    return `<div class="lead${ny ? " ny" : ""}">
+      <div class="top">
+        <span class="namn">${l.namn || "Namn saknas"}</span>
+        <span class="tid">${nar(l.skapad)}</span>
+      </div>
+      <div class="meta">
+        ${l.telefon ? `<a class="tel" href="tel:${l.telefon.replace(/\s/g,"")}">${l.telefon}</a>` : ""}
+        ${l.epost ? " · " + l.epost : ""}
+        ${l.objekt ? " · " + l.objekt : ""}
+        ${l.nar ? " · nås " + l.nar : ""}
+      </div>
+      <div class="taggar">${taggar}</div>
+      ${l.meddelande ? `<div class="msg">${l.meddelande.replace(/</g,"&lt;")}</div>` : ""}
+    </div>`;
+  }).join("");
+  leads.forEach(l => sedda.add(l.id));
+}
+
+async function hamta(){
+  try {
+    const res = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "x-mk-secret": secret, "x-mk-tenant": tenant },
+      body: JSON.stringify({ limit: 30 }),
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || res.status);
+    document.getElementById("fel").hidden = true;
+    document.getElementById("status").innerHTML =
+      '<span class="dot"></span>' + d.count + (d.count === 1 ? " lead" : " leads");
+    rita(d.leads);
+  } catch(e){
+    const f = document.getElementById("fel");
+    f.hidden = false;
+    f.textContent = String(e).includes("unauthorized")
+      ? "Fel nyckel — kontrollera MK_AGENT_SECRET."
+      : "Kunde inte hämta: " + e;
+  }
+}
+
+document.getElementById("start").onclick = () => {
+  secret = document.getElementById("secret").value.trim();
+  tenant = document.getElementById("tenant").value;
+  if (!secret) return;
+  document.getElementById("setup").hidden = true;
+  document.getElementById("sub").textContent =
+    document.querySelector("#tenant option:checked").textContent;
+  hamta();
+  timer = setInterval(hamta, 5000);
+};
+document.getElementById("secret").addEventListener("keydown", e => {
+  if (e.key === "Enter") document.getElementById("start").click();
+});
+</script>
+</body>
+</html>

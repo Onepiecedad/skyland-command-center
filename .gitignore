@@ -33,7 +33,9 @@ backend/.env.bak*
 *.env.bak*
 database/backups/
 frontend/.env.production
-backend/coverage/ # täckningsrapporten ska inte in i repot
+# Täckningsrapporten ska inte in i repot. (Raden hade tidigare en kommentar på samma
+# rad — det stöds inte av gitignore, så mönstret matchade aldrig.)
+backend/coverage/
 
 frontend/test-results/
 frontend/playwright-report/
@@ -45,3 +47,15 @@ _to_delete/
 # Supabase-CLI:ns scratch-state. Innehall bl.a. en projektreferens som inte
 # hor hemma i repot (den som lag har pekade pa ett projekt som inte finns).
 supabase/.temp/
+
+# Byggrester och lokala verktyg (städat 12 sep)
+__pycache__/
+frontend/.netlify/
+*.timestamp-*.mjs
+
+# Claude-appen skriver hit när den sparar filer till mappen. Inte repomaterial.
+Claude outputs/
+
+# Säljunderlag med media (mp4, png, xlsx) — 55 MB för Wolfstreet ensamt. Ligger på
+# disk, inte i git. Texten (samtalsunderlaget) finns i docs/SALES_*.md.
+sales/
