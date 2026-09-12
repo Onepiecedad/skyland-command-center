@@ -442,8 +442,30 @@ describe('execStep — source=contact_dm (kortets dm_hook)', () => {
         const ok = await execStep(step('send_email', { source: 'contact_dm', part: 'bump', subject: 'Re' }), enr, withBump, ENROLLED_AT);
         expect(ok.status).toBe('success');
         expect(h.emailSend).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining('fem tillfällen') }));
+        // Saknad bumptext är ett väntläge: nattjobbet skriver den EFTER öppnaren.
+        // Hade motorn hoppat vidare gick avslutet ut utan påminnelse (10–12 sep).
+        h.emailSend.mockClear();
         const miss = await execStep(step('send_email', { source: 'contact_dm', part: 'bump', subject: 'Re' }), enr, withDm, ENROLLED_AT);
-        expect(miss.detail).toMatchObject({ reason: 'no_dm', part: 'bump' });
+        expect(miss.status).toBe('success');
+        expect(miss.control).toBe('defer');
+        expect(miss.detail).toMatchObject({ reason: 'no_dm_wait', part: 'bump', policy_hold: true });
+        expect(miss.contextPatch).toMatchObject({ bump_wait_since: expect.any(String) });
+        expect(h.emailSend).not.toHaveBeenCalled();
+    });
+
+    it('bump: väntan behåller sin starttid, och efter tio dagar avslutas enrollmenten', async () => {
+        const started = new Date(Date.now() - 2 * 24 * 3600_000).toISOString();
+        const waiting = { ...enr, context: { bump_wait_since: started } };
+        const again = await execStep(step('send_email', { source: 'contact_dm', part: 'bump', subject: 'Re' }), waiting, withDm, ENROLLED_AT);
+        expect(again.control).toBe('defer');
+        expect(again.contextPatch).toEqual({ bump_wait_since: started });
+
+        const old = { ...enr, context: { bump_wait_since: new Date(Date.now() - 11 * 24 * 3600_000).toISOString() } };
+        const gaveUp = await execStep(step('send_email', { source: 'contact_dm', part: 'bump', subject: 'Re' }), old, withDm, ENROLLED_AT);
+        expect(gaveUp.status).toBe('skipped');
+        expect(gaveUp.control).toBe('exit');
+        expect(gaveUp.detail).toMatchObject({ reason: 'no_dm_timeout', exit_reason: 'no_bump' });
+        expect(h.emailSend).not.toHaveBeenCalled();
     });
 
     it('kort utan dm_hook → skipped/advance no_dm, ingen provider', async () => {

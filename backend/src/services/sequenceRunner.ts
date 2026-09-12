@@ -42,6 +42,13 @@ const MAX_RETRIES = 5;
 const POLICY_HOLD_MS = 60 * 60_000;
 /** Steg med require_approval väntar på klick i Skuggvecka; kolla var 15:e min. */
 const APPROVAL_HOLD_MS = 15 * 60_000;
+/** Bumpen (part=bump) skrivs av nattjobbet EFTER öppnaren, så en saknad
+ *  custom.dm_bump är ett väntläge, inte ett skip: hade motorn hoppat vidare
+ *  gick avslutsmejlet ut utan att någon påminnelse funnits (28 kort, 10–12 sep).
+ *  Kolla var 6:e timme; efter tio dagar utan text avslutas enrollmenten i
+ *  stället för att fortsätta till avslutet. */
+const BUMP_WAIT_MS = 6 * 60 * 60_000;
+const BUMP_MAX_WAIT_MS = 10 * 24 * 60 * 60_000;
 /** Hur länge en enrollment är "claimad" av en tick innan en annan tick får ta den. */
 const CLAIM_MS = 10 * 60_000;
 
@@ -102,11 +109,31 @@ interface StepResult {
     /** Absolut tidpunkt (ms) för wait_until — får INTE ankras om på senaste utskick. */
     targetAt?: number;
     detail?: Record<string, unknown>;
+    /** Nycklar som ska skrivas in i enrollment.context vid defer (t.ex. när väntan på bumptext började). */
+    contextPatch?: Record<string, unknown>;
 }
 
 /** Uppskjutning som inte är ett fel: räknar inte retries, rör inte spread_pos. */
 function hold(waitMs: number, detail: Record<string, unknown>): StepResult {
     return { status: 'success', control: 'defer', waitMs, detail: { ...detail, policy_hold: true } };
+}
+
+/** Saknad bumptext: vänta på nattjobbet, ge upp efter BUMP_MAX_WAIT_MS.
+ *  Returnerar null när steget inte är en bump — då gäller vanligt no_dm-skip. */
+async function bumpMissing(
+    channel: 'email' | 'sms', step: StepRow, enr: EnrollmentRow, contact: ContactRow
+): Promise<StepResult | null> {
+    if (String(step.config.part ?? 'opener') !== 'bump') return null;
+    const sinceRaw = enr.context?.bump_wait_since;
+    const since = typeof sinceRaw === 'string' ? Date.parse(sinceRaw) : NaN;
+    if (Number.isFinite(since) && Date.now() - since > BUMP_MAX_WAIT_MS) {
+        await logSkip(contact, enr.sequence_id, channel, 'no_dm_timeout');
+        return { status: 'skipped', control: 'exit', detail: { reason: 'no_dm_timeout', part: 'bump', exit_reason: 'no_bump' } };
+    }
+    return {
+        ...hold(BUMP_WAIT_MS, { reason: 'no_dm_wait', part: 'bump' }),
+        contextPatch: { bump_wait_since: Number.isFinite(since) ? sinceRaw : new Date().toISOString() },
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -323,6 +350,8 @@ async function execSendEmail(
     const subject = render(String(step.config.subject ?? ''), contact);
     const body = bodyFromConfig(step.config, contact, 'body');
     if (body === null) {
+        const waiting = await bumpMissing('email', step, enr, contact);
+        if (waiting) return waiting;
         await logSkip(contact, enr.sequence_id, 'email', 'no_dm');
         return { status: 'skipped', control: 'advance', detail: { reason: 'no_dm', part: step.config.part ?? 'opener' } };
     }
@@ -405,6 +434,8 @@ async function execSendSms(
     }
     const text = bodyFromConfig(step.config, contact, 'text');
     if (text === null) {
+        const waiting = await bumpMissing('sms', step, enr, contact);
+        if (waiting) return waiting;
         await logSkip(contact, enr.sequence_id, 'sms', 'no_dm');
         return { status: 'skipped', control: 'advance', detail: { reason: 'no_dm', part: step.config.part ?? 'opener' } };
     }
@@ -659,9 +690,12 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
             // att spridningen inte läggs på igen då. Policy-hold (kill switch,
             // dagstak, väntar på godkännande) är inte en spridning och rör inte
             // spread_pos — och nollställer retries, för det var inget fel.
-            const ctx = res.detail?.policy_hold === true
-                ? withoutRetries(enr.context)
-                : { ...withoutRetries(enr.context), spread_pos: position };
+            const ctx = {
+                ...(res.detail?.policy_hold === true
+                    ? withoutRetries(enr.context)
+                    : { ...withoutRetries(enr.context), spread_pos: position }),
+                ...(res.contextPatch ?? {}),
+            };
             enr.context = ctx;
             await supabase.from('sequence_enrollments').update({
                 context: ctx,
