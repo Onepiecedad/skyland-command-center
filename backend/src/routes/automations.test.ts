@@ -40,6 +40,21 @@ vi.mock('../services/supabase', () => ({
     supabase: { from: (t: string) => kedja(t) },
 }));
 
+// Kön är Render-beteendet: rutten väljer väg på `fs.existsSync(DB)`, alltså om
+// OpenClaws sqlite-fil finns på maskinen. På Render finns den inte och knappen
+// köas; på en utvecklarmaskin med OpenClaw installerat finns den, och samma
+// rutt pratar i stället med den lokala gatewayn och svarar 200.
+//
+// Utan den här mocken testade filen därför olika saker beroende på VEM som körde
+// den: grön i CI, sex röda på Joakims Mac, och testet försökte dessutom öppna
+// hans riktiga sqlite och ringa hans riktiga gateway. Ett test vars utfall beror
+// på vad som råkar ligga i hemkatalogen är inte ett test. Precondition pinnas
+// här; resten av fs är oförändrat.
+vi.mock('fs', async (importActual) => {
+    const faktisk = await importActual<typeof import('fs')>();
+    return { ...faktisk, existsSync: (p: string) => (String(p).endsWith('openclaw.sqlite') ? false : faktisk.existsSync(p)) };
+});
+
 const { default: automationsRouter } = await import('./automations');
 
 function app() {
