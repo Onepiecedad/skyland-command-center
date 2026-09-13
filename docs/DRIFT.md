@@ -1041,6 +1041,44 @@ korrekt hela tiden. Den satt bara i prosa.
 besluta hur `sells_packages` ska stämmas av, och koppla `owner_name` till
 DM- och bumpgenereringen — den läser fortfarande bara `research_notes`.
 
+## Ett trasigt LLM-svar slängde tretton minuters research (13 sep)
+
+Nattkörningen den 13 sep gick igenom (`ok`), men tre av åtta research-jobb dog
+i sista steget, efter att researchen redan var klar och sparad på kortet:
+
+| Kort | Fel | Bedömning |
+|---|---|---|
+| Lerums LaserZone | stilgrinden underkände båda utkasten | grinden gör sitt jobb |
+| Vazz Hair Design | OpenRouter svarade inte, 3 försök | övergående |
+| LJ Medicinsk fotvård | `LLM gav inte giltig JSON`, **1 försök** | bugg |
+
+Det sista var en bugg. `gen()` i `dm_pipeline.sh` hade en retry-loop på tre
+försök — men den satt runt `curl`, och `curl` lyckades. Servern svarade 200
+med skräp i `content`. Parsningen låg UTANFÖR loopen, så det första trasiga
+svaret föll rakt igenom till `exit 1`. Tretton minuters research kastades på
+ett svar som ett omförsök hade löst.
+
+Åtgärdat: parsningen ligger nu inne i loopen och kontrollerar att både
+`opener` och `followup` finns. Nätfel och skräpsvar räknas båda som ett
+misslyckat försök. Testat med stubbad `curl` i fyra lägen (giltigt, alltid
+skräp, skräp som blir giltigt på tredje, nätfel).
+
+**Mönstret att ta med sig:** en retry runt transporten skyddar inte mot ett
+trasigt svar. Lägg omförsöket runt det som faktiskt måste lyckas — här
+parsningen, inte anropet.
+
+Kvarstår: körningen rapporterar `ok` på jobbnivå även när tre av åtta kort
+föll bort inuti. `daily_fill.py` summerar inte delfel uppåt. Larmet kommer
+alltså inte att gå på det här — man ser det bara i loggen.
+
+### Larmet i WhatsApp släpar
+
+Larmet "failed 3 times, code 2" som kom 02:31 den 12 sep gällde nätterna
+10–12 sep, som var `OPENCLAW_HOME`-krocken. Den var redan åtgärdad, och
+natten till 13 sep gick igenom. Larmet skickas när felräknaren passerar
+tröskeln — det finns inget motsvarande "nu funkar det igen"-meddelande. Kolla
+`cron_run_logs` innan du agerar på ett larm, inte tvärtom.
+
 ## Kända skavanker
 
 - **Två vägar för Meta-annonsdata (10 sep).** `ad_performance` på annonsnivå via
