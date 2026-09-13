@@ -363,7 +363,7 @@ export function CustomerView({ onTaskCreated }: Props) {
                                 {detailTab === 'website' && (
                                     selectedCustomer?.site_tenant_slug ? (
                                         <Suspense fallback={<div className="cv-detail-empty-tab"><p>Laddar hemsidedata…</p></div>}>
-                                            <WebsiteView tenant={selectedCustomer.site_tenant_slug} visaWorkflows={false} />
+                                            <WebsiteView tenant={selectedCustomer.site_tenant_slug} />
                                         </Suspense>
                                     ) : (
                                         <div className="cv-detail-empty-tab">

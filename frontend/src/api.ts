@@ -1225,14 +1225,6 @@ export interface WebsiteSession {
     events: Array<{ type: string; data: Record<string, unknown>; at: string }>;
 }
 
-export interface WorkflowHealth {
-    name: string;
-    total: number;
-    errors: number;
-    last_status: string;
-    last_run: string;
-}
-
 export async function fetchWebsiteStats(days = 7, tenant?: string): Promise<WebsiteStats> {
     const q = tenant ? `&tenant=${encodeURIComponent(tenant)}` : '';
     const res = await fetchWithAuth(`${API_BASE}/website/stats?days=${days}${q}`);
@@ -1246,13 +1238,6 @@ export async function fetchWebsiteSessions(limit = 25, tenant?: string): Promise
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return data.sessions || [];
-}
-
-export async function fetchWebsiteWorkflows(): Promise<WorkflowHealth[]> {
-    const res = await fetchWithAuth(`${API_BASE}/website/workflows`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    return data.workflows || [];
 }
 
 // ============================================================================

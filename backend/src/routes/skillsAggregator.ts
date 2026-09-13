@@ -84,7 +84,12 @@ const SUBAGENT_DESCRIPTIONS: Record<string, string> = {
 
 // GET /skills - aggregate skills from workspace, subagents & MCP servers
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-router.get('/skills', async (_req: Request, res: Response) => {
+// Monterad på /api/v1/skills-aggregator i server.ts, så resursen ligger i
+// rotens plats. Vägen hette '/skills' kvar sedan legacy-index.ts, där routern
+// satt på /api/v1 och adressen alltså blev /api/v1/skills. Efter flytten blev
+// den riktiga adressen /api/v1/skills-aggregator/skills medan frontenden
+// ropade på /api/v1/skills-aggregator — 404 vid varje sidladdning sedan dess.
+router.get('/', async (_req: Request, res: Response) => {
     try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const allSkills: any[] = [];

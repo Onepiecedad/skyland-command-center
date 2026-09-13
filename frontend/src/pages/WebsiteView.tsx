@@ -2,16 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import {
     fetchWebsiteStats,
     fetchWebsiteSessions,
-    fetchWebsiteWorkflows,
     type WebsiteStats,
     type WebsiteSession,
-    type WorkflowHealth,
 } from '../api';
 
 /**
  * WebsiteView — allt som händer på skyland-ai-os.netlify.app.
  * KPI:er, konverteringstratt, ROI-signaler, språk, sessionskedjor
- * och n8n-workflowhälsa. Auto-uppdateras var 30:e sekund.
+ * Auto-uppdateras var 30:e sekund. (n8n-workflowpanelen borttagen 13 sep,
+ * n8n är avvecklat sedan 30 aug och endpointen svarade 502.)
  */
 
 const EVENT_LABELS: Record<string, string> = {
@@ -82,34 +81,28 @@ export interface WebsiteViewProps {
     /** Tenant-slug, t.ex. "marinmekaniker". Utelämnad = Skyland. */
     tenant?: string;
     /** n8n-hälsan hör bara till Skyland och göms för kundvyer. */
-    visaWorkflows?: boolean;
 }
 
-export default function WebsiteView({ tenant, visaWorkflows = true }: WebsiteViewProps = {}) {
+export default function WebsiteView({ tenant }: WebsiteViewProps = {}) {
     const [stats, setStats] = useState<WebsiteStats | null>(null);
     const [sessions, setSessions] = useState<WebsiteSession[]>([]);
-    const [workflows, setWorkflows] = useState<WorkflowHealth[]>([]);
     const [days, setDays] = useState(7);
     const [expanded, setExpanded] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         try {
-            const [s, sess, wf] = await Promise.all([
+            const [s, sess] = await Promise.all([
                 fetchWebsiteStats(days, tenant),
                 fetchWebsiteSessions(30, tenant),
-                visaWorkflows
-                    ? fetchWebsiteWorkflows().catch(() => [] as WorkflowHealth[])
-                    : Promise.resolve([] as WorkflowHealth[]),
             ]);
             setStats(s);
             setSessions(sess);
-            setWorkflows(wf);
             setError(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Kunde inte hämta data');
         }
-    }, [days, tenant, visaWorkflows]);
+    }, [days, tenant]);
 
     useEffect(() => {
         void load();
@@ -240,28 +233,6 @@ export default function WebsiteView({ tenant, visaWorkflows = true }: WebsiteVie
                         )}
                     </div>
 
-                    {/* Workflow-hälsa */}
-                    {workflows.length > 0 && (
-                        <div style={{ ...cardStyle, marginBottom: 16 }}>
-                            <div style={{ fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', opacity: 0.5, marginBottom: 10 }}>
-                                n8n Workflow-hälsa (senaste 100 körningarna)
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                                {workflows.map((w) => (
-                                    <div key={w.name} style={{
-                                        display: 'flex', alignItems: 'center', gap: 8, fontSize: 12,
-                                        padding: '6px 12px', borderRadius: 8,
-                                        background: w.errors > 0 ? 'rgba(255,107,107,0.12)' : 'rgba(80,220,120,0.1)',
-                                        border: `1px solid ${w.errors > 0 ? 'rgba(255,107,107,0.4)' : 'rgba(80,220,120,0.3)'}`,
-                                    }}>
-                                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: w.errors > 0 ? '#ff6b6b' : '#50dc78' }} />
-                                        <strong>{w.name}</strong>
-                                        <span style={{ opacity: 0.6 }}>{w.total - w.errors}/{w.total} OK</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </>
             )}
 

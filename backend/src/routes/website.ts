@@ -315,43 +315,13 @@ router.get('/sessions', async (req: Request, res: Response) => {
     }
 });
 
-// ============================================================================
-// GET /workflows — n8n workflow health (last executions per workflow)
-// ============================================================================
-
-router.get('/workflows', async (_req: Request, res: Response) => {
-    const apiUrl = process.env.N8N_API_URL;
-    const apiKey = process.env.N8N_API_KEY;
-    if (!apiUrl || !apiKey) {
-        return res.status(503).json({ error: 'N8N_API_URL/N8N_API_KEY not configured' });
-    }
-    try {
-        const [execRes, wfRes] = await Promise.all([
-            fetch(`${apiUrl}/executions?limit=100`, { headers: { 'X-N8N-API-KEY': apiKey } }),
-            fetch(`${apiUrl}/workflows`, { headers: { 'X-N8N-API-KEY': apiKey } }),
-        ]);
-        if (!execRes.ok) return res.status(502).json({ error: `n8n HTTP ${execRes.status}` });
-        const body = await execRes.json() as { data?: Array<{ workflowId: string; status: string; startedAt: string }> };
-        const wfBody = wfRes.ok
-            ? await wfRes.json() as { data?: Array<{ id: string; name: string }> }
-            : { data: [] };
-        const nameById = new Map((wfBody.data || []).map((w) => [w.id, w.name]));
-
-        const byWorkflow: Record<string, { name: string; total: number; errors: number; last_status: string; last_run: string }> = {};
-        for (const ex of body.data || []) {
-            const name = nameById.get(ex.workflowId) || ex.workflowId;
-            if (!byWorkflow[name]) {
-                byWorkflow[name] = { name, total: 0, errors: 0, last_status: ex.status, last_run: ex.startedAt };
-            }
-            byWorkflow[name].total++;
-            if (ex.status === 'error' || ex.status === 'failed' || ex.status === 'crashed') byWorkflow[name].errors++;
-        }
-
-        return res.json({ workflows: Object.values(byWorkflow) });
-    } catch (err) {
-        console.error('[Website Workflows] Unexpected error:', err);
-        return res.status(500).json({ error: 'Internal server error' });
-    }
-});
+// GET /workflows är BORTTAGEN (13 sep). Den frågade n8n:s API efter
+// körningshistorik. n8n är avvecklat sedan 2026-08-30 och flödena bor i SCC:s
+// egna routes, men N8N_API_URL/N8N_API_KEY låg kvar i Render, så anropet nådde
+// en död tjänst och svarade 502 vid varje laddning av Sajt-vyn. En panel som
+// heter "n8n Workflow-hälsa" för ett system som inte finns är sämre än ingen
+// panel. Vill man ha sajtens flödeshälsa läser man activities från
+// site-webhookarna i stället — eget ticket, inte en återupplivning av den här.
+// Cron-jobbens hälsa finns redan i Systemvyn, som läser /api/v1/automations.
 
 export default router;
