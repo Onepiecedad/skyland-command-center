@@ -366,6 +366,27 @@ påslagen i Resend, och webhooken måste prenumerera på just de händelsetypern
 Är något av det av är koden stum — den registrerar det som kommer, och det
 kommer ingenting. Kontrollera i Resend-panelen, inte i koden.
 
+**Påslaget 13 sep.** Öppningsspårning krävde en spårningssubdomän, inte bara en
+kryssruta: Resend skriver om `<img>`-pixeln till den domänen, och utan posten
+vägrar panelen slå på funktionen. Posten lades i One.com och är verifierad:
+
+```
+links.send.skylandai.se.  CNAME  links1.resend-dns.com.
+```
+
+Det är enda anledningen till att det finns en `links`-subdomän. Ta inte bort
+den — då slutar öppningsmätningen tyst, precis som förut.
+
+Läget nu: `open_tracking: true`, `click_tracking: false`. Klickspårning är
+medvetet av, eftersom den skriver om varje länk i brödtexten till en
+Resend-URL. Det syns för mottagaren, och för kalla mejl till kliniker är det
+inte värt de få klick vi ändå skulle mäta. Webhooken prenumererar på
+`email.opened`.
+
+De 54 mejl som gick ut före den 13 sep kommer aldrig att rapportera en öppning
+— pixeln fanns inte i dem. Måndagens elva öppnare är första riktiga mätpunkten.
+Jämför alltså inte före och efter; det är två olika mätningar.
+
 Och öppningssiffror överdriver alltid: Apple Mail Privacy Protection och många
 företagsfilter hämtar bilder automatiskt, vilket ser ut som en öppning ingen
 människa gjort. En hög siffra betyder därför lite. En NOLLA över en hel batch
@@ -388,6 +409,13 @@ DNS-sida, den visar exakt vad kontot kräver):
 ```
 send.skylandai.se.  TXT  "v=spf1 include:amazonses.com ~all"
 ```
+
+**Omkontroll 13 sep: SPF saknas fortfarande.** `dig TXT send.skylandai.se` ger
+noll svar mot både 1.1.1.1 och 8.8.8.8, och organisationsdomänen har bara
+Googles verifieringsposter. Resends domänsida visar ändå domänen som
+`verified` med alla poster gröna — den statusen speglar alltså inte publik DNS
+i realtid. Lita på `dig`, inte på panelen. Detta är fortfarande obetalt
+spamskydd som ligger och väntar.
 
 Eftersom `rua` pekar på Joakims egen adress finns dessutom DMARC-rapporter i
 inkorgen som visar hur mottagarnas servrar faktiskt behandlade utskicken. Det
