@@ -80,7 +80,6 @@ function eventSummary(ev: { type: string; data: Record<string, unknown> }): stri
 export interface WebsiteViewProps {
     /** Tenant-slug, t.ex. "marinmekaniker". Utelämnad = Skyland. */
     tenant?: string;
-    /** n8n-hälsan hör bara till Skyland och göms för kundvyer. */
 }
 
 export default function WebsiteView({ tenant }: WebsiteViewProps = {}) {
