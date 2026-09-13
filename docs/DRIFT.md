@@ -399,23 +399,25 @@ betyder desto mer. `delivered` är däremot hårddata.
 | DKIM `resend._domainkey.send.skylandai.se` | finns |
 | DMARC `_dmarc.send.skylandai.se` | finns, `p=none`, `rua=mailto:joakim@skylandai.se` |
 | DMARC på organisationsdomänen `skylandai.se` | saknas |
-| **SPF på `send.skylandai.se` och `skylandai.se`** | **saknas helt** |
+| ~~**SPF på `send.skylandai.se`**~~ | ~~**saknas helt**~~ — **felaktigt, se nedan** |
 
-Kontrollerat mot både 8.8.8.8 och 1.1.1.1. SPF-avsaknaden blockerar inget —
-DKIM ensamt räcker för Gmail och Microsoft — men den kostar spampoäng gratis.
-Posten som ska läggas på `send.skylandai.se` (bekräfta värdet mot Resends
-DNS-sida, den visar exakt vad kontot kräver):
+**Rättelse 13 sep: SPF finns och har alltid funnits.** Kontrollen den 5 sep
+frågade fel namn. SPF gäller kuvertavsändaren (MAIL FROM), inte
+From-huvudet, och Resend lägger kuvertavsändaren på en egen subdomän ett steg
+under sändardomänen. Posten heter alltså `send.send.skylandai.se`, inte
+`send.skylandai.se` — den senare ska inte ha någon SPF-post och ett `dig` mot
+den ger tomt svar helt korrekt:
 
 ```
-send.skylandai.se.  TXT  "v=spf1 include:amazonses.com ~all"
+send.send.skylandai.se.  TXT  "v=spf1 include:amazonses.com ~all"   ← finns
+send.send.skylandai.se.  MX  10 feedback-smtp.eu-west-1.amazonses.com  ← finns
 ```
 
-**Omkontroll 13 sep: SPF saknas fortfarande.** `dig TXT send.skylandai.se` ger
-noll svar mot både 1.1.1.1 och 8.8.8.8, och organisationsdomänen har bara
-Googles verifieringsposter. Resends domänsida visar ändå domänen som
-`verified` med alla poster gröna — den statusen speglar alltså inte publik DNS
-i realtid. Lita på `dig`, inte på panelen. Detta är fortfarande obetalt
-spamskydd som ligger och väntar.
+Läxan: fråga Resends DNS-sida vilka namn den kräver innan du digger. En post
+som "saknas" på ett namn ingen bad om är inte en avvikelse.
+
+DMARC på organisationsdomänen `skylandai.se` saknas fortfarande. Det är den
+enda kvarvarande luckan i avsändarautentiseringen och den blockerar inget.
 
 Eftersom `rua` pekar på Joakims egen adress finns dessutom DMARC-rapporter i
 inkorgen som visar hur mottagarnas servrar faktiskt behandlade utskicken. Det
