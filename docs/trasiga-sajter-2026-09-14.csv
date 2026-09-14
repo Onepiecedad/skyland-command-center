@@ -1,0 +1,12 @@
+domän,verdikt,bevis,åtgärd,prio
+heidihaytattoo.com,DOMÄN_BORTA,DNS svarar inte (NXDOMAIN) från Macens eget nät,Domänen har löpt ut. Verifiera att bolaget lever innan kontakt.,hög
+kroppsverkstan.nu,DOMÄN_BORTA,DNS svarar inte (NXDOMAIN),Domänen har löpt ut. Verifiera att bolaget lever innan kontakt.,hög
+skincarecenter.nu,DOMÄN_BORTA,DNS svarar inte (NXDOMAIN),Domänen har löpt ut. Verifiera att bolaget lever innan kontakt.,hög
+skinfashionclinic.se,DOMÄN_BORTA,DNS svarar inte (NXDOMAIN),Domänen har löpt ut. Verifiera att bolaget lever innan kontakt.,hög
+fotochryggkliniken.se,KAPAD_REDIRECT,"9 redirects, landar på alexinn.se/kanda-italienska-modeskapare/",Domänen pekar på SEO-spam. Ring. Detta är inget mejlärende.,mycket hög
+inkbrotherstattoo.net,CERT_TRASIGT,"Certkedjan bruten på apex och www, 2 byte innehåll bakom",Säkerhetsvarning för alla besökare plus tom sajt.,hög
+kongahallakliniken.se,DELVIS_DÖD,"apex timeout, www har bruten certkedja (31 KB innehåll finns)",Sajten finns men apex är död och certet varnar.,hög
+clinic4life.se,SERVER_DÖD,"Timeout på apex, connection refused på www",Ingen server svarar. Sajten är nere.,hög
+luxeestetiskklinik.se,ORIGIN_NERE,HTTP 523 från Cloudflare på båda värdnamnen,Cloudflare når inte servern. Sajten är nere.,hög
+sk-inspiration.com,ORIGIN_NERE,HTTP 522 från Cloudflare på båda värdnamnen,Cloudflare får timeout mot servern. Sajten är nere.,hög
+shivasskincare.se,SERVERFEL,HTTP 500 på båda värdnamnen,Serverfel på startsidan.,hög
