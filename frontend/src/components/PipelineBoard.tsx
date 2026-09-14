@@ -27,6 +27,7 @@ type SiteHealth = { verdict: string; sellable?: boolean; evidence?: string };
 const SITE_HEALTH_LABEL: Record<string, string> = {
     DOMAIN_GONE: 'domänen finns inte',
     PARKED: 'parkerad domän',
+    MISDIRECT: 'adressen leder delvis fel',
     HIJACKED: 'domänen pekar bort',
     UNREACHABLE: 'gick inte att nå — kontrollera själv',
     ORIGIN_DOWN: 'servern svarar inte',
@@ -40,6 +41,7 @@ const SITE_HEALTH_LABEL: Record<string, string> = {
 const SITE_HEALTH_TERMS: Record<string, string> = {
     DOMAIN_GONE: 'trasig webb hemsida domän borta utgången saknas',
     PARKED: 'trasig webb hemsida parkerad domänhandlare till salu',
+    MISDIRECT: 'felpekad webb hemsida www adress byggadress delvis',
     HIJACKED: 'trasig webb hemsida kapad pekar bort redirect',
     UNREACHABLE: 'onåbar webb hemsida oklart kontrollera server nere',
     ORIGIN_DOWN: 'trasig webb hemsida server nere död',
@@ -59,7 +61,7 @@ function siteHealthOf(opp: Opportunity): SiteHealth | null {
 /** Bara det som faktiskt är en affärssignal — MOVED är städning, inte lead. */
 /** Bara det som faktiskt är en affärssignal. MOVED är städning, och
  *  UNREACHABLE vet vi inte — båda hålls utanför leadräkningen. */
-const NOT_A_LEAD = new Set(['MOVED', 'UNREACHABLE']);
+const NOT_A_LEAD = new Set(['MOVED', 'UNREACHABLE', 'MISDIRECT']);
 
 function hasBrokenSite(opp: Opportunity): boolean {
     const sh = siteHealthOf(opp);

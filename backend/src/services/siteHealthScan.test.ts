@@ -238,6 +238,11 @@ describe('gateOnSiteHealth — grinden vid intaget', () => {
         expect(d.site_health?.sellable).toBe(false);
     });
 
+    it('slänger MISDIRECT — sajten fungerar, adressen är bara halvt fel', async () => {
+        h.checkResults = [result({ verdict: 'MISDIRECT', sellable: false, evidence: 'apex leder fel' })];
+        expect((await gateOnSiteHealth('https://halvtfel.se')).action).toBe('create');
+    });
+
     it('släpper igenom vid INCONCLUSIVE — släng aldrig på okunskap', async () => {
         h.checkResults = [result({ verdict: 'INCONCLUSIVE', sellable: false, evidence: 'WAF' })];
         const d = await gateOnSiteHealth('https://blockerad.se');

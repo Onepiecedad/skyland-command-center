@@ -17,7 +17,8 @@ export type Verdict =
   | 'CERT_BROKEN'     // certfel på BÅDA värdnamnen — besökare får säkerhetsvarning
   | 'HIJACKED'        // redirectar bort till en främmande domän
   | 'MOVED'           // redirectar till eget nytt domännamn — byt URL i CRM, inget lead
-  | 'PARKED'          // landar hos domänhandlare eller hostingplatshållare
+  | 'PARKED'          // landar hos en domänhandlare — domänen är i praktiken förlorad
+  | 'MISDIRECT'       // sajten fungerar, men en variant av adressen leder fel
   | 'EMPTY'           // svarar 200 men utan <title>/innehåll — parkerad
   | 'INCONCLUSIVE';   // botblockering eller challenge — vi vet inte, flagga inte
 
@@ -133,8 +134,11 @@ function hasRealContent(p: Probe): boolean {
 /** Värdar som betyder "ingen sajt här": domänhandlare och hostingplatshållare. */
 const PARKING_HOSTS = [
   'expireddomains.', 'sedoparking.', 'parkingcrew.', 'afternic.', 'dan.com',
-  'sg-host.com', 'hostinger', 'bodis.com', 'above.com', 'undeveloped.com',
+  'bodis.com', 'above.com', 'undeveloped.com',
 ];
+
+/** Hostingleverantörers temporära adresser. Betyder "sajten finns, pekaren är fel". */
+const STAGING_HOSTS = ['sg-host.com', 'hostingersite.com', 'temp-dns.', 'cloudwaysapps.com'];
 
 /** Namnstammen utan TLD och skiljetecken: "brandon-lodge.se" -> "brandonlodge". */
 function stem(host: string): string {
@@ -165,11 +169,37 @@ export async function checkSite(domain: string): Promise<SiteHealth> {
   const out = (verdict: Verdict, sellable: boolean, evidence: string, finalUrl?: string): SiteHealth =>
     ({ domain: d, verdict, sellable, evidence, finalUrl });
 
-  // 1. Frisk? Räcker att EN variant fungerar — apex som 301:ar till www är normalt.
+  const from = registrable(`https://${d}`);
+  const healthy = (p: Probe) => p.ok && p.status === 200 && hasRealContent(p);
+  const onOwnDomain = (p: Probe) => registrable(p.finalUrl ?? '') === from;
+
+  // 1. Fungerar NÅGON variant på deras egen domän är sajten frisk. Detta måste
+  //    prövas på ALLA varianter först. Tidigare returnerade jag på första
+  //    träffen: gbgestetik.se (apex) skickar vidare till en byggadress, men
+  //    www.gbgestetik.se är den riktiga sajten. Apex prövades först och hela
+  //    kliniken klassades som parkerad domän trots en fullt fungerande sajt.
+  const good = probes.find(p => healthy(p) && onOwnDomain(p));
+  if (good) {
+    const stray = probes.find(p => healthy(p) && !onOwnDomain(p));
+    if (stray) {
+      const to = registrable(stray.finalUrl ?? '');
+      return out('MISDIRECT', false,
+        `Sajten fungerar, men en variant av adressen leder till ${to} i stället`,
+        stray.finalUrl);
+    }
+    return out('OK', false, 'HTTP 200 med innehåll', good.finalUrl);
+  }
+
+  // 2. Ingen variant fungerar på egen domän. Då är omdirigeringen hela bilden.
   for (const p of probes) {
-    if (p.ok && p.status === 200 && hasRealContent(p)) {
-      const from = registrable(`https://${d}`), to = registrable(p.finalUrl ?? '');
+    if (healthy(p)) {
+      const to = registrable(p.finalUrl ?? '');
       if (to && to !== from) {
+        if (STAGING_HOSTS.some(sh => to.includes(sh))) {
+          return out('MISDIRECT', false,
+            `Hela adressen pekar på byggadressen ${to} — domänen är inte kopplad`,
+            p.finalUrl);
+        }
         if (PARKING_HOSTS.some(ph => to.includes(ph))) {
           return out('PARKED', true,
             `Redirectar till ${to} — domänen ligger hos en domänhandlare/platshållare`, p.finalUrl);
@@ -181,7 +211,6 @@ export async function checkSite(domain: string): Promise<SiteHealth> {
         return out('HIJACKED', true,
           `Redirectar till ${to} — domänen pekar inte längre på företaget`, p.finalUrl);
       }
-      return out('OK', false, `HTTP 200 med innehåll`, p.finalUrl);
     }
   }
 
