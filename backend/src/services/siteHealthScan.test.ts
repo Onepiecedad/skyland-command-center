@@ -231,6 +231,13 @@ describe('gateOnSiteHealth — grinden vid intaget', () => {
         expect(d.site_health?.checked_at).toBeTruthy();
     });
 
+    it('släpper igenom UNREACHABLE utan att kalla det lead', async () => {
+        h.checkResults = [result({ verdict: 'UNREACHABLE', sellable: false, evidence: 'två försök' })];
+        const d = await gateOnSiteHealth('https://onabar.se');
+        expect(d.action).toBe('create');
+        expect(d.site_health?.sellable).toBe(false);
+    });
+
     it('släpper igenom vid INCONCLUSIVE — släng aldrig på okunskap', async () => {
         h.checkResults = [result({ verdict: 'INCONCLUSIVE', sellable: false, evidence: 'WAF' })];
         const d = await gateOnSiteHealth('https://blockerad.se');

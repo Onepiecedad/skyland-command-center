@@ -123,7 +123,9 @@ export async function scanContactSites(opts: {
 
     if (byDomain.size === 0) return summary;
 
-    const results = await checkSites([...byDomain.keys()]);
+    // Sex i stället för tolv: den första körningen triggade rate limiting
+    // hos Cloudflare och flaggade friska sajter som döda.
+    const results = await checkSites([...byDomain.keys()], 6);
     const checked_at = new Date().toISOString();
 
     for (const result of results) {

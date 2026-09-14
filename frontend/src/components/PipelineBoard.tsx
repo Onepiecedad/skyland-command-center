@@ -28,7 +28,7 @@ const SITE_HEALTH_LABEL: Record<string, string> = {
     DOMAIN_GONE: 'domänen finns inte',
     PARKED: 'parkerad domän',
     HIJACKED: 'domänen pekar bort',
-    SERVER_DEAD: 'servern svarar inte',
+    UNREACHABLE: 'gick inte att nå — kontrollera själv',
     ORIGIN_DOWN: 'servern svarar inte',
     SERVER_ERROR: 'serverfel på startsidan',
     CERT_BROKEN: 'säkerhetsvarning för besökare',
@@ -41,7 +41,7 @@ const SITE_HEALTH_TERMS: Record<string, string> = {
     DOMAIN_GONE: 'trasig webb hemsida domän borta utgången saknas',
     PARKED: 'trasig webb hemsida parkerad domänhandlare till salu',
     HIJACKED: 'trasig webb hemsida kapad pekar bort redirect',
-    SERVER_DEAD: 'trasig webb hemsida server nere död',
+    UNREACHABLE: 'onåbar webb hemsida oklart kontrollera server nere',
     ORIGIN_DOWN: 'trasig webb hemsida server nere död',
     SERVER_ERROR: 'trasig webb hemsida serverfel',
     CERT_BROKEN: 'trasig webb hemsida certifikat säkerhetsvarning',
@@ -57,9 +57,13 @@ function siteHealthOf(opp: Opportunity): SiteHealth | null {
 }
 
 /** Bara det som faktiskt är en affärssignal — MOVED är städning, inte lead. */
+/** Bara det som faktiskt är en affärssignal. MOVED är städning, och
+ *  UNREACHABLE vet vi inte — båda hålls utanför leadräkningen. */
+const NOT_A_LEAD = new Set(['MOVED', 'UNREACHABLE']);
+
 function hasBrokenSite(opp: Opportunity): boolean {
     const sh = siteHealthOf(opp);
-    return !!sh && sh.verdict !== 'MOVED';
+    return !!sh && !NOT_A_LEAD.has(sh.verdict);
 }
 
 function matchesSearch(opp: Opportunity, q: string): boolean {
@@ -575,8 +579,8 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                                     )}
                                     {opp.contact?.custom?.website && (() => {
                                         const sh = siteHealthOf(opp);
-                                        const broken = !!sh && sh.verdict !== 'MOVED';
-                                        // MOVED är inte trasigt, bara fel adress hos oss — gul, inte röd.
+                                        const broken = !!sh && !NOT_A_LEAD.has(sh.verdict);
+                                        // MOVED och UNREACHABLE är inte bevisat trasiga — gula, inte röda.
                                         const tone = broken ? '#ff9a9a' : '#e0b978';
                                         return (
                                             <div>

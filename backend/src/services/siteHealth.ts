@@ -11,7 +11,7 @@
 export type Verdict =
   | 'OK'              // sajten fungerar
   | 'DOMAIN_GONE'     // DNS svarar inte — domänen har löpt ut
-  | 'SERVER_DEAD'     // domänen finns, ingen server svarar
+  | 'UNREACHABLE'     // DNS svarar men inte servern — KAN inte avgöras utifrån
   | 'ORIGIN_DOWN'     // proxy (Cloudflare) svarar 52x, origin nere
   | 'SERVER_ERROR'    // 5xx på startsidan
   | 'CERT_BROKEN'     // certfel på BÅDA värdnamnen — besökare får säkerhetsvarning
@@ -67,7 +67,22 @@ function probeIgnoringCert(host: string): Promise<Probe> {
   });
 }
 
+/** Fel som lika gärna kan vara rate limiting eller en slinka som en död server. */
+const TRANSIENT = /ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|UND_ERR|ABORT|OKÄND/;
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
 async function probe(host: string, insecure = false): Promise<Probe> {
+  const first = await probeOnce(host, insecure);
+  if (first.ok || !TRANSIENT.test(first.errCode ?? '')) return first;
+  // Ett omtag efter en paus. Cloudflare släpper igenom efter en stund, en
+  // död server gör det inte. Utan detta blev ak.se felflaggad av min egen
+  // skanning: 198 domäner med tolv parallella anrop triggade strypningen.
+  await sleep(1500 + Math.random() * 1500);
+  return probeOnce(host, insecure);
+}
+
+async function probeOnce(host: string, insecure = false): Promise<Probe> {
   if (insecure) return probeIgnoringCert(host);
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), TIMEOUT_MS);
@@ -81,8 +96,11 @@ async function probe(host: string, insecure = false): Promise<Probe> {
     return { ok: true, status: res.status, body, finalUrl: res.url };
   } catch (e: any) {
     const raw = e?.cause?.code ?? e?.code ?? e?.name ?? 'UNKNOWN';
-    // Bara begripliga felkoder får gå vidare — en naken siffra säger inget.
-    const code = typeof raw === 'string' && /^[A-Z_]{3,}$/.test(raw) ? raw : 'CONNECT_FAILED';
+    // Behåll koden om den är begriplig. Skriv ALDRIG över den med en
+    // platshållare — det gjorde jag först, och då försvann diagnosen som
+    // hade förklarat varför ak.se felflaggades.
+    const code = typeof raw === 'string' && /^[A-Z_]{3,}$/.test(raw)
+        ? raw : `OKÄND(${String(raw).slice(0, 20)})`;
     return { ok: false, errCode: code };
   } finally {
     clearTimeout(timer);
@@ -201,8 +219,12 @@ export async function checkSite(domain: string): Promise<SiteHealth> {
     return out('EMPTY', true, 'Svarar 200 men saknar titel/innehåll — parkerad domän');
   }
 
+  // DNS svarar alltså, men inte servern. Utifrån går det inte att skilja
+  // "hostingen är nere" från "de släpper inte in oss". sellable=false: visa
+  // den, men skicka den aldrig vidare som ett lead utan mänsklig blick.
   const codes = [...new Set(probes.map(p => p.errCode).filter(Boolean))];
-  return out('SERVER_DEAD', true, `Ingen server svarar (${codes.join(', ')})`);
+  return out('UNREACHABLE', false,
+    `Gick inte att nå, två försök (${codes.join(', ')}) — kontrollera i webbläsaren`);
 }
 
 /** Kör många domäner med tak på samtidighet. */
