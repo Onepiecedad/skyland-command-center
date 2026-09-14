@@ -19,6 +19,7 @@ export type Verdict =
   | 'MOVED'           // redirectar till eget nytt domännamn — byt URL i CRM, inget lead
   | 'PARKED'          // landar hos en domänhandlare — domänen är i praktiken förlorad
   | 'MISDIRECT'       // sajten fungerar, men en variant av adressen leder fel
+  | 'DIRECTORY_ONLY'  // adressen är en katalogsajt, inte företagets egen
   | 'EMPTY'           // svarar 200 men utan <title>/innehåll — parkerad
   | 'INCONCLUSIVE';   // botblockering eller challenge — vi vet inte, flagga inte
 

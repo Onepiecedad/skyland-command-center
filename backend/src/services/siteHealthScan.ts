@@ -25,6 +25,43 @@ const NOT_OWN_SITE = [
     'youtube.', 'bit.ly', 'linktr.ee', 'google.com', 'wa.me',
 ];
 
+/**
+ * Katalogfarmar som skrapar Google Maps och planterar sin egen länk i
+ * företagens profil. Hittade genom att tre kliniker i listan hade
+ * naviswbusiness.org, swemaps.org och swedmapi.org som "hemsida" — alla tre
+ * vidarebefordrar till navmapi.com och delar mejladressen
+ * mapdetailscom@gmail.com.
+ */
+const DIRECTORY_HOSTS = [
+    'navmapi.', 'swemaps.', 'swedmapi.', 'naviswbusiness.', 'inkstinct.co',
+    'hitta.se', 'eniro.se', 'allabolag.se', 'merinfo.se', 'ratsit.se',
+    'booksy.com', 'yelp.', 'trustpilot.', 'reco.se',
+];
+
+/**
+ * Ett Google Place ID i sökvägen är ett säkert tecken på skrapad katalog —
+ * ett riktigt företag lägger inte sitt eget Maps-id i sin egen URL.
+ */
+const PLACE_ID_IN_PATH = /\/(details|place|studio|business)\/|Ch[IJ]J[A-Za-z0-9_-]{6,}/;
+
+export interface DirectoryHit { host: string; reason: string }
+
+/** Är adressen en katalogsajt i stället för företagets egen hemsida? */
+export function detectDirectory(raw: string | null | undefined): DirectoryHit | null {
+    if (!raw) return null;
+    const url = raw.trim().toLowerCase();
+    const host = url.replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[/?#]/)[0];
+    if (!host) return null;
+
+    const known = DIRECTORY_HOSTS.find(d => host.includes(d));
+    if (known) return { host, reason: `katalogsajten ${host}` };
+
+    if (PLACE_ID_IN_PATH.test(url)) {
+        return { host, reason: `${host}, som listar dem via ett Google Place-id` };
+    }
+    return null;
+}
+
 const RECHECK_AFTER_DAYS = 30;
 const DEFAULT_LIMIT = 200;
 
@@ -114,11 +151,34 @@ export async function scanContactSites(opts: {
 
     // En domän kan sitta på flera kontakter — kolla den en gång.
     const byDomain = new Map<string, ContactRow[]>();
+    const directoryRows: Array<{ row: ContactRow; hit: DirectoryHit }> = [];
     for (const row of rows) {
-        const domain = toDomain(websiteOf(row));
-        if (!domain || !isStale(row.custom, recheckAfterDays)) { summary.skipped++; continue; }
+        const raw = websiteOf(row);
+        if (!isStale(row.custom, recheckAfterDays)) { summary.skipped++; continue; }
+
+        // Katalogsajt? Då behövs inget nätverksanrop — adressen är inte deras.
+        const hit = detectDirectory(raw);
+        if (hit) { directoryRows.push({ row, hit }); continue; }
+
+        const domain = toDomain(raw);
+        if (!domain) { summary.skipped++; continue; }
         const bucket = byDomain.get(domain);
         if (bucket) bucket.push(row); else byDomain.set(domain, [row]);
+    }
+
+    for (const { row, hit } of directoryRows) {
+        const stored: StoredSiteHealth = {
+            verdict: 'DIRECTORY_ONLY', sellable: true,
+            evidence: `Google-profilens adress går till ${hit.reason}, inte till en egen hemsida`,
+            checked_at: new Date().toISOString(),
+        };
+        summary.scanned++; summary.sellable++;
+        summary.by_verdict.DIRECTORY_ONLY = (summary.by_verdict.DIRECTORY_ONLY ?? 0) + 1;
+        summary.leads.push({
+            contact_id: row.id, company: row.company, domain: hit.host,
+            verdict: 'DIRECTORY_ONLY', evidence: stored.evidence,
+        });
+        if (!opts.dryRun && !(await persistStored(row, stored))) summary.write_errors++;
     }
 
     if (byDomain.size === 0) return summary;
@@ -156,18 +216,21 @@ export async function scanContactSites(opts: {
 }
 
 async function persist(row: ContactRow, result: SiteHealth, checked_at: string): Promise<boolean> {
-    const stored: StoredSiteHealth = {
+    return persistStored(row, {
         verdict: result.verdict,
         sellable: result.sellable,
         evidence: result.evidence,
         ...(result.finalUrl ? { final_url: result.finalUrl } : {}),
         checked_at,
-    };
+    });
+}
+
+async function persistStored(row: ContactRow, stored: StoredSiteHealth): Promise<boolean> {
     const { error } = await supabase
         .from('contacts')
         .update({
             custom: { ...(row.custom ?? {}), site_health: stored },
-            updated_at: checked_at,
+            updated_at: stored.checked_at,
         })
         .eq('id', row.id);
 
@@ -226,6 +289,17 @@ export type GateDecision =
  * sajterna blir INCONCLUSIVE; grinden gallrar då sämre men tappar ingenting.
  */
 export async function gateOnSiteHealth(website: string | null | undefined): Promise<GateDecision> {
+    const dir = detectDirectory(website);
+    if (dir) {
+        return {
+            action: 'create',
+            site_health: {
+                verdict: 'DIRECTORY_ONLY', sellable: true,
+                evidence: `Google-profilens adress går till ${dir.reason}, inte till en egen hemsida`,
+                checked_at: new Date().toISOString(),
+            },
+        };
+    }
     const domain = toDomain(website);
     if (!domain) {
         return { action: 'create', note: 'Ingen egen domän att kontrollera — kortet skapas ogallrat.' };

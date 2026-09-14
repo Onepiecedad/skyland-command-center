@@ -59,7 +59,7 @@ vi.mock('./siteHealth', () => ({
     }),
 }));
 
-const { scanContactSites, toDomain, gateOnSiteHealth } = await import('./siteHealthScan');
+const { scanContactSites, toDomain, gateOnSiteHealth, detectDirectory } = await import('./siteHealthScan');
 
 const contact = (over: Record<string, unknown> = {}) => ({
     id: 'c1', company: 'Testklinik', website: 'https://test.se', custom: null, ...over,
@@ -268,5 +268,39 @@ describe('gateOnSiteHealth — grinden vid intaget', () => {
         const d = await gateOnSiteHealth('https://strular.se');
         expect(d.action).toBe('create');
         expect(d.note).toMatch(/kraschade/);
+    });
+});
+
+
+describe('detectDirectory — katalogsajt i stället för egen hemsida', () => {
+    it('känner igen navmapi-nätverket', () => {
+        expect(detectDirectory('https://swemaps.org/details/energistudion-ChIJ59l')?.host).toBe('swemaps.org');
+        expect(detectDirectory('https://swedmapi.org/details/luminora-ChIJNcJ')).toBeTruthy();
+        expect(detectDirectory('https://naviswbusiness.org/details/eklanda-ChIJRZ_')).toBeTruthy();
+    });
+
+    it('känner igen branschkataloger', () => {
+        expect(detectDirectory('https://inkstinct.co/studio/kuns-ink-tattoo')).toBeTruthy();
+        expect(detectDirectory('https://www.hitta.se/nagot')).toBeTruthy();
+    });
+
+    it('fångar Google Place-id i sökvägen även på okänd värd', () => {
+        expect(detectDirectory('https://nykatalog.xyz/place/klinik-ChIJabcdefgh')).toBeTruthy();
+    });
+
+    it('lämnar riktiga företagssajter i fred', () => {
+        expect(detectDirectory('https://gbgestetik.se')).toBeNull();
+        expect(detectDirectory('https://www.shivasskincare.se/')).toBeNull();
+        expect(detectDirectory(null)).toBeNull();
+    });
+});
+
+describe('grinden mot katalogsajter', () => {
+    it('skapar kort utan att göra ett enda nätverksanrop', async () => {
+        const d = await gateOnSiteHealth('https://swemaps.org/details/x-ChIJ59l');
+        expect(d.action).toBe('create');
+        expect(d.site_health?.verdict).toBe('DIRECTORY_ONLY');
+        expect(d.site_health?.sellable).toBe(true);
+        expect(h.checkedDomains).toHaveLength(0);
     });
 });
