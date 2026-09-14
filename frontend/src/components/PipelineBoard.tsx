@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GripVertical, Clock } from 'lucide-react';
 import { fetchBoard, moveOpportunity, type BoardColumn, type Opportunity } from '../api';
+import {
+    SITE_HEALTH_LABEL, SITE_HEALTH_TERMS, NOT_A_LEAD,
+    siteHealthOf, hostOf, callGuide, NASTA_REPLIK,
+} from './siteHealth';
 
 /**
  * PipelineBoard (SCC-25) — drag-bar kanban över en pipelines stages.
@@ -16,136 +20,16 @@ interface PipelineBoardProps {
     onSelectContact?: (opportunity: Opportunity) => void;
 }
 
-/**
- * Sajthälsa satt av siteHealthScan (backend). Kortet visade tidigare webb-
- * adressen som en vanlig länk även när domänen var parkerad eller borta —
- * panelen påstod alltså att företaget hade en hemsida när det inte hade det.
- */
-type SiteHealth = { verdict: string; sellable?: boolean; evidence?: string; final_url?: string };
-
-/** Etikett + färg per verdikt. Utelämnade verdikt ritas inte alls. */
-const SITE_HEALTH_LABEL: Record<string, string> = {
-    DOMAIN_GONE: 'domänen finns inte',
-    PARKED: 'parkerad domän',
-    MISDIRECT: 'adressen leder delvis fel',
-    DIRECTORY_ONLY: 'katalogsajt i Google-profilen, ingen egen hemsida',
-    HIJACKED: 'domänen pekar bort',
-    UNREACHABLE: 'gick inte att nå — kontrollera själv',
-    ORIGIN_DOWN: 'servern svarar inte',
-    SERVER_ERROR: 'serverfel på startsidan',
-    CERT_BROKEN: 'säkerhetsvarning för besökare',
-    EMPTY: 'tom sida',
-    MOVED: 'flyttad — uppdatera adressen',
-};
-
-/** Fritext som gör statusen sökbar: "trasig", "parkerad", "hemsida" osv. */
-const SITE_HEALTH_TERMS: Record<string, string> = {
-    DOMAIN_GONE: 'trasig webb hemsida domän borta utgången saknas',
-    PARKED: 'trasig webb hemsida parkerad domänhandlare till salu',
-    MISDIRECT: 'felpekad webb hemsida www adress byggadress delvis',
-    DIRECTORY_ONLY: 'katalog katalogsajt ingen egen hemsida google profil skrapad saknar',
-    HIJACKED: 'trasig webb hemsida kapad pekar bort redirect',
-    UNREACHABLE: 'onåbar webb hemsida oklart kontrollera server nere',
-    ORIGIN_DOWN: 'trasig webb hemsida server nere död',
-    SERVER_ERROR: 'trasig webb hemsida serverfel',
-    CERT_BROKEN: 'trasig webb hemsida certifikat säkerhetsvarning',
-    EMPTY: 'trasig webb hemsida tom parkerad',
-    MOVED: 'flyttad webb hemsida ny adress uppdatera',
-};
-
-function siteHealthOf(opp: Opportunity): SiteHealth | null {
-    const sh = (opp.contact?.custom as Record<string, unknown> | undefined)?.site_health;
-    if (!sh || typeof sh !== 'object') return null;
-    const v = (sh as SiteHealth).verdict;
-    return typeof v === 'string' && v in SITE_HEALTH_LABEL ? (sh as SiteHealth) : null;
-}
-
-/** Bara det som faktiskt är en affärssignal — MOVED är städning, inte lead. */
 /** Bara det som faktiskt är en affärssignal. MOVED är städning, och
- *  UNREACHABLE vet vi inte — båda hålls utanför leadräkningen. */
-const NOT_A_LEAD = new Set(['MOVED', 'UNREACHABLE', 'MISDIRECT']);
-
+ *  UNREACHABLE/MISDIRECT vet vi inte nog om — hålls utanför leadräkningen. */
 function hasBrokenSite(opp: Opportunity): boolean {
-    const sh = siteHealthOf(opp);
+    const sh = siteHealthOf(opp.contact?.custom);
     return !!sh && !NOT_A_LEAD.has(sh.verdict);
 }
 
-/** Värdnamnet ur en URL, utan www. Tom sträng om det inte går att tolka. */
-function hostOf(raw?: string | null): string {
-    if (!raw) return '';
-    try {
-        const u = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
-        return u.hostname.replace(/^www\./, '');
-    } catch { return ''; }
-}
-
-/**
- * Diagnos och öppningsreplik per verdikt.
- *
- * Medvetet mallar och inte modellgenererat: det kostar inget, blir likadant
- * varje gång, och kan bara säga sådant kontrollen faktiskt verifierat. En
- * genererad mening kan låta bra och ha fel, vilket är precis det vi inte har
- * råd med i ett samtal.
- */
-function callGuide(verdict: string, site: string, target: string):
-    { diagnos: string; oppning: string } {
-    const t = target || 'en annan sajt';
-    switch (verdict) {
-        case 'HIJACKED': return {
-            diagnos: `Domänen leder till ${t} i stället för till deras egen sajt.`,
-            oppning: `Er webbadress ${site} leder till ${t} i dag. Den som söker upp er hamnar där i stället för hos er.`,
-        };
-        case 'DIRECTORY_ONLY': return {
-            diagnos: `Adressen i Google-profilen är katalogsajten ${site}, inte en egen hemsida.`,
-            oppning: `Googlar man er och klickar på hemsidelänken hamnar man på ${site}, som inte är er. Jag vet inte om ni känner till det.`,
-        };
-        case 'PARKED': return {
-            diagnos: `Domänen ligger hos en domänhandlare${target ? ` (${target})` : ''} och ser ut att vara till salu.`,
-            oppning: `Er domän ${site} ligger hos en domänhandlare. Den ser ut att vara till salu.`,
-        };
-        case 'DOMAIN_GONE': return {
-            diagnos: 'Domänen svarar inte i DNS — den finns inte kvar.',
-            oppning: `Er webbadress ${site} slutade fungera, den finns inte kvar i registret.`,
-        };
-        case 'ORIGIN_DOWN': return {
-            diagnos: 'Cloudflare svarar, men når inte servern bakom. Sajten är nere.',
-            oppning: 'Er hemsida svarar med ett felmeddelande i stället för att visa sidan.',
-        };
-        case 'SERVER_ERROR': return {
-            diagnos: 'Startsidan svarar med ett serverfel.',
-            oppning: 'Er hemsida svarar med ett felmeddelande i stället för att visa sidan.',
-        };
-        case 'CERT_BROKEN': return {
-            diagnos: 'Certifikatet är trasigt. Besökare möts av en röd säkerhetsvarning.',
-            oppning: 'Besökare får en röd säkerhetsvarning innan de kommer in på er sida.',
-        };
-        case 'EMPTY': return {
-            diagnos: 'Adressen svarar, men sidan saknar innehåll.',
-            oppning: 'Er adress svarar, men sidan är tom.',
-        };
-        case 'MISDIRECT': return {
-            diagnos: `Sajten fungerar, men en variant av adressen leder till ${t}.`,
-            oppning: `Skriver man er adress utan www hamnar man på ${t} i stället för på er sida.`,
-        };
-        case 'MOVED': return {
-            diagnos: `De har bytt domännamn till ${t}. Vår adress är gammal.`,
-            oppning: `Jag hade er gamla webbadress. Har ni bytt till ${t}?`,
-        };
-        case 'UNREACHABLE': return {
-            // Vi VET inte här. Då ska repliken vara en fråga, inte ett påstående.
-            diagnos: 'Gick inte att nå vid två försök. Kan vara nere, kan vara en blockering mot oss.',
-            oppning: 'Jag fick inte upp er hemsida när jag försökte. Fungerar den för er?',
-        };
-        default: return { diagnos: '', oppning: '' };
-    }
-}
-
-const NASTA_REPLIK =
-    'Vill du att jag gör ett förslag på hur en ny skulle kunna se ut? Kostar inget, du får en länk om ett par dagar.';
-
 function matchesSearch(opp: Opportunity, q: string): boolean {
     const cu = opp.contact?.custom;
-    const sh = siteHealthOf(opp);
+    const sh = siteHealthOf(opp.contact?.custom);
     const shText = sh
         ? `${sh.verdict} ${SITE_HEALTH_LABEL[sh.verdict] ?? ''} ${SITE_HEALTH_TERMS[sh.verdict] ?? ''} ${sh.evidence ?? ''}`
         : '';
@@ -470,8 +354,12 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                 {(() => {
                     // Räknas på hela brädet, inte på den filtrerade vyn — annars
                     // skulle siffran ändras av att man klickar på knappen.
-                    const broken = columns.flatMap((c) => c.opportunities).filter(hasBrokenSite).length;
-                    if (broken === 0) return null;
+                    const alla = columns.flatMap((c) => c.opportunities);
+                    const broken = alla.filter(hasBrokenSite).length;
+                    // Ett filter som träffar allt filtrerar ingenting. På brädet
+                    // "Webb — trasiga sajter" är varje kort redan en träff, och
+                    // då är knappen bara en siffra som ser ut att gå att klicka på.
+                    if (broken === 0 || broken === alla.length) return null;
                     return (
                         <button
                             onClick={() => setBrokenOnly((v) => !v)}
@@ -656,7 +544,7 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                                         <a href={`mailto:${opp.contact.email}`} style={cardLink}>Mail · {opp.contact.email}</a>
                                     )}
                                     {opp.contact?.custom?.website && (() => {
-                                        const sh = siteHealthOf(opp);
+                                        const sh = siteHealthOf(opp.contact?.custom);
                                         const broken = !!sh && !NOT_A_LEAD.has(sh.verdict);
                                         // MOVED och UNREACHABLE är inte bevisat trasiga — gula, inte röda.
                                         const tone = broken ? '#ff9a9a' : '#e0b978';

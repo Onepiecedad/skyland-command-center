@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { updateContact, deleteContact, type Opportunity, type Contact } from '../api';
+import { SITE_HEALTH_LABEL, siteHealthOf, hostOf, callGuide, NASTA_REPLIK } from './siteHealth';
 
 /**
  * ContactDetail — full detaljvy för en prospect-kontakt.
@@ -533,6 +534,40 @@ export function ContactDetail({ opportunity, onSaved, onDeleted }: ContactDetail
                             ? <a href={custom.website} target="_blank" rel="noreferrer" style={linkStyle}>{custom.website.replace(/^https?:\/\/(www\.)?/, '')}</a>
                             : '—'}
                     </Row>
+                    {/* Samma diagnos och öppningsreplik som på kortet — hämtad ur
+                        siteHealth.ts så formuleringarna aldrig kan gå isär. */}
+                    {(() => {
+                        const sh = siteHealthOf(custom);
+                        if (!sh) return null;
+                        const g = callGuide(sh.verdict, hostOf(custom.website), hostOf(sh.final_url));
+                        if (!g.diagnos) return null;
+                        return (
+                            <div style={{
+                                marginTop: 10, marginBottom: 4, padding: 11, borderRadius: 8,
+                                background: 'rgba(255,154,154,0.06)',
+                                border: '1px solid rgba(255,154,154,0.22)', fontSize: 12, lineHeight: 1.5,
+                            }}>
+                                <div style={{ fontSize: 11, opacity: 0.6, marginBottom: 5 }}>
+                                    ● {SITE_HEALTH_LABEL[sh.verdict]}
+                                </div>
+                                <div style={{ marginBottom: 8 }}>{g.diagnos}</div>
+
+                                <div style={{ fontSize: 10, opacity: 0.5, letterSpacing: 0.4 }}>BEVIS</div>
+                                <div style={{ marginBottom: 8, opacity: 0.8, fontSize: 11 }}>{sh.evidence}</div>
+
+                                {custom.website && (
+                                    <a href={custom.website} target="_blank" rel="noreferrer"
+                                       style={{ ...linkStyle, display: 'inline-block', marginBottom: 8 }}>
+                                        ↗ Öppna sajten och kontrollera själv först
+                                    </a>
+                                )}
+
+                                <div style={{ fontSize: 10, opacity: 0.5, letterSpacing: 0.4 }}>ÖPPNING</div>
+                                <div style={{ fontStyle: 'italic' }}>”{g.oppning}”</div>
+                                <div style={{ fontStyle: 'italic', marginTop: 5, opacity: 0.75 }}>”{NASTA_REPLIK}”</div>
+                            </div>
+                        );
+                    })()}
                     <Row label="Adress">
                         {custom.address
                             ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(custom.address)}`} target="_blank" rel="noreferrer" style={linkStyle}>📍 {custom.address}</a>
