@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { supabase } from '../services/supabase';
 import { logger } from '../services/logger';
+import { gateOnSiteHealth } from '../services/siteHealthScan';
 import { getAdapter } from '../llm/adapter';
 import { VOICE_PROFILE } from '../llm/voiceProfile';
 import { ilikeOr } from '../utils/postgrest';
@@ -80,6 +81,9 @@ const createSchema = z.object({
     source: z.string().nullish(),
     tags: z.array(z.string()).optional(),
     custom: z.record(z.string(), z.unknown()).optional(),
+    // Opt-in. Utan den är beteendet exakt som förut — beauty- och
+    // tattoo-körningarna påverkas inte.
+    gate_on_site_health: z.boolean().optional(),
 }).strict();
 
 router.post('/', async (req: Request, res: Response) => {
@@ -88,15 +92,41 @@ router.post('/', async (req: Request, res: Response) => {
         if (!parsed.success) {
             return res.status(400).json({ error: 'Validation failed', details: parsed.error.issues });
         }
+        const { gate_on_site_health, ...fields } = parsed.data;
+
+        // Grind: skapa bara kort för företag vars hemsida INTE fungerar.
+        // Sparar research-kostnaden på de ~90 % som har en fin sajt, och
+        // håller brädet fritt från prospekt som inte matchar erbjudandet.
+        let gateNote: string | undefined;
+        if (gate_on_site_health) {
+            const custom = (fields.custom ?? {}) as Record<string, unknown>;
+            const site = fields.website ?? (typeof custom.website === 'string' ? custom.website : null);
+            const decision = await gateOnSiteHealth(site);
+
+            if (decision.action === 'skip') {
+                logger.info('contacts',
+                    `Grindat bort ${fields.name}: ${decision.site_health.verdict}`,
+                    { source: fields.source ?? undefined });
+                return res.json({
+                    status: 'skipped', reason: 'site_healthy',
+                    site_health: decision.site_health,
+                });
+            }
+            gateNote = decision.note;
+            if (decision.site_health) {
+                fields.custom = { ...custom, site_health: decision.site_health };
+            }
+        }
+
         const { data, error } = await supabase
             .from('contacts')
-            .insert({ ...parsed.data, status: parsed.data.status ?? 'new' })
+            .insert({ ...fields, status: fields.status ?? 'new' })
             .select()
             .single();
         if (error) return res.status(500).json({ error: error.message });
 
         logger.info('contacts', `Contact created: ${data.id} (${data.name})`, { source: data.source });
-        return res.status(201).json({ status: 'created', contact: data });
+        return res.status(201).json({ status: 'created', contact: data, ...(gateNote ? { note: gateNote } : {}) });
     } catch (err) {
         console.error('[Contacts] create error:', err);
         return res.status(500).json({ error: 'Internal server error' });

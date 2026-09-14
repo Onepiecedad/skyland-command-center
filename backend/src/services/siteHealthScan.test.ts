@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
     updateError: null as { message: string } | null,
     checkResults: [] as Array<Record<string, unknown>>,
     checkedDomains: [] as string[][],
+    checkThrows: false,
 }));
 
 vi.mock('./supabase', () => ({
@@ -51,9 +52,14 @@ vi.mock('./siteHealth', () => ({
         h.checkedDomains.push(domains);
         return h.checkResults;
     }),
+    checkSite: vi.fn(async (domain: string) => {
+        h.checkedDomains.push([domain]);
+        if (h.checkThrows) throw new Error('nätverket dog');
+        return h.checkResults[0] ?? { domain, verdict: 'OK', sellable: false, evidence: 'ok' };
+    }),
 }));
 
-const { scanContactSites, toDomain } = await import('./siteHealthScan');
+const { scanContactSites, toDomain, gateOnSiteHealth } = await import('./siteHealthScan');
 
 const contact = (over: Record<string, unknown> = {}) => ({
     id: 'c1', company: 'Testklinik', website: 'https://test.se', custom: null, ...over,
@@ -65,7 +71,7 @@ const result = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
     h.contacts = []; h.selectError = null; h.updates = []; h.updateError = null;
-    h.checkResults = []; h.checkedDomains = [];
+    h.checkResults = []; h.checkedDomains = []; h.checkThrows = false;
 });
 
 describe('toDomain', () => {
@@ -201,5 +207,54 @@ describe('scanContactSites', () => {
 
         expect(s.skipped).toBe(1);
         expect(h.checkedDomains).toHaveLength(0);
+    });
+});
+
+
+describe('gateOnSiteHealth — grinden vid intaget', () => {
+    it('slänger företag med fungerande sajt', async () => {
+        h.checkResults = [result({ verdict: 'OK', sellable: false, evidence: 'HTTP 200' })];
+        const d = await gateOnSiteHealth('https://fin.se');
+        expect(d.action).toBe('skip');
+    });
+
+    it('slänger MOVED — de har en sajt, vi har fel adress', async () => {
+        h.checkResults = [result({ verdict: 'MOVED', sellable: false, evidence: 'nytt namn' })];
+        expect((await gateOnSiteHealth('https://gammal.se')).action).toBe('skip');
+    });
+
+    it('släpper igenom trasiga och märker kortet', async () => {
+        h.checkResults = [result({ verdict: 'DOMAIN_GONE', sellable: true, evidence: 'DNS svarar inte' })];
+        const d = await gateOnSiteHealth('https://borta.se');
+        expect(d.action).toBe('create');
+        expect(d.site_health?.verdict).toBe('DOMAIN_GONE');
+        expect(d.site_health?.checked_at).toBeTruthy();
+    });
+
+    it('släpper igenom vid INCONCLUSIVE — släng aldrig på okunskap', async () => {
+        h.checkResults = [result({ verdict: 'INCONCLUSIVE', sellable: false, evidence: 'WAF' })];
+        const d = await gateOnSiteHealth('https://blockerad.se');
+        expect(d.action).toBe('create');
+        expect(d.note).toMatch(/kontrollera manuellt/);
+    });
+
+    it('släpper igenom när adress saknas, utan att kalla kontrollen', async () => {
+        const d = await gateOnSiteHealth(null);
+        expect(d.action).toBe('create');
+        expect(d.site_health).toBeUndefined();
+        expect(h.checkedDomains).toHaveLength(0);
+    });
+
+    it('släpper igenom sociala länkar — de säger inget om egen sajt', async () => {
+        const d = await gateOnSiteHealth('https://facebook.com/klinik');
+        expect(d.action).toBe('create');
+        expect(h.checkedDomains).toHaveLength(0);
+    });
+
+    it('släpper igenom när kontrollen kraschar', async () => {
+        h.checkThrows = true;
+        const d = await gateOnSiteHealth('https://strular.se');
+        expect(d.action).toBe('create');
+        expect(d.note).toMatch(/kraschade/);
     });
 });

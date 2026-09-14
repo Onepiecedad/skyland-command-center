@@ -17,7 +17,7 @@
 
 import { supabase } from './supabase';
 import { logger } from './logger';
-import { checkSites, type SiteHealth, type Verdict } from './siteHealth';
+import { checkSite, checkSites, type SiteHealth, type Verdict } from './siteHealth';
 
 /** Plattformar där en träff inte säger något om företagets egen sajt. */
 const NOT_OWN_SITE = [
@@ -195,4 +195,65 @@ export async function listSiteHealthLeads(limit = 100): Promise<ScanLead[]> {
             }];
         })
         .slice(0, limit);
+}
+
+
+// ---------------------------------------------------------------------------
+// Grind vid intaget
+// ---------------------------------------------------------------------------
+
+/**
+ * Verdikt som betyder "företaget har en fungerande sajt" — alltså inget lead
+ * för det här erbjudandet. MOVED räknas hit: de HAR en sajt, vi har bara fel
+ * adress på den.
+ */
+const HEALTHY: ReadonlySet<string> = new Set<Verdict>(['OK', 'MOVED']);
+
+export type GateDecision =
+    | { action: 'create'; site_health?: StoredSiteHealth; note?: string }
+    | { action: 'skip'; site_health: StoredSiteHealth };
+
+/**
+ * Avgör om ett upptäckt företag ska bli ett kort.
+ *
+ * Grundregeln: släng bara det vi VET är friskt. Allt annat får passera.
+ * Att slänga på okunskap är det dyra felet — då försvinner leads tyst.
+ *
+ * Därför skapas kortet ändå vid INCONCLUSIVE (WAF-blockering), och vid
+ * avsaknad av adress. Kör grinden från Render och en tredjedel av de friska
+ * sajterna blir INCONCLUSIVE; grinden gallrar då sämre men tappar ingenting.
+ */
+export async function gateOnSiteHealth(website: string | null | undefined): Promise<GateDecision> {
+    const domain = toDomain(website);
+    if (!domain) {
+        return { action: 'create', note: 'Ingen egen domän att kontrollera — kortet skapas ogallrat.' };
+    }
+
+    let result: SiteHealth;
+    try {
+        result = await checkSite(domain);
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error('siteHealth', `Grinden kunde inte kontrollera ${domain}: ${message}`);
+        return { action: 'create', note: `Kontrollen kraschade (${message}) — kortet skapas ogallrat.` };
+    }
+
+    const stored: StoredSiteHealth = {
+        verdict: result.verdict,
+        sellable: result.sellable,
+        evidence: result.evidence,
+        ...(result.finalUrl ? { final_url: result.finalUrl } : {}),
+        checked_at: new Date().toISOString(),
+    };
+
+    if (HEALTHY.has(result.verdict)) return { action: 'skip', site_health: stored };
+
+    if (result.verdict === 'INCONCLUSIVE') {
+        return {
+            action: 'create', site_health: stored,
+            note: 'Sajten gick inte att bedöma (blockerad) — kortet skapas, kontrollera manuellt.',
+        };
+    }
+
+    return { action: 'create', site_health: stored };
 }
