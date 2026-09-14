@@ -21,7 +21,7 @@ interface PipelineBoardProps {
  * adressen som en vanlig länk även när domänen var parkerad eller borta —
  * panelen påstod alltså att företaget hade en hemsida när det inte hade det.
  */
-type SiteHealth = { verdict: string; sellable?: boolean; evidence?: string };
+type SiteHealth = { verdict: string; sellable?: boolean; evidence?: string; final_url?: string };
 
 /** Etikett + färg per verdikt. Utelämnade verdikt ritas inte alls. */
 const SITE_HEALTH_LABEL: Record<string, string> = {
@@ -69,6 +69,79 @@ function hasBrokenSite(opp: Opportunity): boolean {
     const sh = siteHealthOf(opp);
     return !!sh && !NOT_A_LEAD.has(sh.verdict);
 }
+
+/** Värdnamnet ur en URL, utan www. Tom sträng om det inte går att tolka. */
+function hostOf(raw?: string | null): string {
+    if (!raw) return '';
+    try {
+        const u = new URL(raw.startsWith('http') ? raw : `https://${raw}`);
+        return u.hostname.replace(/^www\./, '');
+    } catch { return ''; }
+}
+
+/**
+ * Diagnos och öppningsreplik per verdikt.
+ *
+ * Medvetet mallar och inte modellgenererat: det kostar inget, blir likadant
+ * varje gång, och kan bara säga sådant kontrollen faktiskt verifierat. En
+ * genererad mening kan låta bra och ha fel, vilket är precis det vi inte har
+ * råd med i ett samtal.
+ */
+function callGuide(verdict: string, site: string, target: string):
+    { diagnos: string; oppning: string } {
+    const t = target || 'en annan sajt';
+    switch (verdict) {
+        case 'HIJACKED': return {
+            diagnos: `Domänen leder till ${t} i stället för till deras egen sajt.`,
+            oppning: `Er webbadress ${site} leder till ${t} i dag. Den som söker upp er hamnar där i stället för hos er.`,
+        };
+        case 'DIRECTORY_ONLY': return {
+            diagnos: `Adressen i Google-profilen är katalogsajten ${site}, inte en egen hemsida.`,
+            oppning: `Googlar man er och klickar på hemsidelänken hamnar man på ${site}, som inte är er. Jag vet inte om ni känner till det.`,
+        };
+        case 'PARKED': return {
+            diagnos: `Domänen ligger hos en domänhandlare${target ? ` (${target})` : ''} och ser ut att vara till salu.`,
+            oppning: `Er domän ${site} ligger hos en domänhandlare. Den ser ut att vara till salu.`,
+        };
+        case 'DOMAIN_GONE': return {
+            diagnos: 'Domänen svarar inte i DNS — den finns inte kvar.',
+            oppning: `Er webbadress ${site} slutade fungera, den finns inte kvar i registret.`,
+        };
+        case 'ORIGIN_DOWN': return {
+            diagnos: 'Cloudflare svarar, men når inte servern bakom. Sajten är nere.',
+            oppning: 'Er hemsida svarar med ett felmeddelande i stället för att visa sidan.',
+        };
+        case 'SERVER_ERROR': return {
+            diagnos: 'Startsidan svarar med ett serverfel.',
+            oppning: 'Er hemsida svarar med ett felmeddelande i stället för att visa sidan.',
+        };
+        case 'CERT_BROKEN': return {
+            diagnos: 'Certifikatet är trasigt. Besökare möts av en röd säkerhetsvarning.',
+            oppning: 'Besökare får en röd säkerhetsvarning innan de kommer in på er sida.',
+        };
+        case 'EMPTY': return {
+            diagnos: 'Adressen svarar, men sidan saknar innehåll.',
+            oppning: 'Er adress svarar, men sidan är tom.',
+        };
+        case 'MISDIRECT': return {
+            diagnos: `Sajten fungerar, men en variant av adressen leder till ${t}.`,
+            oppning: `Skriver man er adress utan www hamnar man på ${t} i stället för på er sida.`,
+        };
+        case 'MOVED': return {
+            diagnos: `De har bytt domännamn till ${t}. Vår adress är gammal.`,
+            oppning: `Jag hade er gamla webbadress. Har ni bytt till ${t}?`,
+        };
+        case 'UNREACHABLE': return {
+            // Vi VET inte här. Då ska repliken vara en fråga, inte ett påstående.
+            diagnos: 'Gick inte att nå vid två försök. Kan vara nere, kan vara en blockering mot oss.',
+            oppning: 'Jag fick inte upp er hemsida när jag försökte. Fungerar den för er?',
+        };
+        default: return { diagnos: '', oppning: '' };
+    }
+}
+
+const NASTA_REPLIK =
+    'Vill du att jag gör ett förslag på hur en ny skulle kunna se ut? Kostar inget, du får en länk om ett par dagar.';
 
 function matchesSearch(opp: Opportunity, q: string): boolean {
     const cu = opp.contact?.custom;
@@ -192,6 +265,7 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
     const [sortMode, setSortMode] = useState<'score' | 'name' | 'ort'>('score');
     const [tierFilter, setTierFilter] = useState<'all' | Tier>('all');
     const [brokenOnly, setBrokenOnly] = useState(false);
+    const [openGuide, setOpenGuide] = useState<Set<string>>(new Set());
 
     const load = useCallback(async () => {
         try {
@@ -592,12 +666,58 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                                                    style={{ ...cardLink, ...(sh ? { color: tone, textDecoration: broken ? 'line-through' : 'none', textDecorationColor: 'rgba(255,154,154,0.55)' } : null) }}>
                                                     {sh ? '● ' : ''}Webb · {opp.contact.custom.website.replace(/^https?:\/\/(www\.)?/, '')}
                                                 </a>
-                                                {sh && (
-                                                    <div style={{ fontSize: 11, color: tone, opacity: 0.85, marginTop: 1 }}
-                                                         title={sh.evidence ?? ''}>
-                                                        {SITE_HEALTH_LABEL[sh.verdict]}
-                                                    </div>
-                                                )}
+                                                {sh && (() => {
+                                                    const open = openGuide.has(opp.id);
+                                                    const site = hostOf(opp.contact?.custom?.website);
+                                                    const target = hostOf(sh.final_url);
+                                                    const g = callGuide(sh.verdict, site, target);
+                                                    return (
+                                                        <>
+                                                            <div
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setOpenGuide((prev) => {
+                                                                        const next = new Set(prev);
+                                                                        next.has(opp.id) ? next.delete(opp.id) : next.add(opp.id);
+                                                                        return next;
+                                                                    });
+                                                                }}
+                                                                style={{ fontSize: 11, color: tone, opacity: 0.85, marginTop: 1, cursor: 'pointer', userSelect: 'none' }}
+                                                                title="Visa diagnos och öppningsreplik"
+                                                            >
+                                                                {open ? '▾' : '▸'} {SITE_HEALTH_LABEL[sh.verdict]}
+                                                            </div>
+                                                            {open && (
+                                                                <div
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    style={{
+                                                                        marginTop: 6, padding: '8px 10px', borderRadius: 8,
+                                                                        background: 'rgba(255,255,255,0.04)',
+                                                                        border: '1px solid rgba(255,255,255,0.09)',
+                                                                        fontSize: 11, lineHeight: 1.45, whiteSpace: 'normal',
+                                                                    }}
+                                                                >
+                                                                    <div style={{ opacity: 0.5, fontSize: 10, letterSpacing: 0.4 }}>DIAGNOS</div>
+                                                                    <div style={{ marginBottom: 6 }}>{g.diagnos}</div>
+
+                                                                    <div style={{ opacity: 0.5, fontSize: 10, letterSpacing: 0.4 }}>BEVIS</div>
+                                                                    <div style={{ marginBottom: 6, opacity: 0.8 }}>{sh.evidence}</div>
+
+                                                                    {/* Efter två falska positiva 14 sep är detta steg inbyggt,
+                                                                        inte något man ska komma ihåg. */}
+                                                                    <a href={opp.contact.custom.website} target="_blank" rel="noreferrer"
+                                                                       style={{ color: '#9ecbff', textDecoration: 'none', display: 'inline-block', marginBottom: 8 }}>
+                                                                        ↗ Öppna sajten och kontrollera själv först
+                                                                    </a>
+
+                                                                    <div style={{ opacity: 0.5, fontSize: 10, letterSpacing: 0.4 }}>ÖPPNING</div>
+                                                                    <div style={{ fontStyle: 'italic' }}>”{g.oppning}”</div>
+                                                                    <div style={{ fontStyle: 'italic', marginTop: 4, opacity: 0.75 }}>”{NASTA_REPLIK}”</div>
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
                                             </div>
                                         );
                                     })()}
