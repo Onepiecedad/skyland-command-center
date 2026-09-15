@@ -1079,6 +1079,65 @@ natten till 13 sep gick igenom. Larmet skickas när felräknaren passerar
 tröskeln — det finns inget motsvarande "nu funkar det igen"-meddelande. Kolla
 `cron_run_logs` innan du agerar på ett larm, inte tvärtom.
 
+## WhatsApp gick live 15 sep, och vad som fällde den två gånger
+
+**16:39 kopplades numret, 16:51 levererade Meta första gången, 17:05 landade första
+riktiga meddelandet.** Fram till dess hade noll WhatsApp-meddelanden nått systemet
+sedan projektets start. Kopplingen: `conn_axcpiIK2EER9` i **Gustavs** Dualhook-konto,
+WABA `1021280300798738`, phone_number_id `1289813200882119`, nummer `+46 73 550 71 23`.
+
+**Det som fällde den, båda gångerna, var sista knappen.** Metas Embedded Signup slutar
+med en ruta där två knappar står bredvid varandra: grön *Lägg till betalningsmetod* och
+blå *Slutför*. Det är den **blå** som stänger fönstret och lämnar tillbaka svaret till
+Dualhook. Klickar man grönt och stänger rutan får partnern ingenting: telefonen visar
+"ansluten", Metas kontosida visar appen installerad, och partnerns dashboard visar noll.
+Jag rekommenderade den gröna knappen 15 sep och orsakade därmed samma fel en gång till.
+**Regeln: blå Slutför först, betalningsmetod efteråt i WhatsApp Manager.**
+
+**Så här ser felet ut när det inträffar, alla tre samtidigt:** telefonen säger ansluten
+under Inställningar → Konto → Företagsplattform, Dualhook säger "No connections yet",
+och vår webhook har inte fått något verifieringsanrop. Det sista är den avgörande
+signalen — utan webhook override har partnern ingen koppling, oavsett vad de andra två
+säger.
+
+**8 september-fallet var en variant av samma sak.** Metas aktivitetslogg för WABA:t
+visar Gustav installera app `1386018582603238` tre gånger 23:14, och en `Deleted User`
+avinstallera den 23:18. Att flödet kördes tre gånger på en minut är symptomet på att
+det inte gick att avsluta.
+
+**Verifieringstokenet går inte att läsa ur Supabase**, bara ett SHA256-fingeravtryck.
+Ska det matchas mot partnern måste det skrivas över med ett känt värde. Testa paret
+utan att blotta det genom att öppna
+`…/ce-agent-webhook?hub.mode=subscribe&hub.verify_token=<ORD>&hub.challenge=12345`
+i en flik: står det `12345` stämmer det, står det `forbidden` gör det inte.
+`CE_WEBHOOK_KEY` är inte satt, så adressen ska vara ren utan `?k=`.
+
+### Två egna buggar som syntes direkt när trafiken kom
+
+- **`handleAccountEvent` mejlade på alla severiteter.** Coexistence-synken skickade 34
+  `history`-händelser på elva sekunder, alltså 34 mejl till operatören. `history` är
+  dessutom meddelandedata och inte en kontohändelse; den hoppas nu över i
+  `parseAccountEvents` som `messages` och `smb_message_echoes`. Mejl går bara vid
+  `warn` och `alarm`. Info hamnar i `ce_account_events` som spår men aldrig i inkorgen.
+- **`findOrCreateConversation` kraschade på 23505.** Sökningen filtrerar på
+  `status = 'open'`, men `idx_ce_conv_external` är unikt på
+  `(tenant_id, channel, external_id)` **utan** status. Två leveranser inom samma
+  halvsekund hittade båda ingen konversation, båda försökte skapa, och förloraren
+  kastade och tappade sitt meddelande. Fångar nu 23505 och hämtar raden som finns.
+  **Notera:** en stängd konversation returneras som den är, den återöppnas inte. Det
+  är ett medvetet val för att inte ändra semantik under tidspress, och en öppen fråga.
+
+### Vad som återstår
+
+Inkommande är bevisat. **Utgående är inte testat** — det kräver Outbound API key ur
+Gustavs Dualhook och ett kontrollerat test mot operatörens eget nummer först.
+`WA_TOKEN` i Supabase är från 5 sep och med största sannolikhet död sedan kopplingen
+bröts. Agenten svarade inte på testmeddelandet, men det var `autopilot off`, alltså
+skyddet och inte ett fel. **Historiksynkens innehåll tas inte in** — trådarna finns i
+`ce_account_events` men blir inga rader i `ce_messages`; koden lyssnar efter vanliga
+meddelanden, inte efter historikformatet. Eget jobb, och där ligger Gustavs gamla
+gästkonversationer.
+
 ## Kända skavanker
 
 - **Två vägar för Meta-annonsdata (10 sep).** `ad_performance` på annonsnivå via
