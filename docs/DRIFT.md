@@ -1138,6 +1138,61 @@ skyddet och inte ett fel. **Historiksynkens innehåll tas inte in** — trådarn
 meddelanden, inte efter historikformatet. Eget jobb, och där ligger Gustavs gamla
 gästkonversationer.
 
+## Utgående WhatsApp verifierat 15 sep, och nyckelhanteringen
+
+**Båda riktningarna fungerar.** Inkommande 17:05, utgående 17:35, samma dag som
+kopplingen sattes upp. Före den 15 sep hade noll WhatsApp-meddelanden passerat
+systemet i någon riktning.
+
+**Utgående går genom Dualhook, inte mot Meta.** Numret onboardades via deras Embedded
+Signup, och Metas uppgifter ligger krypterade hos dem och lämnas aldrig ut. Det finns
+alltså ingen Meta-token som kan skicka på det numret, och `WA_TOKEN` i Supabase är
+död kod oavsett innehåll.
+
+    POST https://api.dualhook.com/v25.0/<phone_number_id>/messages
+    Authorization: Bearer dh_live_...
+
+Nyttolasten är Metas egen, oförändrad. `waMal()` i `channels.ts` väljer mål:
+`DUALHOOK_API_KEY` först, `WA_TOKEN` som reserv för ett nummer utan partner, annars
+ett fel som säger vilken nyckel som fattas. Basadressen styrs av `DUALHOOK_BASE`.
+Inkommande går fortfarande direkt Meta → vår webhook.
+
+**Ordningen spelar roll: ändra koden först, skapa nyckeln sedan.** Dualhook skriver
+"create a key when your server is ready to send", och nyckeln visas **en enda gång**.
+Skapas den innan servern kan ta emot den brinner ett försök.
+
+### Nyckeln läckte, och hur det hanterades
+
+Nyckeln klistrades in i en AI-chatt i stället för direkt i Supabase. Den behandlades
+därefter som röjd. **Dualhook har en `Rotate`-knapp med valbar respit** ("Keep old key
+for 1 hour") — stod nyckeln på `Last used: Never` finns inget att hålla vid liv, så
+respiten sätts till kortast möjliga och den gamla dör direkt.
+
+**Regeln framåt:** en nyckel går från den som skapar den rakt in i Supabase. Passerar
+den en chatt, ett ärende eller ett dokument är den röjd och ska roteras. Det kostar ett
+klick, och alternativet är en nyckel som kan skicka WhatsApp i kundens namn till 68
+gästnummer.
+
+### Självtestet som bara kunde nå en person
+
+Utgående testades med en tillfällig `?selftest=1`-endpoint i webhooken, **med
+mottagaren hårdkodad till operatörens eget nummer**. Konstruktionen var avsiktlig: även
+om någon annan hade anropat den kunde den bara skicka till operatören, aldrig till en
+gäst. Autopiloten rördes aldrig — att slå på den hade öppnat för svar till riktiga
+gäster, vilket är precis det testet skulle undvika.
+
+Endpointen togs bort direkt efter testet och borttagningen verifierades (403), liksom
+att verifieringshandskakningen fortfarande svarar. Filen är byte för byte identisk med
+repot, alltså lämnade testet inga spår.
+
+### Läget
+
+125 leads, 123 WhatsApp-meddelanden, 60 konversationer `human_active`. **Autopilot är
+`off`.** 56 leads har kryssat i att de vill kontaktas på WhatsApp och har aldrig fått
+ett meddelande. Att slå på autopiloten är ett affärsbeslut, inte ett tekniskt steg, och
+kräver dessutom en godkänd mall: fritext fungerar bara inom 24 timmar efter att gästen
+skrivit, och de 56 har inte skrivit.
+
 ## Historikimporten 15 sep: CRM:et ljög om 54 kort
 
 Coexistence-synken levererade **75 motparter och 128 meddelanden, 25 aug till 15 sep**.
