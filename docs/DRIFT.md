@@ -1138,6 +1138,56 @@ skyddet och inte ett fel. **Historiksynkens innehåll tas inte in** — trådarn
 meddelanden, inte efter historikformatet. Eget jobb, och där ligger Gustavs gamla
 gästkonversationer.
 
+## Historikimporten 15 sep: CRM:et ljög om 54 kort
+
+Coexistence-synken levererade **75 motparter och 128 meddelanden, 25 aug till 15 sep**.
+Av dem hade **Gustav svarat i 61 trådar** — medan **54 av korten stod som obesvarade**
+i CRM:et. Tavlan visade ett företag som inte gjorde någonting, medan han satt och
+svarade gäst efter gäst. Varje slutsats som dragits om Cold Experience-utfallet före
+den 15 sep vilar alltså på data som saknade halva bilden.
+
+**Importen gjordes i SQL, inte genom webhooken, och det var designvalet.** Koden som
+skickar meddelanden bor i edge-funktionen. Görs importen i databasen är det fysiskt
+omöjligt att ett meddelande från 25 augusti besvaras av agenten. Kravet "inget får gå
+ut" blev därmed en egenskap hos arkitekturen i stället för ett löfte. Verifierat
+efteråt: noll nya utgående.
+
+`ce_history_stage` är mellanlagret (wamid som nyckel, `importerad`-flagga). Den ligger
+kvar som spår och gör omkörning idempotent.
+
+### Fällor som kostade tid
+
+- **`ce_messages_message_type_check` tillåter inte `errors` eller `media_placeholder`.**
+  Metas historik bär båda. De mappas till `system`, med ursprunglig typ i `raw` och en
+  hakparentesmarkering i `body` så tidslinjen stämmer utan att någon tror att gästen
+  skrev något.
+- **`ce_touch_windows` använder `NEW.created_at`.** Importeras historiska meddelanden
+  med sin riktiga tidsstämpel får fönstren rätt historiska datum och löper ut direkt.
+  Hade vi satt `now()` hade 60 konversationer fått falska öppna 24-timmarsfönster.
+- **Två rader i statusförslaget ville flytta kort BAKÅT**, från `in_conversation` och
+  `handed_off` ner till `contacted`. En import vet mindre än kortet gör. **Regeln:
+  bara framåt, och bara från `new`.** 58 kort flyttades, 2 lämnades.
+- **17 meddelanden varav 16 från Gustav såg ut som en dubblett på två kort.** Det var
+  det inte: hans standardintro är sexton meddelanden, så varje gäst som fått hela
+  skuren får samma siffra. Kontrollerat mot innehållet innan slutsats drogs.
+
+### De okända motparterna
+
+13 motparter fanns inte i CRM:et. **Två är inte gäster** och fick medvetet inget kort:
+`447710173736` skickar Facebooks bekräftelsekoder, `46731814568` är Gustavs eget nummer.
+Deras 6 rader står kvar som `importerad = false` i stagingtabellen, vilket är avsiktligt
+och inte ett fel. Elva fick kort utan namn — historiksynken bär inget profilnamn, bara
+numret.
+
+**`+34711094332` är fyndet:** sjutton meddelanden, gästen skriver *"December would be
+ideal, it would probably be 3 people"*, mitt i prisdiskussionen, och hade inget kort alls.
+
+### Läget efter
+
+125 leads, 123 WhatsApp-meddelanden, 60 konversationer märkta `human_active` så agenten
+håller sig utanför det Gustav redan sköter. Statusfördelning: 56 `contacted`,
+13 `in_conversation`, 52 `new`, 2 `cold`, 1 `hot`, 1 `handed_off`.
+
 ## Kända skavanker
 
 - **Två vägar för Meta-annonsdata (10 sep).** `ad_performance` på annonsnivå via
