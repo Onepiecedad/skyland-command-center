@@ -1324,3 +1324,36 @@ hook-anrop: 200 och noll EACCES i gatewayns logg efteråt.
 **Att veta:** `preflight.py` fångar inte det här. En kontroll 9 som letar Mac-sökvägar i
 `~/.openclaw/agents/*/sessions/*.trajectory-path.json` vore rimlig nästa gång någon rör den.
 
+
+## 2026-09-15 — Konversationerna på korten: kontroll och lagning
+
+Fråga: syns alla Gustavs kundkonversationer på respektive kort i CRM:et?
+
+Kedjan är `ce_messages` → `messages` (metadata.ce_message_id) → API
+`GET /contacts/:id/conversation` → fliken **Konversation** i CRM-panelen.
+Endpointen filtrerar på `metadata->>contact_id`, inte på `customer_id` eller
+`conversation_id`. Det betyder att ett speglat meddelande vars `contact_id`
+pekar på ett kontaktkort som inte längre finns blir helt osynligt i gränssnittet
+trots att raden ligger kvar i databasen.
+
+Vid kontrollen: 143 av 143 speglade, men **6 meddelanden pekade på döda
+kontaktkort**. Två messenger-leads (`2bb3e9c3…`, `96f4c3f7…`) saknade
+kontaktkort helt, och ett meddelande på Deon Sungwa pekade på ett kort som
+försvann i dubblettsammanslagningen. Lagat med `ce_mirror_lead()` på de två
+leadsen och en `update messages set metadata = metadata || contact_id` som
+pekar om via `contacts.dedupe_key = 'ce:'||ce_lead_id`.
+
+Efter lagningen: 143/143 speglade, 0 dinglande contact_id, 83 kort med tråd,
+alla 83 har en affär i pipelinen (dvs de går att klicka fram i CRM-vyn), och
+räknarna på korten stämmer med antalet rader i tråden.
+
+**Historiken räcker bara till 3 september.** Coexistence ska normalt synka runt
+sex månader bakåt; vi fick cirka två veckor (äldsta 2026-09-03, nyaste
+2026-09-15). Allt före 3 september finns bara i Gustavs telefon.
+
+Medvetet utelämnat ur importen: 5 rader från `447710173736`
+(Facebook-verifieringskoder) och 1 rad från `46731814568` (Gustavs eget nummer).
+
+Kvarstående skräp i CRM: tre av de speglade messenger-meddelandena är
+nätfiske som utger sig för att vara "Meta Policy Support". De ligger på
+kort som nu heter "Okänt namn". De är inga kunder.
