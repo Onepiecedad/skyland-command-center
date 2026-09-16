@@ -19,6 +19,7 @@ import { logger } from '../services/logger';
 import { ragQuery } from '../services/siteRag';
 import { ingestLead } from './leads';
 import { bookCalcomAppointment } from './voice';
+import { arRobot } from '../services/robot';
 
 const router = Router();
 const db = () => websiteSupabase ?? supabase;
@@ -89,7 +90,7 @@ export async function resolveTenant(req: Request): Promise<string | null> {
     return tenant.id;
 }
 
-async function upsertSession(row: { session_uuid: string; tenant_id: string; user_agent?: string | null; entry_module?: string | null }) {
+async function upsertSession(row: { session_uuid: string; tenant_id: string; user_agent?: string | null; entry_module?: string | null; is_robot?: boolean }) {
     // session_uuid är unikt globalt, inte per kund. Utan den här kontrollen
     // flyttar en upsert tyst en befintlig session till en annan tenant om
     // samma uuid dyker upp igen — kollision, påhittat id eller ett testanrop.
@@ -119,7 +120,11 @@ router.post('/session-init', publicLimiter, async (req: Request, res: Response) 
     const tenantId = await resolveTenant(req);
     if (!tenantId) return res.status(403).json([{ error: 'unknown site_key or origin' }]);
     try {
-        const row = await upsertSession({ session_uuid: sid, tenant_id: tenantId, user_agent: str(b.user_agent, 400) || null, entry_module: str(b.entry_module, 40) || 'core' });
+        const bodyUa = str(b.user_agent, 400);
+        // Robotsessioner sparas, flaggade, så att ett formulär eller röstsamtal på
+        // samma session inte faller på främmande nyckel. Deras händelser sparas
+        // aldrig (se /track-event), och statistiken läser händelserna.
+        const row = await upsertSession({ session_uuid: sid, tenant_id: tenantId, user_agent: bodyUa || null, entry_module: str(b.entry_module, 40) || 'core', is_robot: arRobotAnrop(req, bodyUa) });
         return res.json([row]);
     } catch (e) {
         logger.error('site.session', 'session-init failed', { error: String(e) });
@@ -171,11 +176,21 @@ export function sanitizeEvents(body: Record<string, unknown>): Array<{ session_u
     return rows.length ? rows : null;
 }
 
+// Robot om anropets egen User-Agent-header är det, eller om sajten skickat en
+// user_agent i kroppen som är det. Tom kropps-UA räknas inte (äldre klienter
+// skickar den inte), tom header gör det: en webbläsare skickar alltid en.
+export function arRobotAnrop(req: Request, bodyUa?: string): boolean {
+    return arRobot(req.headers['user-agent']) || (!!bodyUa && arRobot(bodyUa));
+}
+
 router.post('/track-event', publicLimiter, async (req: Request, res: Response) => {
     const rows = sanitizeEvents(req.body || {});
     if (!rows) return res.status(400).json({ ok: false });
     const tenantId = await resolveTenant(req);
     if (!tenantId) return res.status(403).json({ ok: false });
+    // Robotars händelser släpps här, så de aldrig når besöksstatistiken.
+    // Svarar ok så att sajten inte loggar fel eller försöker igen.
+    if (arRobotAnrop(req)) return res.json({ ok: true, robot: true });
     const { error } = await db().from('events').insert(rows.map(r => ({ ...r, tenant_id: tenantId })));
     if (error) { logger.warn('site.track', 'events insert failed', { error: error.message }); return res.status(500).json({ ok: false }); }
     return res.json({ ok: true });

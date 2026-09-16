@@ -126,3 +126,20 @@ Skylands 316 sessioner orörda genom hela migrationen. Backend 392 gröna tester
 Void-formulär end-to-end (RAG-träff 0.56, svenskt svar, poäng, lead i CRM), telemetri från skarpa
 sajten, simulerat call-ended (LLM extraherade namn/företag/bransch/mejl/mötesönskan), alla fyra
 agent-tools, skarpt röstsamtal (sv) med bokning som landade i Cal.com + SCC-kalendern.
+
+## Robotfilter (16 sep 2026)
+
+Sökmotorer, SEO-verktyg och prestandamätare kör sajternas JS och räknades förr som besök
+(Thomas: SCC 125 mot hans panel 106). Nu:
+
+- `backend/src/services/robot.ts` — `arRobot(ua)`: saknar `Mozilla/` eller matchar kända
+  robotmönster (Googlebot, bingbot, AhrefsBot, HeadlessChrome, PageSpeeds "moto g power (2022)" m.fl.).
+- `/session-init` sparar sessionen men sätter `sessions.is_robot`. Den tas inte bort, eftersom
+  `prospects`/`interactions`/`voice_calls` har FK mot sessionen.
+- `/track-event` släpper händelser när anropets User-Agent-header är en robot och svarar
+  `{ ok: true, robot: true }`. Statistiken (`website.ts`) läser `events`, så robotarna syns inte.
+- Historiken: `database/migrations/scc_robotfilter.sql` flaggade 299 sessioner och flyttade
+  767 händelser till `events_robot_arkiv` (återställning står i filen). Sessioner med lead eller
+  samtal flaggades aldrig. Tom `user_agent` räknas inte som robot i SQL: klienten före 9 jul
+  skickade ingen, och de sessionerna har riktiga leads.
+- Samma mönsterlista finns i TS och SQL (`public.ar_robot`). Ändra båda.
