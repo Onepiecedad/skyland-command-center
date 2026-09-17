@@ -573,7 +573,11 @@ body {
   padding: 2px;
 }
 
-.activity-filter-bar .seg-btn {
+.activity-filter-bar .segmented-control::-webkit-scrollbar { display: none; }
+
+.seg-btn {
+  flex: none;
+
   padding: 0.3rem 0.55rem;
   font-size: 0.7rem;
 }
@@ -3845,6 +3849,14 @@ body {
   display: flex;
   position: relative;
   padding: 4px;
+  /* Flikraden ska dras med tummen när den inte får plats, inte klippas.
+     Pillret ligger absolut placerat inuti och följer med i rullningen. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  max-width: 100%;
   background: rgba(255, 255, 255, 0.04);
   border-radius: 14px;
   border: 1px solid var(--glass-border);
@@ -9112,4 +9124,25 @@ body {
 
 .msg-attachment-file svg {
   color: rgba(129, 140, 248, 0.8);
+}
+
+/* ── Mobil: CRM-vyn ──────────────────────────────────────────────────────
+   Sidan hade 24 px padding även på telefon, vilket åt 48 px av en 390 px
+   skärm. Kolumnerna blev så smala att texten bröts mitt i ord. */
+.crm-view {
+  padding: 24px;
+}
+
+@media (max-width: 700px) {
+  .crm-view { padding: 12px 0 12px; }
+  .crm-view > .crm-head { padding: 0 12px; }
+  .crm-view .crm-pipelines,
+  .crm-view .pl-toolbar { padding-left: 12px; padding-right: 12px; }
+  .crm-view .pl-columns { padding-left: 12px; padding-right: 12px; }
+
+  /* Ett kort i taget, snäppande, i stället för fyra halva bredvid varandra. */
+  .crm-view .pl-columns > * { flex: 0 0 82vw; scroll-snap-align: start; }
+  .crm-view .pl-columns { scroll-snap-type: x proximity; }
+
+  .crm-head h1 { font-size: 22px; }
 }

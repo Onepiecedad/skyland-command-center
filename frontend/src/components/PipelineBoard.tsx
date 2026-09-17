@@ -5,6 +5,7 @@ import {
     SITE_HEALTH_LABEL, SITE_HEALTH_TERMS, NOT_A_LEAD,
     siteHealthOf, hostOf, callGuide, NASTA_REPLIK,
 } from './siteHealth';
+import { ScrollStrip } from './ScrollStrip';
 
 /**
  * PipelineBoard (SCC-25) — drag-bar kanban över en pipelines stages.
@@ -25,6 +26,12 @@ interface PipelineBoardProps {
 function hasBrokenSite(opp: Opportunity): boolean {
     const sh = siteHealthOf(opp.contact?.custom);
     return !!sh && !NOT_A_LEAD.has(sh.verdict);
+}
+
+/** Har gästen skrivit något? Det är det som skiljer ett svar från ett utskick. */
+function harSamtal(opp: Opportunity): boolean {
+    const cu = opp.contact?.custom;
+    return Number(cu?.ce_messages_in ?? 0) > 0;
 }
 
 function matchesSearch(opp: Opportunity, q: string): boolean {
@@ -182,6 +189,9 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
     const colsRef = useRef<HTMLDivElement>(null);
     const [sortMode, setSortMode] = useState<'score' | 'name' | 'ort'>('score');
     const [tierFilter, setTierFilter] = useState<'all' | Tier>('all');
+    // Samtalsfiltret. "Kontaktad" och "pratar med oss" är två helt olika saker,
+    // och med hundra kort i brädet drunknar de tjugo som faktiskt svarat.
+    const [baraSamtal, setBaraSamtal] = useState(false);
     const [brokenOnly, setBrokenOnly] = useState(false);
     const [openGuide, setOpenGuide] = useState<Set<string>>(new Set());
 
@@ -358,6 +368,7 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                 return typeof s === 'number' && tierOf(s) === tierFilter;
             });
         if (brokenOnly) filtered = filtered.filter(hasBrokenSite);
+        if (baraSamtal) filtered = filtered.filter(harSamtal);
         if (q) filtered = filtered.filter((o) => matchesSearch(o, q));
         const areaOf = (o: Opportunity) => String(o.contact?.custom?.area ?? 'övrigt');
         const ordered = [...filtered].sort((a, b) => {
@@ -373,7 +384,7 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
 
     return (
         <div className="pl-board">
-            <div className="pl-toolbar" style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+            <ScrollStrip className="pl-toolbar" aria-label="Sortering och filter">
                 {([['score', '↓ Score'], ['name', 'A–Ö'], ['ort', 'Ort']] as const).map(([mode, label]) => (
                     <button key={mode} onClick={() => setSortMode(mode)} style={toolBtn(sortMode === mode)}>
                         {label}
@@ -385,6 +396,27 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                         {t === 'all' ? 'Alla' : t}
                     </button>
                 ))}
+                {(() => {
+                    // Samma princip som trasig-webb-knappen: siffran räknas på hela
+                    // brädet, annars ändras den av att man klickar på knappen.
+                    const alla = columns.flatMap((c) => c.opportunities);
+                    const medSamtal = alla.filter(harSamtal).length;
+                    if (medSamtal === 0 || medSamtal === alla.length) return null;
+                    return (
+                        <button
+                            data-aktiv={baraSamtal ? 'true' : undefined}
+                            onClick={() => setBaraSamtal((v) => !v)}
+                            title="Visa bara dem som har svarat, alltså där ett samtal faktiskt är igång"
+                            style={{
+                                ...toolBtn(baraSamtal), marginLeft: 4,
+                                borderColor: baraSamtal ? 'rgba(50,215,75,0.55)' : 'rgba(50,215,75,0.3)',
+                                background: baraSamtal ? 'rgba(50,215,75,0.22)' : 'rgba(50,215,75,0.08)',
+                            }}
+                        >
+                            💬 Pågående samtal <span style={{ opacity: 0.7 }}>{medSamtal}</span>
+                        </button>
+                    );
+                })()}
                 {(() => {
                     // Räknas på hela brädet, inte på den filtrerade vyn — annars
                     // skulle siffran ändras av att man klickar på knappen.
@@ -416,7 +448,7 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                         </span>
                     );
                 })()}
-            </div>
+            </ScrollStrip>
             <div ref={colsRef} className="pl-columns" style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8 }}>
             {viewColumns.map((col) => (
                 <div
