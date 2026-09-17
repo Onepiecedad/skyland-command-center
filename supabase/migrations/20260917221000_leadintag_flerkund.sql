@@ -16,6 +16,11 @@
 --      namnmatchningen. Ingen befintlig rad rörs.
 --
 -- Idempotent. Kan köras om.
+--
+-- OBS tidsstämpeln: den här migrationen skrevs 10:15 men flyttades till 22:10 efter
+-- att repot synkats mot fjärrdatabasen. Två migrationer kördes direkt mot databasen
+-- tidigare samma dag, varav 20260917104536 ändrade ce_mirror_lead. Hade den här legat
+-- kvar på 10:15 hade den ändå applicerats sist och tyst raderat den ändringen.
 -- ============================================================================
 
 -- ---------------------------------------------------------------- 1. routing
@@ -148,39 +153,51 @@ COMMENT ON FUNCTION public.lead_pipeline_for IS
   'Pipeline för ett lead: tenantens val, annars kundens egen, annars CE. '
   'Sista steget finns bara för bakåtkompatibilitet med Cold Experience.';
 
--- ce_mirror_lead: samma spegel som förut, med tre ändringar.
---   * pipelinen hämtas via lead_pipeline_for i stället för namnmatchning
---   * taggen och source följer tenanten i stället för att alltid vara cold-experience
---   * CE-specifika fält skrivs bara när de faktiskt har värden (jsonb_strip_nulls
---     gjorde redan det, men nu är det avsiktligt och inte en bieffekt)
--- Allt annat är oförändrat: samma dedupe_key, samma merge av custom, samma
--- loopspärr via ce.mirroring.
-CREATE OR REPLACE FUNCTION public.ce_mirror_lead(p_lead_id uuid)
- RETURNS void
- LANGUAGE plpgsql
-AS $function$
+
+-- ce_mirror_lead, byggd på 20260917104536 (städningen av dolda leads) med tre
+-- tillägg: pipelinen hämtas via lead_pipeline_for i stället för namnmatchning,
+-- taggen och source följer tenanten, och saknas ett matchande steg hamnar kortet
+-- i pipelinens första steg. Cold Experience beter sig exakt som förut eftersom
+-- lead_pipeline_for faller tillbaka på 'Cold Experience%'.
+-- Städningen av dolda leads och fälten ce_last_message_at/ce_human_active är
+-- ordagrant kvar från dagens migration.
+create or replace function public.ce_mirror_lead(p_lead_id uuid)
+ returns void
+ language plpgsql
+as $function$
 declare
   l record; v_customer uuid; v_pipeline uuid; v_stage uuid; v_contact uuid;
   v_titel text; v_nyckel text; v_hot boolean; v_forra text;
   v_slug text; v_tagg text;
 begin
+  v_nyckel := 'ce:' || p_lead_id::text;
+
   select * into l from ce_lead_overview where id = p_lead_id;
-  if not found then return; end if;
+  if not found then
+    -- Leadet är dolt eller borta. Riv kopian, annars spökar den kvar i brädet.
+    v_forra := coalesce(current_setting('ce.mirroring', true), '0');
+    perform set_config('ce.mirroring', '1', true);
+    delete from opportunities o
+     using contacts c
+     where o.contact_id = c.id and c.dedupe_key = v_nyckel;
+    delete from contacts where dedupe_key = v_nyckel;
+    perform set_config('ce.mirroring', v_forra, true);
+    return;
+  end if;
 
   select id into v_customer from customers where site_tenant_id = l.tenant_id limit 1;
   v_pipeline := lead_pipeline_for(l.tenant_id, v_customer);
-  if v_customer is null or v_pipeline is null then return; end if;
 
   select t.slug, coalesce(t.config->>'contact_tag', t.slug)
     into v_slug, v_tagg from tenants t where t.id = l.tenant_id;
   v_slug := coalesce(v_slug, 'cold-experience');
   v_tagg := coalesce(v_tagg, 'cold-experience');
+  if v_customer is null or v_pipeline is null then return; end if;
 
   v_forra := coalesce(current_setting('ce.mirroring', true), '0');
   perform set_config('ce.mirroring', '1', true);
 
   v_hot := l.hot_at is not null;
-  v_nyckel := 'ce:' || l.id::text;
   select s.id into v_stage from stages s
     where s.pipeline_id = v_pipeline and s.name = ce_stage_for(l.status, v_hot) limit 1;
   -- Kundens egna stegnamn behöver inte matcha CE:s. Hittas inget steg hamnar
@@ -210,6 +227,10 @@ begin
       'ce_travel_when', l.travel_when, 'ce_days', l.days, 'ce_adults', l.adults,
       'ce_departure', l.departure, 'ce_price_eur', l.price_quoted_eur,
       'ce_callback', l.callback_window, 'ce_ad_name', l.ad_name, 'ce_status', l.status,
+      -- Nytt 17 sep: senaste aktivitet och om tråden är levande, så CRM-kortet kan
+      -- visa att ett samtal pågår utan att fråga databasen en gång per kort.
+      'ce_last_message_at', l.last_message_at,
+      'ce_human_active', l.human_active,
       'ce_form', (select qualification->'form' from ce_leads where id = l.id)
     ))
   )
