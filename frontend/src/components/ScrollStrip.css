@@ -1,0 +1,54 @@
+.scroll-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  min-width: 0;
+  /* Plats för tonade kanter utan att knapparna klipps av masken. */
+  padding-bottom: 2px;
+}
+
+.scroll-strip::-webkit-scrollbar { display: none; }
+
+/* Inget i raden får krympa. Utan detta pressas chipsen ihop tills texten
+   bryts i stället för att raden blir rullbar, vilket var halva problemet. */
+.scroll-strip > * {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+/* Tonad kant bara åt det håll det finns mer att hämta. */
+.scroll-strip[data-fade-h='1'] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+}
+.scroll-strip[data-fade-v='1'] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent 100%);
+}
+.scroll-strip[data-fade-v='1'][data-fade-h='1'] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 28px, #000 calc(100% - 28px), transparent 100%);
+}
+
+/* Tumvänliga träffytor. 44 px är Apples minimum och det håller även för
+   Gustav med vantar på. Gäller bara touch, så desktop behåller sin täthet. */
+@media (pointer: coarse) {
+  .scroll-strip { gap: 8px; }
+  .scroll-strip > button,
+  .scroll-strip > a {
+    min-height: 40px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-strip { scroll-behavior: auto; }
+}

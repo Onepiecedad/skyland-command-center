@@ -27,6 +27,10 @@ export function SegmentedControl({ segments, activeKey, onSelect }: Props) {
                 left: btn.offsetLeft,
                 width: btn.offsetWidth,
             });
+            // Raden rullar i sidled när flikarna inte får plats. Utan detta kan
+            // den valda fliken ligga utanför skärmen utan att något visar det,
+            // och pillret glider till en plats man inte ser.
+            btn.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
         }
     }, [activeKey, segments]);
 

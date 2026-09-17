@@ -5,6 +5,7 @@ import ConversationInbox from '../components/ConversationInbox';
 import MaterialPanel from '../components/MaterialPanel';
 import ContactDetail from '../components/ContactDetail';
 import type { OpenContactDetail } from '../navigation/uiActions';
+import { ScrollStrip } from '../components/ScrollStrip';
 
 function tabBtn(active: boolean): React.CSSProperties {
     return {
@@ -112,17 +113,22 @@ export default function CrmView() {
     };
 
     return (
-        <div className="crm-view" style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
+        <div className="crm-view" style={{ maxWidth: 1400, margin: '0 auto' }}>
             <div className="crm-head" style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>🗂️ CRM</h1>
                 {pipelines.length > 1 && (
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <ScrollStrip aktivNyckel={activeId ?? ''} aria-label="Välj CRM-lista" className="crm-pipelines">
                         {pipelines.map((p) => (
-                            <button key={p.id} onClick={() => { setActiveId(p.id); setSelected(null); }} style={tabBtn(p.id === activeId)}>
+                            <button
+                                key={p.id}
+                                data-aktiv={p.id === activeId ? 'true' : undefined}
+                                onClick={() => { setActiveId(p.id); setSelected(null); }}
+                                style={tabBtn(p.id === activeId)}
+                            >
                                 {p.name}
                             </button>
                         ))}
-                    </div>
+                    </ScrollStrip>
                 )}
                 <input
                     type="search"
@@ -130,7 +136,8 @@ export default function CrmView() {
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Sök prospekt (namn, IG, mail, tel)…"
                     style={{
-                        marginLeft: 'auto', width: 260, padding: '7px 12px', borderRadius: 10, fontSize: 13,
+                        marginLeft: 'auto', width: 260, maxWidth: '100%', flex: '1 1 180px', minWidth: 0,
+                        padding: '7px 12px', borderRadius: 10, fontSize: 13,
                         border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.25)', color: 'inherit', outline: 'none',
                     }}
                 />
