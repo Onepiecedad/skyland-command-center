@@ -6,6 +6,7 @@ import {
     siteHealthOf, hostOf, callGuide, NASTA_REPLIK,
 } from './siteHealth';
 import { ScrollStrip } from './ScrollStrip';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 
 /**
  * PipelineBoard (SCC-25) — drag-bar kanban över en pipelines stages.
@@ -213,22 +214,12 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
         setLoading(false);
     }, [pipelineId]);
 
-    useEffect(() => {
-        void load();
-        // Boarden ska aldrig visa gammal data: hämta om var 60:e sekund och
-        // varje gång fliken får fokus igen (Alex/pipelines skriver i bakgrunden).
-        const interval = setInterval(() => void load(), 60_000);
-        const onVisible = () => {
-            if (document.visibilityState === 'visible') void load();
-        };
-        document.addEventListener('visibilitychange', onVisible);
-        window.addEventListener('focus', onVisible);
-        return () => {
-            clearInterval(interval);
-            document.removeEventListener('visibilitychange', onVisible);
-            window.removeEventListener('focus', onVisible);
-        };
-    }, [load]);
+    useEffect(() => { void load(); }, [load]);
+    // Boarden ska aldrig visa gammal data, men den ska inte heller hämta hela
+    // leadlistan en gång i minuten hela natten åt ingen. Hooken tickar bara när
+    // fliken syns, och hämtar direkt när man kommer tillbaka till den, så det här
+    // är både billigare och färskare än det gamla intervallet.
+    useSynligtIntervall(() => void load(), 60_000);
 
     // ── Alex (navigate_ui): öppna ett specifikt kontaktkort. Om boarden inte
     //    hunnit ladda än sparas önskan och försöks igen när kolumnerna kommer. ──

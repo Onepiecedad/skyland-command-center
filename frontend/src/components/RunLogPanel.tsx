@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { TaskRun, Task } from '../api';
 import { fetchTaskRuns, fetchRunsGlobal, fetchTask } from '../api';
 import { TaskDetail } from './TaskDetail';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 
 interface Props {
     taskId?: string;        // If provided, show per-task runs; otherwise global
@@ -50,9 +51,10 @@ export function RunLogPanel({ taskId, limit = 20, pollIntervalMs = 5000 }: Props
         isFirstLoad.current = true;
         loadRuns();
 
-        const interval = setInterval(loadRuns, pollIntervalMs);
-        return () => clearInterval(interval);
     }, [loadRuns, pollIntervalMs]);
+    // Fem sekunder är tätt. Mätt i loggen var task_runs det enskilt mest anropade
+    // under natten, 237 i timmen när ingen tittade. Nu tickar den bara när fliken syns.
+    useSynligtIntervall(loadRuns, pollIntervalMs);
 
     const toggleExpand = (runId: string) => {
         setExpandedRuns(prev => {

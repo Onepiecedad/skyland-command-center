@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSynligtIntervall } from '../../hooks/useSynligtIntervall';
 import {
     ShieldAlert,
     CheckCircle,
@@ -87,11 +88,8 @@ export function ApprovalQueue() {
 
     useEffect(() => { fetchQueue(); }, [fetchQueue]);
 
-    // Auto-refresh
-    useEffect(() => {
-        const interval = setInterval(fetchQueue, 15000);
-        return () => clearInterval(interval);
-    }, [fetchQueue]);
+    // Auto-refresh, men bara när någon tittar.
+    useSynligtIntervall(fetchQueue, 15000);
 
     const handleApprove = async (item: QueueItem) => {
         if (!item.taskId) return;
