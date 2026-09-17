@@ -88,9 +88,17 @@ function ceSamtal(ce: {
     const t = ce.ce_last_message_at ? Date.parse(ce.ce_last_message_at) : NaN;
     const min = Number.isNaN(t) ? Infinity : (Date.now() - t) / 60000;
     if (ce.ce_human_active) return { text: '✋ mänsklig i tråden', farg: '#FF9F0A', bg: 'rgba(255,159,10,0.14)' };
-    if (min < 30) return { text: '💬 samtal pågår', farg: '#32D74B', bg: 'rgba(50,215,75,0.14)' };
-    if (min < 60 * 24) return { text: `💬 svarat · ${inn} meddelanden`, farg: '#5AC8FA', bg: 'rgba(90,200,250,0.12)' };
-    return { text: `💬 ${inn} meddelanden`, farg: 'rgba(255,255,255,0.55)', bg: 'rgba(255,255,255,0.06)' };
+    // Alla tre lägena säger samma sak om tråden, bara med olika brådska. Den gröna
+    // saknade siffran helt, så ett samtal som just rört sig visade ingenting medan
+    // ett dygnsgammalt visade ett tal: det såg ut som att datan fattades. Letitia
+    // hade 15 meddelanden i tråden och en tom grön markör 17 sep.
+    //
+    // "gästsvar" och inte "meddelanden": siffran räknar det GÄSTEN skrivit, inte
+    // trådens längd. Letitias 15 meddelanden är 4 gästsvar och elva av våra.
+    const antal = `${inn} gästsvar`;
+    if (min < 30) return { text: `💬 samtal pågår · ${antal}`, farg: '#32D74B', bg: 'rgba(50,215,75,0.14)' };
+    if (min < 60 * 24) return { text: `💬 svarat · ${antal}`, farg: '#5AC8FA', bg: 'rgba(90,200,250,0.12)' };
+    return { text: `💬 ${antal}`, farg: 'rgba(255,255,255,0.55)', bg: 'rgba(255,255,255,0.06)' };
 }
 
 function ceTid(iso?: string): string {
