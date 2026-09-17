@@ -35,7 +35,11 @@ export function ScrollStrip({ children, aktivNyckel, className = '', ...rest }: 
     // redan syns, vilket annars gör att den hoppar till vid varje omrendering.
     useEffect(() => {
         const el = ref.current?.querySelector<HTMLElement>('[data-aktiv="true"]');
-        el?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+        // jsdom saknar scrollIntoView. Optional chaining räcker inte: den skyddar
+        // mot ett element som inte finns, inte mot en metod som inte finns.
+        if (el && typeof el.scrollIntoView === 'function') {
+            el.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+        }
     }, [aktivNyckel]);
 
     // Vilka kanter som ska tonas beror på var man befinner sig i raden.
