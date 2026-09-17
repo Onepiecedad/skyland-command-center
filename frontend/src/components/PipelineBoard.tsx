@@ -52,6 +52,40 @@ const CE_KANAL: Record<string, string> = {
     web: '🌐 Webbformulär', other: 'okänd kanal',
 };
 
+/** Landskod till flagga. Regional indicator-tecken, alltså A→🇦 osv.
+ *  Gustav ska se på en halv sekund om gästen sitter i Sydafrika eller Storbritannien,
+ *  för det avgör både tidszon och om samtalet är värt att ringa nu. */
+function flagga(kod?: string | null): string {
+    const k = (kod ?? '').trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(k)) return '';
+    return String.fromCodePoint(...[...k].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+}
+
+const LAND_NAMN: Record<string, string> = {
+    ZA: 'Sydafrika', GB: 'Storbritannien', IE: 'Irland', NL: 'Nederländerna',
+    DE: 'Tyskland', PL: 'Polen', AE: 'Förenade Arabemiraten', US: 'USA',
+    IN: 'Indien', DK: 'Danmark', CH: 'Schweiz', SE: 'Sverige', NO: 'Norge',
+    FI: 'Finland', FR: 'Frankrike', ES: 'Spanien', IT: 'Italien', BE: 'Belgien',
+    AT: 'Österrike', AU: 'Australien', CA: 'Kanada',
+};
+
+/** Pågår ett samtal just nu? Ett lead som bara fått ett utskick har inga inkommande
+ *  meddelanden. Ett levande samtal har gästen skrivit i, och nyligen. */
+function ceSamtal(ce: {
+    ce_messages_in?: number | null;
+    ce_last_message_at?: string | null;
+    ce_human_active?: boolean | null;
+}): { text: string; farg: string; bg: string } | null {
+    const inn = Number(ce.ce_messages_in ?? 0);
+    if (!inn) return null;
+    const t = ce.ce_last_message_at ? Date.parse(ce.ce_last_message_at) : NaN;
+    const min = Number.isNaN(t) ? Infinity : (Date.now() - t) / 60000;
+    if (ce.ce_human_active) return { text: '✋ mänsklig i tråden', farg: '#FF9F0A', bg: 'rgba(255,159,10,0.14)' };
+    if (min < 30) return { text: '💬 samtal pågår', farg: '#32D74B', bg: 'rgba(50,215,75,0.14)' };
+    if (min < 60 * 24) return { text: `💬 svarat · ${inn} meddelanden`, farg: '#5AC8FA', bg: 'rgba(90,200,250,0.12)' };
+    return { text: `💬 ${inn} meddelanden`, farg: 'rgba(255,255,255,0.55)', bg: 'rgba(255,255,255,0.06)' };
+}
+
 function ceTid(iso?: string): string {
     if (!iso) return '';
     const m = ['jan','feb','mar','apr','maj','jun','jul','aug','sep','okt','nov','dec'];
@@ -462,8 +496,37 @@ export function PipelineBoard({ pipelineId, search, onSelectContact }: PipelineB
                                             )}
                                             <span style={{ opacity: 0.35 }}>·</span>
                                             <span style={{ opacity: 0.6 }}>{(ce.ce_channel && CE_KANAL[ce.ce_channel]) || ce.ce_channel || 'okänd kanal'}</span>
-                                            {ce.ce_country && <><span style={{ opacity: 0.35 }}>·</span><span style={{ opacity: 0.6 }}>{ce.ce_country}</span></>}
+                                            {ce.ce_country && (
+                                                <>
+                                                    <span style={{ opacity: 0.35 }}>·</span>
+                                                    <span
+                                                        title={LAND_NAMN[String(ce.ce_country).toUpperCase()] ?? String(ce.ce_country)}
+                                                        style={{
+                                                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                                                            fontWeight: 600, opacity: 1,
+                                                            background: 'rgba(255,255,255,0.09)',
+                                                            border: '1px solid rgba(255,255,255,0.12)',
+                                                            borderRadius: 5, padding: '1px 6px',
+                                                        }}
+                                                    >
+                                                        <span style={{ fontSize: 13, lineHeight: 1 }}>{flagga(ce.ce_country)}</span>
+                                                        {String(ce.ce_country).toUpperCase()}
+                                                    </span>
+                                                </>
+                                            )}
                                         </div>
+                                        {(() => {
+                                            const s = ceSamtal(ce);
+                                            if (!s) return null;
+                                            return (
+                                                <div style={{ marginTop: 5 }}>
+                                                    <span style={{
+                                                        fontSize: 10.5, fontWeight: 600, color: s.farg, background: s.bg,
+                                                        borderRadius: 5, padding: '2px 7px', display: 'inline-block',
+                                                    }}>{s.text}</span>
+                                                </div>
+                                            );
+                                        })()}
                                         {resan && (
                                             <div style={{ fontSize: 11, opacity: 0.75, marginTop: 3 }}>{resan}</div>
                                         )}

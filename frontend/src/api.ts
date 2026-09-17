@@ -1318,6 +1318,8 @@ export interface ContactCustom {
     ce_callback?: string | null;
     ce_ad_name?: string | null;
     ce_form?: Record<string, string> | null;
+    ce_last_message_at?: string | null;
+    ce_human_active?: boolean | null;
 }
 
 export interface OpportunityContact {
