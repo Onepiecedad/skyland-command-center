@@ -5,7 +5,12 @@
 // fältmappning. En ny kund är en rad i databasen, inte en ny deploy.
 //
 // GET  : Metas verifiering (hub.mode / hub.verify_token / hub.challenge)
+//        ?routes=1 — hälsokoll, vilka sidor är inkopplade
 // POST : leadgen-händelser → Graph API → ce_leads → ce_lead_events → SMS
+//        ?backfill=1 — hämtar befintliga leads ur Metas Leadcenter för en sida
+//        som kopplades in efter att annonsen redan börjat leverera. Autentiseras
+//        med tjänstenyckeln som Bearer, inte med Metas signatur. Tyst som
+//        standard (inga SMS på gamla leads), idempotent på dedupe_key.
 //
 // Idempotent på dedupe_key = "leadgen:<id>". Meta skickar om vid icke-2xx, så vi
 // svarar 200 så snart payloaden är giltig och gör jobbet i EdgeRuntime.waitUntil.
@@ -178,23 +183,24 @@ function smsText(p: {
 
 // ---------- kärnan ----------
 
-async function processLeadgen(v: {
-  leadgen_id: string; page_id?: string; form_id?: string; ad_id?: string;
-  adgroup_id?: string; created_time?: number;
-}, opts: { notify?: boolean } = {}) {
+// upsertLead tar ett redan hämtat lead från Graph. Webhooken hämtar det på id,
+// backfillen läser det ur formulärets leadlista. Allt efter hämtningen är
+// identiskt, så den vägen finns bara på ett ställe.
+async function upsertLead(
+  route: Route,
+  lead: any,
+  opts: { notify?: boolean; ad_id?: string; adgroup_id?: string; form_id?: string } = {},
+): Promise<"inserted" | "merged" | "duplicate"> {
   const notify = opts.notify !== false;
-  const leadgenId = String(v.leadgen_id);
+  const leadgenId = String(lead.id);
   const dedupe = `leadgen:${leadgenId}`;
-
-  const route = await routeFor(v.page_id);
-  if (!route) { console.log("ingen route för page_id", v.page_id, "— hoppar över", leadgenId); return; }
   const tenant = route.tenant_id;
+  const v = { ad_id: opts.ad_id, adgroup_id: opts.adgroup_id, form_id: opts.form_id };
 
   const { data: fanns } = await supabase.from("ce_leads").select("id")
     .eq("tenant_id", tenant).eq("dedupe_key", dedupe).maybeSingle();
-  if (fanns) { console.log("dup", dedupe); return; }
+  if (fanns) { console.log("dup", dedupe); return "duplicate"; }
 
-  const lead = await fetchLead(leadgenId);
   const fieldMap = route.config?.field_map ?? {
     full_name: ["full_name", "namn", "name"],
     phone: ["phone", "telefon"],
@@ -246,6 +252,7 @@ async function processLeadgen(v: {
   };
 
   let leadId: string | null = null;
+  let utfall: "inserted" | "merged" = "inserted";
   const ins = await supabase.from("ce_leads").insert(row).select("id").single();
   if (ins.error) {
     // Unikt index på telefon: samma person hör av sig igen. Uppdatera i stället
@@ -258,9 +265,10 @@ async function processLeadgen(v: {
       }).eq("tenant_id", tenant).eq("phone", telefon).select("id").single();
       if (upd.error) throw upd.error;
       leadId = upd.data.id;
+      utfall = "merged";
       console.log("slogs ihop på telefon", telefon, leadId);
     } else if (ins.error.code === "23505") {
-      console.log("dup race", dedupe); return;
+      console.log("dup race", dedupe); return "duplicate";
     } else throw ins.error;
   } else leadId = ins.data.id;
 
@@ -285,6 +293,123 @@ async function processLeadgen(v: {
   }
 
   console.log("lead ok", route.page_name ?? route.page_id, leadId, hett ? "HET" : "", test ? "TEST" : "");
+  return utfall;
+}
+
+async function processLeadgen(v: {
+  leadgen_id: string; page_id?: string; form_id?: string; ad_id?: string;
+  adgroup_id?: string; created_time?: number;
+}, opts: { notify?: boolean } = {}) {
+  const leadgenId = String(v.leadgen_id);
+  const route = await routeFor(v.page_id);
+  if (!route) { console.log("ingen route för page_id", v.page_id, "— hoppar över", leadgenId); return; }
+
+  const { data: fanns } = await supabase.from("ce_leads").select("id")
+    .eq("tenant_id", route.tenant_id).eq("dedupe_key", `leadgen:${leadgenId}`).maybeSingle();
+  if (fanns) { console.log("dup", leadgenId); return; }
+
+  const lead = await fetchLead(leadgenId);
+  await upsertLead(route, lead, {
+    notify: opts.notify, ad_id: v.ad_id, adgroup_id: v.adgroup_id, form_id: v.form_id,
+  });
+}
+
+// ---------- backfill ----------
+
+// Ett lead som kom in innan webhooken var kopplad ligger kvar i Metas Leadcenter
+// och kommer aldrig av sig själv. Backfillen läser formulärens leadlistor och kör
+// dem genom exakt samma väg som webhooken. Den är idempotent på dedupe_key, så
+// den kan köras om utan att skapa dubbletter.
+
+const LEAD_FIELDS = "id,created_time,ad_id,ad_name,adset_id,adset_name,campaign_id," +
+  "campaign_name,form_id,platform,is_organic,field_data";
+
+async function graphGet(path: string, params: Record<string, string>) {
+  const token = env("META_PAGE_TOKEN");
+  if (!token) throw new Error("META_PAGE_TOKEN saknas");
+  const q = new URLSearchParams({ ...params, access_token: token });
+  const r = await fetch(`${GRAPH}/${path}?${q}`);
+  const j = await r.json();
+  if (!r.ok || j.error) throw new Error(`Graph ${r.status}: ${JSON.stringify(j.error ?? j)}`);
+  return j;
+}
+
+async function listForms(pageId: string): Promise<Array<{ id: string; name: string }>> {
+  const j = await graphGet(`${pageId}/leadgen_forms`, { fields: "id,name,status", limit: "100" });
+  return (j.data ?? [])
+    .filter((f: any) => !f.status || f.status === "ACTIVE")
+    .map((f: any) => ({ id: String(f.id), name: f.name ?? "" }));
+}
+
+async function backfillForm(
+  route: Route,
+  form: { id: string; name: string },
+  o: { since?: number; max: number; notify: boolean; dryRun: boolean },
+) {
+  const resultat = { form_id: form.id, form_name: form.name, hittade: 0, nya: 0, sammanslagna: 0, fanns: 0, fel: [] as string[] };
+  let url: string | null = null;
+  let sida = await graphGet(`${form.id}/leads`, { fields: LEAD_FIELDS, limit: "100" });
+
+  while (true) {
+    for (const lead of sida.data ?? []) {
+      if (resultat.hittade >= o.max) return resultat;
+      const t = Date.parse(lead.created_time ?? "") / 1000;
+      if (o.since && Number.isFinite(t) && t < o.since) return resultat;  // listan är fallande
+      resultat.hittade++;
+      if (o.dryRun) continue;
+      try {
+        const utfall = await upsertLead(route, lead, { notify: o.notify, form_id: form.id });
+        if (utfall === "inserted") resultat.nya++;
+        else if (utfall === "merged") resultat.sammanslagna++;
+        else resultat.fanns++;
+      } catch (e) {
+        resultat.fel.push(`${lead.id}: ${(e as Error)?.message ?? e}`);
+      }
+    }
+    url = sida.paging?.next ?? null;
+    if (!url) return resultat;
+    const r = await fetch(url);
+    sida = await r.json();
+    if (sida.error) { resultat.fel.push(JSON.stringify(sida.error)); return resultat; }
+  }
+}
+
+async function runBackfill(b: {
+  page_id?: string; form_id?: string; since?: string; max?: number;
+  notify?: boolean; dry_run?: boolean;
+}) {
+  const route = await routeFor(b.page_id);
+  if (!route) throw new Error(`ingen aktiv route för page_id ${b.page_id}`);
+
+  const since = b.since ? Math.floor(Date.parse(b.since) / 1000) : undefined;
+  if (b.since && !Number.isFinite(since)) throw new Error(`ogiltigt since: ${b.since}`);
+
+  const formular = b.form_id
+    ? [{ id: String(b.form_id), name: "" }]
+    : await listForms(route.page_id);
+
+  const o = {
+    since, max: Math.min(b.max ?? 500, 2000),
+    notify: b.notify === true,          // tyst som standard: gamla leads ska inte larma
+    dryRun: b.dry_run === true,
+  };
+
+  const formularResultat = [];
+  for (const f of formular) formularResultat.push(await backfillForm(route, f, o));
+
+  return {
+    ok: true,
+    page_id: route.page_id,
+    page_name: route.page_name,
+    dry_run: o.dryRun,
+    since: b.since ?? null,
+    formular: formularResultat,
+    summa: formularResultat.reduce((a, r) => ({
+      hittade: a.hittade + r.hittade, nya: a.nya + r.nya,
+      sammanslagna: a.sammanslagna + r.sammanslagna, fanns: a.fanns + r.fanns,
+      fel: a.fel + r.fel.length,
+    }), { hittade: 0, nya: 0, sammanslagna: 0, fanns: 0, fel: 0 }),
+  };
 }
 
 // ---------- HTTP ----------
@@ -310,6 +435,24 @@ Deno.serve(async (req) => {
   }
 
   if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
+
+  // Backfill är ett administratörsanrop, inte en Meta-händelse. Den bär ingen
+  // Meta-signatur, så den autentiseras med LEAD_INTAKE_ADMIN_KEY (eller tjänste-
+  // nyckeln) som Bearer i stället.
+  if (url.searchParams.get("backfill") === "1") {
+    const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const nycklar = [env("LEAD_INTAKE_ADMIN_KEY"), env("SUPABASE_SERVICE_ROLE_KEY")].filter(Boolean);
+    if (!nycklar.some((n) => timingSafeEqual(bearer, n))) {
+      return new Response("unauthorized", { status: 401 });
+    }
+    let b: any;
+    try { b = JSON.parse(await req.text() || "{}"); } catch { return new Response("bad json", { status: 400 }); }
+    try {
+      return Response.json(await runBackfill(b));
+    } catch (e) {
+      return Response.json({ ok: false, fel: (e as Error)?.message ?? String(e) }, { status: 400 });
+    }
+  }
 
   const body = await req.text();
 

@@ -161,3 +161,39 @@ Sidan måste också prenumereras på appen med samma `subscribed_apps`-anrop.
   ser tomt ut på fel ställen.
 - **Ingen vakthund.** CE-funktionen larmar när det varit tyst för länge. Det här
   intaget gör det inte, och tystnad ser likadan ut som lugn.
+
+## Backfill — leads som kom in innan webhooken var kopplad
+
+Ett lead som landade i Metas Leadcenter innan sidan prenumererade på appen kommer
+aldrig in av sig själv. `lead-intake` har därför ett administratörsanrop som läser
+formulärets leadlista och kör varje lead genom exakt samma väg som webhooken.
+
+    POST /functions/v1/lead-intake?backfill=1
+    Authorization: Bearer $LEAD_INTAKE_ADMIN_KEY
+    { "page_id": "...", "form_id": "...", "since": "2026-09-01", "dry_run": true }
+
+- `page_id` krävs och måste finnas som aktiv rad i `meta_lead_routes`.
+- `form_id` valfritt. Utelämnas det listas sidans aktiva formulär automatiskt.
+- `since` valfritt ISO-datum. Listan är fallande, så den slutar vid första äldre.
+- `max` valfritt, standard 500, tak 2000.
+- `dry_run: true` räknar bara, skriver inget.
+- `notify: true` skickar SMS. Standard är tyst — gamla leads ska inte larma.
+
+Idempotent på `dedupe_key = leadgen:<id>`, så den kan köras om.
+
+### Behörigheter
+
+Systemanvändartokenen behöver mer för backfillen än för webhooken:
+
+| Anrop | Krav |
+|---|---|
+| `GET /{leadgen_id}` (webhooken) | `leads_retrieval` |
+| `GET /{form_id}/leads` (backfill) | `leads_retrieval` + `pages_manage_ads` |
+| `GET /{page_id}/leadgen_forms` (autolista formulär) | `pages_manage_ads` |
+
+Saknas `pages_manage_ads` svarar Graph `(#200) Requires pages_manage_ads permission`
+eller `does not exist ... error_subcode 33`. Generera om systemanvändartokenen med
+båda behörigheterna och växla den mot en ny sidtoken:
+
+    curl -s "https://graph.facebook.com/v21.0/$PAGE_ID?fields=access_token&access_token=$SU_TOKEN"
+    supabase secrets set META_PAGE_TOKEN="<sidtoken>"
