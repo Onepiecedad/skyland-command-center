@@ -4,6 +4,7 @@ import {
     AlertTriangle, FileText, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { fetchGitStatus, fetchGitDiff, gitAdd, gitCommit, gitPush } from '../../api';
+import { useSynligtIntervall } from '../../hooks/useSynligtIntervall';
 
 type GitFileStatus = { status: string; file: string };
 
@@ -34,11 +35,8 @@ export function GitPanel() {
         }
     }, []);
 
-    useEffect(() => {
-        loadStatus();
-        const interval = setInterval(loadStatus, 30000); // poll every 30s
-        return () => clearInterval(interval);
-    }, [loadStatus]);
+    useEffect(() => { loadStatus(); }, [loadStatus]);
+    useSynligtIntervall(loadStatus, 30000);
 
     const handleLoadDiff = async () => {
         if (showDiff) {

@@ -6,6 +6,7 @@ import {
 } from '../api';
 import { fetchIntegrationsHealth, type IntegrationsHealthResponse } from '../api/system';
 import { focusContact } from '../navigation/uiActions';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 
 /**
  * TodayView ("Min dag") — morgonöverblick. Sammanfattar dagens/försenade todos,
@@ -49,11 +50,8 @@ export default function TodayView() {
         }
     }, []);
 
-    useEffect(() => {
-        void load();
-        const iv = setInterval(() => void load(), 30000);
-        return () => clearInterval(iv);
-    }, [load]);
+        useEffect(() => { void load(); }, [load]);
+        useSynligtIntervall(() => void load(), 30000);
 
     const dueNow = useMemo(
         () => todos.filter(t => t.due_at && new Date(t.due_at).getTime() <= endOfToday())

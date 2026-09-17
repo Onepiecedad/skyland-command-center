@@ -24,6 +24,7 @@ import { fetchCustomers } from '../api';
 import { CustomerCard } from '../components/CustomerCard';
 import { ActivityLog } from '../components/ActivityLog';
 import { PendingApprovals } from '../components/PendingApprovals';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 
 // Lazy-load Realm3D to prevent Three.js version mismatch from crashing entire app
 const Realm3D = lazy(() => import('../components/Realm3D').then(m => ({ default: m.Realm3D })));
@@ -84,11 +85,8 @@ export function CustomerView({ onTaskCreated }: Props) {
         setLoading(false);
     }, []);
 
-    useEffect(() => {
-        loadCustomers();
-        const interval = setInterval(loadCustomers, 30000);
-        return () => clearInterval(interval);
-    }, [loadCustomers]);
+        useEffect(() => { loadCustomers(); }, [loadCustomers]);
+        useSynligtIntervall(loadCustomers, 30000);
 
     const handleRefresh = useCallback(() => {
         setRefreshKey(prev => prev + 1);

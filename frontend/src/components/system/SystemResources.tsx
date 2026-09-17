@@ -9,6 +9,7 @@ import {
     XCircle,
 } from 'lucide-react';
 import { API_URL } from '../../config';
+import { useSynligtIntervall } from '../../hooks/useSynligtIntervall';
 
 // ─── Types ───
 interface ResourceStatus {
@@ -77,11 +78,8 @@ export function SystemResources() {
 
     useEffect(() => { fetchResources(); }, [fetchResources]);
 
-    // Auto-refresh every 60s
-    useEffect(() => {
-        const interval = setInterval(fetchResources, 60000);
-        return () => clearInterval(interval);
-    }, [fetchResources]);
+    // Auto-refresh var 60:e sekund, men bara när fliken syns.
+    useSynligtIntervall(fetchResources, 60000);
 
     // Real cron jobs from the gateway's scheduled-jobs DB (not mock).
     useEffect(() => {

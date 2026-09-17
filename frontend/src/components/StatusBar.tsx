@@ -1,6 +1,7 @@
 import { useGateway } from '../gateway/useGateway';
 import { useEffect, useState, useCallback } from 'react';
 import { fetchTasks } from '../api';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 
 export function StatusBar() {
     const gateway = useGateway('agent:skyland:main');
@@ -16,11 +17,8 @@ export function StatusBar() {
         } catch { /* tyst */ }
     }, []);
 
-    useEffect(() => {
-        fetchTaskCount();
-        const interval = setInterval(fetchTaskCount, 30000);
-        return () => clearInterval(interval);
-    }, [fetchTaskCount]);
+        useEffect(() => { fetchTaskCount(); }, [fetchTaskCount]);
+        useSynligtIntervall(fetchTaskCount, 30000);
 
     const statusLabel = {
         connected: 'Online',

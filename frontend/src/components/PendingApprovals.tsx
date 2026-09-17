@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import type { Task } from '../api';
 import { fetchTasks, approveTask, dispatchTask } from '../api';
 import { TaskDetail } from './TaskDetail';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 
 interface Props {
     selectedCustomerId: string | null;
@@ -43,12 +44,8 @@ export function PendingApprovals({ selectedCustomerId, onApproved }: Props) {
         setLoading(false);
     }, [selectedCustomerId]);
 
-    useEffect(() => {
-        loadTasks();
-        // Auto-refresh every 10s
-        const interval = setInterval(loadTasks, 10000);
-        return () => clearInterval(interval);
-    }, [loadTasks]);
+        useEffect(() => { loadTasks(); }, [loadTasks]);
+        useSynligtIntervall(loadTasks, 10000);
 
     const handleApprove = async (e: React.MouseEvent, taskId: string) => {
         e.stopPropagation();

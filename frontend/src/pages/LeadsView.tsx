@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { fetchLeads, type Lead } from '../api';
 import LeadDetailModal from '../components/LeadDetailModal';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 
 /**
  * LeadsView — inkommande leads från skylandai.se (formulär + röstsamtal).
@@ -24,11 +25,8 @@ export default function LeadsView() {
         setLoading(false);
     }, []);
 
-    useEffect(() => {
-        void load();
-        const interval = setInterval(() => void load(), 15000);
-        return () => clearInterval(interval);
-    }, [load]);
+        useEffect(() => { void load(); }, [load]);
+        useSynligtIntervall(() => void load(), 15000);
 
     const sourceLabel = (s?: string): string =>
         s === 'voice_call' ? '🎙️ Röstsamtal' : s === 'void_form' ? '📝 Formulär' : '🎯 Lead';
