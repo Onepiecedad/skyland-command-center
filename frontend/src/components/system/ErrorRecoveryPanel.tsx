@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSynligtIntervall } from '../../hooks/useSynligtIntervall';
 import {
     ShieldAlert,
     RefreshCw,
@@ -56,11 +57,8 @@ export function ErrorRecoveryPanel() {
 
     useEffect(() => { loadErrors(); }, [loadErrors]);
 
-    // Auto-refresh every 60s
-    useEffect(() => {
-        const interval = setInterval(loadErrors, 60000);
-        return () => clearInterval(interval);
-    }, [loadErrors]);
+    // Auto-refresh var 60:e sekund, men bara när fliken syns.
+    useSynligtIntervall(loadErrors, 60000);
 
     const handleRetry = async (pattern: ErrorPattern) => {
         if (!pattern.classification?.suggested_action) return;

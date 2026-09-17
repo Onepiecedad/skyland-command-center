@@ -3,6 +3,7 @@ import type { Activity } from '../api';
 import { fetchActivities } from '../api';
 import { SegmentedControl } from './SegmentedControl';
 import { focusContact } from '../navigation/uiActions';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 
 /* ─── Filter Configuration ─── */
 interface FilterConfig {
@@ -118,11 +119,8 @@ export function ActivityLog({ selectedCustomerId, filter, onFilterChange }: Prop
         setLoading(false);
     }, [selectedCustomerId, currentFilter]);
 
-    useEffect(() => {
-        void loadActivities();
-        const interval = setInterval(() => void loadActivities(), 10000);
-        return () => clearInterval(interval);
-    }, [loadActivities]);
+    useEffect(() => { void loadActivities(); }, [loadActivities]);
+    useSynligtIntervall(() => void loadActivities(), 10000);
 
     /* ─── Helpers ─── */
     const getSeverityClass = (severity: string) =>

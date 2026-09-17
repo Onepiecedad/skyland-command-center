@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSynligtIntervall } from '../../hooks/useSynligtIntervall';
 import {
     CheckCircle,
     AlertTriangle,
@@ -145,11 +146,8 @@ export function WorkflowHealth() {
 
     useEffect(() => { fetchWorkflows(); }, [fetchWorkflows]);
 
-    // Auto-refresh every 30s
-    useEffect(() => {
-        const interval = setInterval(fetchWorkflows, 30000);
-        return () => clearInterval(interval);
-    }, [fetchWorkflows]);
+    // Auto-refresh var 30:e sekund, men bara när fliken syns.
+    useSynligtIntervall(fetchWorkflows, 30000);
 
     const healthyCount = workflows.filter(w => w.status === 'HEALTHY').length;
     const degradedCount = workflows.filter(w => w.status === 'DEGRADED').length;
