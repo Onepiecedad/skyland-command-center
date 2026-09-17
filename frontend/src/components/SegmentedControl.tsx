@@ -30,7 +30,12 @@ export function SegmentedControl({ segments, activeKey, onSelect }: Props) {
             // Raden rullar i sidled när flikarna inte får plats. Utan detta kan
             // den valda fliken ligga utanför skärmen utan att något visar det,
             // och pillret glider till en plats man inte ser.
-            btn.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+            //
+            // jsdom implementerar inte scrollIntoView, så ett oskyddat anrop
+            // kraschar hela renderingen i testmiljön. Det sänkte CI på PR #15.
+            if (typeof btn.scrollIntoView === 'function') {
+                btn.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+            }
         }
     }, [activeKey, segments]);
 
