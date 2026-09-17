@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Activity, DollarSign, AlertTriangle, TrendingUp, Brain, Clock } from 'lucide-react';
 import { useGateway } from '../../gateway/useGateway';
 import { API_BASE, fetchWithAuth } from '../../api';
+import { useSynligtIntervall } from '../../hooks/useSynligtIntervall';
 
 interface Credits {
   remaining_usd: number | null;
@@ -118,11 +119,8 @@ export function ContextMonitor() {
   }, [gateway.sessions, pricing]);
 
   // Update metrics every 5 seconds
-  useEffect(() => {
-    calculateMetrics();
-    const interval = setInterval(calculateMetrics, 5000);
-    return () => clearInterval(interval);
-  }, [calculateMetrics]);
+    useEffect(() => { calculateMetrics(); }, [calculateMetrics]);
+    useSynligtIntervall(calculateMetrics, 5000);
 
   // Get context pressure color
   const getPressureColor = (used: number, limit: number) => {

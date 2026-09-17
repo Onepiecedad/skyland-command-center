@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Circle, Plus, Trash2, CalendarClock, Sparkles, Copy } from 'lucide-react';
 import { fetchTodos, createTodo, updateTodo, deleteTodo, draftReply, type Todo } from '../api';
 import { focusContact } from '../navigation/uiActions';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 
 const isReplyTodo = (t: Todo): boolean => /^(Svara|Följ upp)/i.test(t.title);
 
@@ -66,11 +67,8 @@ export default function TodoView() {
         setLoading(false);
     }, [showDone]);
 
-    useEffect(() => {
-        void load();
-        const iv = setInterval(() => void load(), 15000);
-        return () => clearInterval(iv);
-    }, [load]);
+        useEffect(() => { void load(); }, [load]);
+        useSynligtIntervall(() => void load(), 15000);
 
     const add = useCallback(async () => {
         const title = newTitle.trim();

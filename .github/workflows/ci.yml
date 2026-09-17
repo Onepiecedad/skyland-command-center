@@ -3,6 +3,11 @@ name: CI
 # Kör alla enhets-/integrationstester automatiskt vid varje push och pull request.
 # Två jobb (backend + frontend) körs parallellt. E2E (Playwright) ingår INTE här —
 # det kräver en körande app + operatörslösenord och läggs till som ett separat steg.
+#
+# Frontend bygger OCKSÅ, inte bara testar. Skälet: 17 sep stod main med grönt CI
+# medan `npm run build` föll på fem typfel i två testfiler. Docker-bygget kör samma
+# kommando, så frontend-deployen hade i tysthet stått stilla. Gröna tester som inte
+# vet om att bygget är rött är värre än inga tester, för de inger falsk trygghet.
 
 on:
   push:
@@ -40,3 +45,4 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm test
+      - run: npm run build

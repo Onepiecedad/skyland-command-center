@@ -1,9 +1,14 @@
-import { expect, afterEach, vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
-import * as matchers from '@testing-library/jest-dom/matchers';
 
-// Extend Vitest's expect method with Testing Library methods
-expect.extend(matchers);
+// Utökar expect med jest-doms matchare OCH deras typer. Den gamla raden,
+// expect.extend(matchers), gjorde bara det första: matcharna fanns när testerna
+// kördes, men tsc kände inte till dem. Följden var att `npm test` lyste grönt medan
+// `npm run build`, som kör `tsc && vite build`, föll på fem TS2339 i två testfiler.
+//
+// Det stoppade hela Docker-bygget, och därmed frontend-deployen, utan att någon
+// märkte det: CI kör vitest, inte bygget. Subimporten nedan gör båda delarna i ett.
+import '@testing-library/jest-dom/vitest';
 
 // Cleanup after each test
 afterEach(() => {

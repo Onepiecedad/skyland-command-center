@@ -3,6 +3,7 @@ import { Loader2, RefreshCcw, Wifi, WifiOff } from 'lucide-react';
 import type { AgentData, AgentStatus } from '../../gateway/fleetApi';
 import { fetchAgentSessions } from '../../gateway/fleetApi';
 import AgentCard from './AgentCard';
+import { useSynligtIntervall } from '../../hooks/useSynligtIntervall';
 
 type FilterValue = 'all' | 'active' | 'waiting' | 'idle';
 
@@ -44,11 +45,8 @@ export default function AgentGrid({ onSelectAgent, onAgentsLoaded }: AgentGridPr
         }
     }, [onAgentsLoaded]);
 
-    useEffect(() => {
-        loadAgents();
-        const interval = setInterval(loadAgents, 10000);
-        return () => clearInterval(interval);
-    }, [loadAgents]);
+        useEffect(() => { loadAgents(); }, [loadAgents]);
+        useSynligtIntervall(loadAgents, 10000);
 
     // Filter + sort agents
     const displayAgents = useMemo(() => {
