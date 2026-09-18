@@ -402,6 +402,34 @@ async function koaSms(
   if (error && error.code !== "23505") console.error("koaSms", error.message);
 }
 
+// Kortets Konversation-flik läser tabellen messages, inte ce_lead_events.
+// Händelseloggen är revision, messages är tråden Joakim faktiskt läser före ett
+// samtal. Varje sms skrivs därför till båda: samma text, två syften.
+async function loggaMeddelande(leadId: string, p: {
+  roll: "assistant" | "user";
+  riktning: "outbound" | "inbound";
+  text: string;
+  providerId?: string | null;
+  status?: string;
+  extra?: Record<string, unknown>;
+}) {
+  const { data: kontakt } = await supabase.from("contacts")
+    .select("id,customer_id").eq("dedupe_key", `ce:${leadId}`).maybeSingle();
+  if (!kontakt) return;                     // speglingen har inte hunnit köra
+
+  const { error } = await supabase.from("messages").insert({
+    customer_id: kontakt.customer_id ?? null,
+    role: p.roll,
+    channel: "sms",
+    direction: p.riktning,
+    content: p.text,
+    status: p.status ?? null,
+    provider_message_id: p.providerId ?? null,
+    metadata: { contact_id: kontakt.id, ce_lead_id: leadId, ...(p.extra ?? {}) },
+  });
+  if (error) console.error("loggaMeddelande", error.message);
+}
+
 async function avbrytKo(leadId: string, anledning: string) {
   await supabase.from("lead_sms_outbox")
     .update({ status: "cancelled", error: anledning })
@@ -444,6 +472,10 @@ async function runSmsQueue() {
       tenant_id: rad.tenant_id, lead_id: rad.lead_id, event_type: "sms_sent",
       actor: "system", payload: { steg: rad.steg, to: rad.to_phone, id: r.id },
     });
+    await loggaMeddelande(rad.lead_id, {
+      roll: "assistant", riktning: "outbound", text: rad.body,
+      providerId: r.id, status: "sent", extra: { steg: rad.steg, to: rad.to_phone },
+    });
 
     // Nästa steg köas först när det här gick iväg, så att en kedja aldrig
     // fortsätter efter ett fel eller efter att leadet svarat.
@@ -483,6 +515,10 @@ async function hanteraInkommandeSms(form: URLSearchParams) {
   await supabase.from("ce_lead_events").insert({
     tenant_id: rad.tenant_id, lead_id: rad.lead_id, event_type: "sms_reply",
     actor: "lead", payload: { from: fran, message: text },
+  });
+  await loggaMeddelande(rad.lead_id, {
+    roll: "user", riktning: "inbound", text,
+    providerId: form.get("id"), status: "delivered", extra: { from: fran },
   });
 
   const route = await routeFor(rad.page_id);
