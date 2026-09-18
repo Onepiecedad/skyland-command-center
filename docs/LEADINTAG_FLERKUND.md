@@ -197,3 +197,40 @@ båda behörigheterna och växla den mot en ny sidtoken:
 
     curl -s "https://graph.facebook.com/v21.0/$PAGE_ID?fields=access_token&access_token=$SU_TOKEN"
     supabase secrets set META_PAGE_TOKEN="<sidtoken>"
+
+## SMS-uppföljning till leadet
+
+Nya leads får automatiskt SMS enligt en sekvens som ligger i routingradens config,
+inte i koden. Kön är tabellen `lead_sms_outbox`; pg_cron-jobbet `lead_intake_sms`
+knackar varje minut på `GET ?run_sms=1`. Funktionen claimar raden (`pending` →
+`sending`) innan den skickar, så en dubbelknackning kan inte skicka samma SMS två
+gånger — därför kräver endpointen ingen nyckel.
+
+Config per kund:
+
+    "sms": {
+      "active": true,
+      "from": "Skyland",
+      "quiet": { "from": 21, "to": 8 },
+      "steps": [ { "delay_min": 5, "text": "Hej {fornamn}! ..." }, ... ]
+    }
+
+- `{fornamn}` och `{namn}` fylls i vid köläggning.
+- `quiet` skjuter fram utskick som hamnar på natten till närmaste tillåtna timme.
+- Nästa steg köas först när föregående faktiskt gick iväg.
+- Testleads och backfill (`notify: false`) köar ingenting.
+
+### Svar från leadet
+
+46elks postar inkommande SMS till `POST ?inbound_sms=1` (form-encoded). Då:
+sekvensen avbryts, leadet stämplas `hot_at` med skälet `sms_svar` så kortet flyttas
+till "Het" (som därmed betyder "har svarat, ring nu"), och ägaren får notis-SMS.
+
+**Kräver ett eget nummer hos 46elks.** Med alfanumerisk avsändare ("Skyland") kan
+mottagaren inte svara alls — svaret försvinner tyst. `GET ?sms_diag=1` listar
+kontots nummer. Är listan tom finns inget nummer köpt. Tills ett finns pekar
+texterna mot Joakims mobil i stället, så att ingen tappas bort.
+
+När numret är köpt: sätt dess `sms_url` hos 46elks till
+`https://wfwqjxsuvbacvcmpiesl.supabase.co/functions/v1/lead-intake?inbound_sms=1`
+och byt `sms.from` i configen till numret i E.164-format.

@@ -69,6 +69,12 @@ interface Route {
     hot_when?: Record<string, string[]>;
     hot_free_text?: boolean;
     notify?: { sms_to?: string[]; sms_from?: string };
+    sms?: {
+      active?: boolean;
+      from?: string;
+      quiet?: { from: number; to: number };
+      steps?: Array<{ delay_min: number; text: string }>;
+    };
   };
 }
 
@@ -302,6 +308,12 @@ async function upsertLead(
     });
   }
 
+  // Backfill av gamla leads köar inget: notify=false betyder att leadet redan
+  // hunnit kallna och ska ringas för hand, inte få ett sms dagar i efterhand.
+  if (notify && !test && telefon && leadId) {
+    await koaSms(route, leadId, telefon, fulltNamn, 1);
+  }
+
   console.log("lead ok", route.page_name ?? route.page_id, leadId, hett ? "HET" : "", test ? "TEST" : "");
   return utfall;
 }
@@ -322,6 +334,160 @@ async function processLeadgen(v: {
   await upsertLead(route, lead, {
     notify: opts.notify, ad_id: v.ad_id, adgroup_id: v.adgroup_id, form_id: v.form_id,
   });
+}
+
+// ---------- SMS-uppföljning till leadet ----------
+
+// Kursupplägget vi kör efter: leadet ska höra av oss inom 5-10 minuter, sedan med
+// glesare mellanrum tills det svarar. Kön ligger i lead_sms_outbox eftersom en
+// edge function inte kan sova; pg_cron knackar varje minut på ?run_sms=1.
+
+function stockholmTimme(d: Date): number {
+  return Number(new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Stockholm", hour: "2-digit", hour12: false,
+  }).format(d));
+}
+
+// Ingen väcks klockan tre på natten. Skjut fram i halvtimmessteg tills vi är ute
+// ur tystnadsfönstret; det spänner över midnatt när from > to.
+function utanforTystnad(d: Date, tyst?: { from: number; to: number }): Date {
+  if (!tyst) return d;
+  let t = new Date(d);
+  for (let i = 0; i < 96; i++) {
+    const h = stockholmTimme(t);
+    const iTyst = tyst.from > tyst.to
+      ? (h >= tyst.from || h < tyst.to)
+      : (h >= tyst.from && h < tyst.to);
+    if (!iTyst) return t;
+    t = new Date(t.getTime() + 30 * 60_000);
+  }
+  return t;
+}
+
+function fornamnAv(namn: string): string {
+  return (namn ?? "").trim().split(/\s+/)[0] || "hej";
+}
+
+function fyllMall(mall: string, namn: string): string {
+  return mall.replace(/\{fornamn\}/g, fornamnAv(namn)).replace(/\{namn\}/g, namn);
+}
+
+async function koaSms(
+  route: Route, leadId: string, telefon: string, namn: string, steg = 1,
+) {
+  const sms = route.config?.sms;
+  if (!sms?.active || !telefon) return;
+  const steps = sms.steps ?? [];
+  const def = steps[steg - 1];
+  if (!def) return;
+
+  const nar = utanforTystnad(
+    new Date(Date.now() + (def.delay_min ?? 5) * 60_000),
+    sms.quiet,
+  );
+
+  const { error } = await supabase.from("lead_sms_outbox").insert({
+    tenant_id: route.tenant_id, lead_id: leadId, page_id: route.page_id,
+    steg, send_at: nar.toISOString(), to_phone: telefon,
+    body: fyllMall(def.text, namn),
+  });
+  // 23505 = steget finns redan i kön. Det är rätt utfall, inte ett fel.
+  if (error && error.code !== "23505") console.error("koaSms", error.message);
+}
+
+async function avbrytKo(leadId: string, anledning: string) {
+  await supabase.from("lead_sms_outbox")
+    .update({ status: "cancelled", error: anledning })
+    .eq("lead_id", leadId).eq("status", "pending");
+}
+
+// Plockar det som förfallit. Claimar först, skickar sedan: två samtidiga
+// knackningar kan aldrig skicka samma rad två gånger.
+async function runSmsQueue() {
+  const { data: klara } = await supabase.from("lead_sms_outbox")
+    .select("id").eq("status", "pending").lte("send_at", new Date().toISOString())
+    .order("send_at").limit(25);
+  if (!klara?.length) return { skickade: 0, fel: 0 };
+
+  let skickade = 0, fel = 0;
+  for (const { id } of klara) {
+    const { data: rad } = await supabase.from("lead_sms_outbox")
+      .update({ status: "sending" })
+      .eq("id", id).eq("status", "pending")
+      .select("*").maybeSingle();
+    if (!rad) continue;                       // någon annan hann före
+
+    const route = await routeFor(rad.page_id);
+    const avsandare = route?.config?.sms?.from ?? "Skyland";
+    const r = await sendSms(rad.to_phone, avsandare, rad.body);
+
+    if (r.error) {
+      fel++;
+      await supabase.from("lead_sms_outbox")
+        .update({ status: "failed", error: r.error }).eq("id", id);
+      console.error("sms till lead misslyckades", rad.lead_id, r.error);
+      continue;
+    }
+
+    skickade++;
+    await supabase.from("lead_sms_outbox")
+      .update({ status: "sent", provider_id: r.id ?? null, sent_at: new Date().toISOString() })
+      .eq("id", id);
+    await supabase.from("ce_lead_events").insert({
+      tenant_id: rad.tenant_id, lead_id: rad.lead_id, event_type: "sms_sent",
+      actor: "system", payload: { steg: rad.steg, to: rad.to_phone, id: r.id },
+    });
+
+    // Nästa steg köas först när det här gick iväg, så att en kedja aldrig
+    // fortsätter efter ett fel eller efter att leadet svarat.
+    if (route) {
+      const { data: lead } = await supabase.from("ce_leads")
+        .select("name").eq("id", rad.lead_id).maybeSingle();
+      await koaSms(route, rad.lead_id, rad.to_phone, lead?.name ?? "", rad.steg + 1);
+    }
+  }
+  return { skickade, fel };
+}
+
+// 46elks postar inkommande SMS hit (form-encoded). Ett svar betyder att leadet
+// är levande: sekvensen stoppas, kortet blir hett, och Joakim får en notis.
+async function hanteraInkommandeSms(form: URLSearchParams) {
+  const fran = (form.get("from") ?? "").trim();
+  const text = (form.get("message") ?? "").trim();
+  if (!fran) return { ok: false, fel: "saknar avsändare" };
+
+  const { data: rad } = await supabase.from("lead_sms_outbox")
+    .select("lead_id,tenant_id,page_id").eq("to_phone", fran)
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+
+  if (!rad) {
+    console.log("inkommande sms från okänt nummer", fran);
+    return { ok: true, matchat: false };
+  }
+
+  await avbrytKo(rad.lead_id, "leadet svarade");
+
+  await supabase.from("ce_leads").update({
+    hot_at: new Date().toISOString(),
+    hot_reasons: ["sms_svar"],
+    updated_at: new Date().toISOString(),
+  }).eq("id", rad.lead_id);
+
+  await supabase.from("ce_lead_events").insert({
+    tenant_id: rad.tenant_id, lead_id: rad.lead_id, event_type: "sms_reply",
+    actor: "lead", payload: { from: fran, message: text },
+  });
+
+  const route = await routeFor(rad.page_id);
+  const { data: lead } = await supabase.from("ce_leads")
+    .select("name,phone").eq("id", rad.lead_id).maybeSingle();
+  for (const to of route?.config?.notify?.sms_to ?? []) {
+    await sendSms(to, route?.config?.notify?.sms_from ?? "Skyland",
+      `SVAR fran ${lead?.name ?? fran}\n${fran}\n"${text.slice(0, 140)}"\nRing nu.`);
+  }
+
+  console.log("sms-svar", rad.lead_id, fran);
+  return { ok: true, matchat: true };
 }
 
 // ---------- backfill ----------
@@ -435,6 +601,24 @@ Deno.serve(async (req) => {
     if (mode === "subscribe" && token === env("META_VERIFY_TOKEN") && challenge) {
       return new Response(challenge, { status: 200 });
     }
+    // Schemaläggaren (pg_cron varje minut). Ingen nyckel: den skickar bara det
+    // som redan ligger i kön och förfallit, och claimar raden innan den skickar.
+    if (url.searchParams.get("run_sms") === "1") {
+      return Response.json(await runSmsQueue());
+    }
+
+    // Vilka avsändarnummer finns hos 46elks? Svaret på om tvåvägs-sms går alls.
+    // Läser hemligheten inne i körmiljön och visar bara numren.
+    if (url.searchParams.get("sms_diag") === "1") {
+      const user = env("ELKS_USER"), pass = env("ELKS_PASS");
+      if (!user || !pass) return Response.json({ ok: false, fel: "ELKS-uppgifter saknas" });
+      const r = await fetch("https://api.46elks.com/a1/numbers", {
+        headers: { Authorization: "Basic " + btoa(`${user}:${pass}`) },
+      });
+      const j = await r.json().catch(() => ({}));
+      return Response.json({ ok: r.ok, nummer: j.data ?? j });
+    }
+
     // Enkel hälsokoll: vilka sidor är inkopplade? Inga leaddata, inga nycklar.
     if (url.searchParams.get("routes") === "1") {
       const { data } = await supabase.from("meta_lead_routes")
@@ -445,6 +629,17 @@ Deno.serve(async (req) => {
   }
 
   if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
+
+  // 46elks postar inkommande SMS hit, form-encoded. Ingen Meta-signatur.
+  if (url.searchParams.get("inbound_sms") === "1") {
+    const form = new URLSearchParams(await req.text());
+    try {
+      return Response.json(await hanteraInkommandeSms(form));
+    } catch (e) {
+      console.error("inkommande sms", e);
+      return Response.json({ ok: false }, { status: 200 });   // 46elks ska inte retrya
+    }
+  }
 
   // Backfill är ett administratörsanrop, inte en Meta-händelse. Den bär ingen
   // Meta-signatur, så den autentiseras med LEAD_INTAKE_ADMIN_KEY (eller tjänste-
