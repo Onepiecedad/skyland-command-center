@@ -49,11 +49,11 @@ update meta_lead_routes
   "quiet": { "from": 21, "to": 8 },
   "steps": [
     { "delay_min": 5,
-      "text": "Hej {fornamn}! Joakim här, jag hjälper Vinnie Sahlén med bokningarna. Jag såg att du anmälde intresse för en heldagssittning. När passar det att jag ringer dig?" },
+      "text": "Hej {fornamn}! Joakim här, jag hjälper Vinnie med bokningarna. Han tar bara ett fåtal heldagar i månaden och närmaste datumen går först. När kan jag ringa dig?" },
     { "delay_min": 240,
-      "text": "Hej igen {fornamn}! Vinnie släpper heldagarna i tur och ordning och de närmaste datumen går först. Svara här när du har en stund, så tar vi det därifrån. /Joakim" },
+      "text": "Hej igen {fornamn}! Heldagarna bokas i tur och ordning och de tidigaste datumen är alltid först borta. Svara här när du har en stund, så tar vi det. /Joakim" },
     { "delay_min": 1440,
-      "text": "Hej {fornamn}, sista gången jag hör av mig. Vill du fortfarande boka en heldag hos Vinnie så svara här eller ring 0735643495. /Joakim" }
+      "text": "Hej {fornamn}, sista gången jag hör av mig. Vill du fortfarande ha en heldag hos Vinnie i höst så svara här eller ring 0735643495. /Joakim" }
   ]
 }
 $json$::jsonb, true)
