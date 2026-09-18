@@ -218,6 +218,100 @@ router.delete('/:id', async (req: Request, res: Response) => {
 });
 
 // ============================================================================
+// ============================================================================
+// POST /:id/sms — skicka ett sms till kontakten från konversationsfliken.
+//
+// Backenden skickar INTE själv. Den lägger en rad i lead_sms_outbox och knackar
+// på edge-funktionen som äger utskicket, så att 46elks-uppgifterna bara finns
+// på ett ställe och varje sms (robot eller handskrivet) tar samma väg ut.
+//
+// Ett handskrivet sms stoppar den automatiska sekvensen: har Joakim tagit över
+// personligen ska roboten inte fortsätta tjata parallellt.
+// ============================================================================
+const SMS_BODY = z.object({ text: z.string().trim().min(1).max(600) });
+const LEAD_INTAKE_URL =
+    process.env.LEAD_INTAKE_URL ||
+    'https://wfwqjxsuvbacvcmpiesl.supabase.co/functions/v1/lead-intake';
+
+router.post('/:id/sms', async (req: Request, res: Response) => {
+    try {
+        const parsed = SMS_BODY.safeParse(req.body);
+        if (!parsed.success) return res.status(400).json({ error: 'text krävs (1–600 tecken)' });
+        const text = parsed.data.text;
+
+        const { data: contact, error: cErr } = await supabase
+            .from('contacts')
+            .select('id, phone, dedupe_key, custom')
+            .eq('id', req.params.id)
+            .single();
+        if (cErr || !contact) return res.status(404).json({ error: 'Contact not found' });
+        if (!contact.phone) return res.status(400).json({ error: 'Kontakten saknar telefonnummer' });
+
+        // Kortet speglas från ce_leads med dedupe_key "ce:<lead_id>".
+        const custom = (contact.custom || {}) as Record<string, unknown>;
+        const leadId = typeof custom.ce_lead_id === 'string'
+            ? custom.ce_lead_id
+            : String(contact.dedupe_key || '').startsWith('ce:')
+                ? String(contact.dedupe_key).slice(3)
+                : null;
+        if (!leadId) return res.status(400).json({ error: 'Kontakten är inte ett lead med sms-kanal' });
+
+        const { data: lead } = await supabase
+            .from('ce_leads')
+            .select('id, tenant_id, custom')
+            .eq('id', leadId)
+            .maybeSingle();
+        if (!lead) return res.status(404).json({ error: 'Leadet finns inte kvar' });
+        const pageId = String((lead.custom as Record<string, unknown> | null)?.page_id ?? '');
+        if (!pageId) return res.status(400).json({ error: 'Leadet saknar page_id' });
+
+        // steg är unikt per lead. Sekvensen äger 1–3; handskrivna läggs efter.
+        const { data: senaste } = await supabase
+            .from('lead_sms_outbox')
+            .select('steg')
+            .eq('lead_id', leadId)
+            .order('steg', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        const steg = Math.max(Number(senaste?.steg ?? 0) + 1, 10);
+
+        await supabase
+            .from('lead_sms_outbox')
+            .update({ status: 'cancelled', error: 'handskrivet sms tog över' })
+            .eq('lead_id', leadId)
+            .eq('status', 'pending');
+
+        const { data: rad, error: iErr } = await supabase
+            .from('lead_sms_outbox')
+            .insert({
+                tenant_id: lead.tenant_id,
+                lead_id: leadId,
+                page_id: pageId,
+                steg,
+                send_at: new Date().toISOString(),
+                to_phone: contact.phone,
+                body: text,
+            })
+            .select('id')
+            .single();
+        if (iErr) return res.status(500).json({ error: iErr.message });
+
+        // Knacka på kön direkt i stället för att vänta på minutsjobbet.
+        let skickat = false;
+        try {
+            const r = await fetch(`${LEAD_INTAKE_URL}?run_sms=1`);
+            skickat = r.ok;
+        } catch (err) {
+            logger.warn?.('contacts', `kunde inte knacka på lead-intake: ${String(err)}`);
+        }
+
+        return res.json({ ok: true, id: rad.id, skickat });
+    } catch (err) {
+        logger.error('contacts', `sms error: ${String(err)}`);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // GET /:id/conversation — SCC-26 unified inbox: all messages for a contact,
 // across every channel, as one time-ordered thread.
 //
@@ -230,7 +324,7 @@ router.get('/:id/conversation', async (req: Request, res: Response) => {
     try {
         const { data: contact, error: cErr } = await supabase
             .from('contacts')
-            .select('id, name, custom')
+            .select('id, name, phone, custom')
             .eq('id', req.params.id)
             .single();
         if (cErr || !contact) return res.status(404).json({ error: 'Contact not found' });
