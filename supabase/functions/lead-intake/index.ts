@@ -486,7 +486,7 @@ async function hanteraInkommandeSms(form: URLSearchParams) {
     .select("name,phone").eq("id", rad.lead_id).maybeSingle();
   for (const to of route?.config?.notify?.sms_to ?? []) {
     await sendSms(to, route?.config?.notify?.sms_from ?? "Skyland",
-      `SVAR fran ${lead?.name ?? fran}\n${fran}\n"${text.slice(0, 140)}"\nRing nu.`);
+      `SVAR från ${lead?.name ?? fran}\n${fran}\n"${text.slice(0, 140)}"\nRing nu.`);
   }
 
   console.log("sms-svar", rad.lead_id, fran);

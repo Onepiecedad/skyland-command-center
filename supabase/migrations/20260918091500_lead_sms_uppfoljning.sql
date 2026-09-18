@@ -45,15 +45,15 @@ update meta_lead_routes
    set config = jsonb_set(config, '{sms}', $json$
 {
   "active": true,
-  "from": "Skyland",
+  "from": "+46766864314",
   "quiet": { "from": 21, "to": 8 },
   "steps": [
     { "delay_min": 5,
-      "text": "Hej {fornamn}! Joakim här, jag hjälper Vinnie Sahlen med bokningarna. Jag sag att du anmalde intresse for en heldagssittning. Nar passar det att jag ringer dig? Svara har eller sms:a mig pa 0735643495." },
+      "text": "Hej {fornamn}! Joakim här, jag hjälper Vinnie Sahlén med bokningarna. Jag såg att du anmälde intresse för en heldagssittning. När passar det att jag ringer dig?" },
     { "delay_min": 240,
-      "text": "Hej igen {fornamn}! Vinnie slapper heldagarna i tur och ordning och de narmaste datumen gar forst. Hor av dig pa 0735643495 nar du har en stund, sa tar vi det darifran. /Joakim" },
+      "text": "Hej igen {fornamn}! Vinnie släpper heldagarna i tur och ordning och de närmaste datumen går först. Svara här när du har en stund, så tar vi det därifrån. /Joakim" },
     { "delay_min": 1440,
-      "text": "Hej {fornamn}, sista gangen jag hor av mig. Vill du fortfarande boka en heldag hos Vinnie sa ring eller sms:a 0735643495 sa loser vi det. /Joakim" }
+      "text": "Hej {fornamn}, sista gången jag hör av mig. Vill du fortfarande boka en heldag hos Vinnie så svara här eller ring 0735643495. /Joakim" }
   ]
 }
 $json$::jsonb, true)
