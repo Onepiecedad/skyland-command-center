@@ -367,8 +367,12 @@ function utanforTystnad(d: Date, tyst?: { from: number; to: number }): Date {
   return t;
 }
 
+// Folk skriver sitt namn hur som helst i Metas formulär: "DENISE", "kalle".
+// Ett sms som börjar "Hej DENISE!" ser ut som spam. Normalisera till Denise.
 function fornamnAv(namn: string): string {
-  return (namn ?? "").trim().split(/\s+/)[0] || "hej";
+  const f = (namn ?? "").trim().split(/\s+/)[0] || "";
+  if (!f) return "hej";
+  return f.charAt(0).toUpperCase() + f.slice(1).toLowerCase();
 }
 
 function fyllMall(mall: string, namn: string): string {
