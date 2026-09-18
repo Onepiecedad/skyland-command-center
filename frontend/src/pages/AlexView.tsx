@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 import { API_BASE, fetchWithAuth, fetchTasks, type Task } from '../api';
 import { TaskDetail } from '../components/TaskDetail';
 import { BackendAlexChat } from '../components/BackendAlexChat';
@@ -165,27 +166,26 @@ export default function AlexView() {
   const [uppgifterLaddar, setUppgifterLaddar] = useState(true);
   const [valdUppgift, setValdUppgift] = useState<Task | null>(null);
 
-  useEffect(() => {
-    let levande = true;
-    const hamta = () => {
-      Promise.all([
+  const hamtaUppgifter = useCallback(async () => {
+    try {
+      const grupper = await Promise.all([
         fetchTasks({ status: 'in_progress', limit: 50 }),
         fetchTasks({ status: 'assigned', limit: 50 }),
         fetchTasks({ status: 'review', limit: 50 }),
-      ])
-        .then(grupper => {
-          if (!levande) return;
-          const alla = grupper.flat();
-          alla.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
-          setUppgifter(alla);
-        })
-        .catch(() => { if (levande) setUppgifter([]); })
-        .finally(() => { if (levande) setUppgifterLaddar(false); });
-    };
-    hamta();
-    const t = setInterval(hamta, 30000);
-    return () => { levande = false; clearInterval(t); };
+      ]);
+      const alla = grupper.flat();
+      alla.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+      setUppgifter(alla);
+    } catch {
+      setUppgifter([]);
+    } finally {
+      setUppgifterLaddar(false);
+    }
   }, []);
+
+  useEffect(() => { void hamtaUppgifter(); }, [hamtaUppgifter]);
+  // Uppgiftslistan var 30:e sekund, men bara när fliken syns.
+  useSynligtIntervall(() => { void hamtaUppgifter(); }, 30000);
 
   useEffect(() => {
     fetchWithAuth(`${API_BASE}/skills-aggregator`)
