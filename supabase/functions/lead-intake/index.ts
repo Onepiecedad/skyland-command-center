@@ -67,6 +67,7 @@ interface Route {
   config: {
     field_map?: Record<string, string[]>;
     hot_when?: Record<string, string[]>;
+    hot_free_text?: boolean;
     notify?: { sms_to?: string[]; sms_from?: string };
   };
 }
@@ -117,9 +118,13 @@ function isTestLead(raw: Record<string, string>, namn?: string): boolean {
   return Object.values(raw).some((v) => /test lead|dummy data/i.test(v)) || /^test\b/i.test(namn ?? "");
 }
 
+// "Het" ska betyda något. Triggar den på nästan alla leads är den bara brus, och
+// då är det bättre att allt landar i Ny och sorteras av den som ringer. Därför är
+// båda reglerna avstängda om inte kundens config uttryckligen slår på dem.
 function hotReasonsFor(
   values: Record<string, string>,
   hotWhen: Record<string, string[]>,
+  hotFreeText = false,
 ): string[] {
   const skal: string[] = [];
   for (const [nyckel, traffar] of Object.entries(hotWhen ?? {})) {
@@ -128,11 +133,12 @@ function hotReasonsFor(
       skal.push(`form_${nyckel}`);
     }
   }
-  // Fritext som någon faktiskt skrivit i är i sig en signal om allvar.
-  for (const [nyckel, v] of Object.entries(values)) {
-    if (nyckel !== "full_name" && nyckel !== "phone" && nyckel !== "email" && v.length > 25) {
-      skal.push("form_free_text");
-      break;
+  if (hotFreeText) {
+    for (const [nyckel, v] of Object.entries(values)) {
+      if (nyckel !== "full_name" && nyckel !== "phone" && nyckel !== "email" && v.length > 25) {
+        skal.push("form_free_text");
+        break;
+      }
     }
   }
   return [...new Set(skal)];
@@ -212,7 +218,11 @@ async function upsertLead(
   const telefon = normalizePhone(values.phone);
   const epost = (values.email ?? "").trim().toLowerCase() || null;
   const fulltNamn = (values.full_name ?? "").trim() || "Okänt namn";
-  const skal = hotReasonsFor(values, route.config?.hot_when ?? {});
+  const skal = hotReasonsFor(
+    values,
+    route.config?.hot_when ?? {},
+    route.config?.hot_free_text === true,
+  );
   const hett = skal.length > 0;
 
   // Fritexten är det Joakim faktiskt läser innan han ringer. Vi plockar det
