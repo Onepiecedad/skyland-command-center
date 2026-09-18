@@ -168,7 +168,10 @@ async function fetchLead(leadgenId: string) {
 async function sendSms(to: string, from: string, message: string): Promise<{ id?: string; error?: string }> {
   const user = env("ELKS_USER"), pass = env("ELKS_PASS");
   if (!user || !pass) return { error: "ELKS_USER/ELKS_PASS saknas" };
-  const body = new URLSearchParams({ from: from.slice(0, 11), to, message });
+  // Alfanumerisk avsändare får vara max 11 tecken. Ett riktigt nummer får INTE
+  // kapas — då blir det ett annat nummer och 46elks avvisar utskicket.
+  const avsandare = /^\+?\d{6,15}$/.test(from) ? from : from.slice(0, 11);
+  const body = new URLSearchParams({ from: avsandare, to, message });
   const r = await fetch("https://api.46elks.com/a1/sms", {
     method: "POST",
     headers: { Authorization: "Basic " + btoa(`${user}:${pass}`) },
