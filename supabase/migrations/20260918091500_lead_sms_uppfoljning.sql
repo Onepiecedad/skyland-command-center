@@ -49,7 +49,7 @@ update meta_lead_routes
   "quiet": { "from": 21, "to": 8 },
   "steps": [
     { "delay_min": 5,
-      "text": "Hej {fornamn}! Joakim här, jag hjälper Vinnie med bokningarna. Vad är det du har i tankarna, och hur snart vill du komma igång? Han tar bara ett fåtal heldagar i månaden, så de närmaste datumen går fort." },
+      "text": "Hej {fornamn}! Joakim här, jag hjälper tatueraren Vinnie Sahlén med bokningarna. Du anmälde precis intresse för en heldagssittning via hans annons. Vad har du i tankarna, och hur snart vill du komma igång?" },
     { "delay_min": 240,
       "text": "Hej igen {fornamn}! Heldagarna bokas i tur och ordning och de tidigaste datumen är alltid först borta. Svara här när du har en stund, så tar vi det. /Joakim" },
     { "delay_min": 1440,
