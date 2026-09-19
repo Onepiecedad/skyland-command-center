@@ -1403,12 +1403,20 @@ export async function fetchContactConversation(id: string): Promise<{ contact: P
     return res.json();
 }
 
-/** Skicka ett handskrivet sms till kontakten. Stoppar den automatiska sekvensen. */
-export async function sendContactSms(id: string, text: string): Promise<{ ok: boolean; skickat: boolean }> {
+/**
+ * Skicka ett sms till kontakten. Stoppar den automatiska sekvensen.
+ * Antingen fri text, eller { template: 'call_ahead' } för förvarningen
+ * "jag ringer om fem minuter" ur kundens config.
+ */
+export async function sendContactSms(
+    id: string,
+    payload: string | { template: 'call_ahead' },
+): Promise<{ ok: boolean; skickat: boolean }> {
+    const body = typeof payload === 'string' ? { text: payload } : payload;
     const res = await fetchWithAuth(`${API_BASE}/contacts/${id}/sms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(body),
     });
     if (!res.ok) {
         const d = await res.json().catch(() => ({}));
