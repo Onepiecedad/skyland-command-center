@@ -473,14 +473,12 @@ export default function OfficeView() {
 
     return (
         <div className="office-view" style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px 12px' }}>
-                <div>
-                    <h2 style={{ margin: 0, fontSize: 18, color: '#e2e8f0' }}>🏢 Kontoret</h2>
-                    <p style={{ margin: '2px 0 0', fontSize: 12, color: '#64748b' }}>
-                        Main delegerar · subagenter utför · klicka på en agent för rollformuläret
-                    </p>
-                </div>
-                <div style={{ fontSize: 12, color: '#94a3b8', display: 'flex', gap: 14, alignItems: 'center' }}>
+            {/* Rubrikraden bryter till ny rad på smal skärm. Utan wrap pressades
+                titeln till en enradskolumn och statusen längst till höger hamnade
+                utanför skärmkanten. */}
+            <div className="office-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '4px 8px 12px' }}>
+                <h2 style={{ margin: 0, fontSize: 18, color: '#e2e8f0' }}>🏢 Kontoret</h2>
+                <div style={{ fontSize: 12, color: '#94a3b8', display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
                     {/* Etapp 4: tre lampor — klick går till System-fliken */}
                     <button type="button" onClick={() => navigateToView('system')}
                         title={health ? (['integrations', 'poller', 'preflight'] as const).map(k => `${LAMP_LABEL[k]}: ${health[k].detail}`).join('\n') : 'Hälsa hämtas…'}

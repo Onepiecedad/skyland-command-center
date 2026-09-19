@@ -293,6 +293,14 @@
   justify-content: center;
   padding: 0.45rem 1.5rem 0.4rem;
   flex-shrink: 0;
+  /* Raden centreras när den får plats och blir rullbar när den inte gör det.
+     Utan min-width: 0 vägrar flex-barnet krympa under sin innehållsbredd. */
+  max-width: 100%;
+  min-width: 0;
+}
+
+.pane-subnav > .segmented-control {
+  min-width: 0;
 }
 
 .pane-subnav-content {
