@@ -228,7 +228,20 @@ router.delete('/:id', async (req: Request, res: Response) => {
 // Ett handskrivet sms stoppar den automatiska sekvensen: har Joakim tagit över
 // personligen ska roboten inte fortsätta tjata parallellt.
 // ============================================================================
-const SMS_BODY = z.object({ text: z.string().trim().min(1).max(600) });
+// Antingen fri text, eller en mall ur kundens routing-config (t.ex. call_ahead:
+// "jag ringer om fem minuter"). Mallen bor i databasen så att nästa kund får
+// sitt eget nummer utan kodändring.
+const SMS_BODY = z.object({
+    text: z.string().trim().min(1).max(600).optional(),
+    template: z.enum(['call_ahead']).optional(),
+}).refine((b) => Boolean(b.text) !== Boolean(b.template), {
+    message: 'ange text ELLER template',
+});
+
+function fornamnAv(namn: string | null | undefined): string {
+    const f = String(namn ?? '').trim().split(/\s+/)[0] || '';
+    return f ? f.charAt(0).toUpperCase() + f.slice(1).toLowerCase() : 'hej';
+}
 const LEAD_INTAKE_URL =
     process.env.LEAD_INTAKE_URL ||
     'https://wfwqjxsuvbacvcmpiesl.supabase.co/functions/v1/lead-intake';
@@ -236,12 +249,11 @@ const LEAD_INTAKE_URL =
 router.post('/:id/sms', async (req: Request, res: Response) => {
     try {
         const parsed = SMS_BODY.safeParse(req.body);
-        if (!parsed.success) return res.status(400).json({ error: 'text krävs (1–600 tecken)' });
-        const text = parsed.data.text;
+        if (!parsed.success) return res.status(400).json({ error: 'ange text (1–600 tecken) eller template' });
 
         const { data: contact, error: cErr } = await supabase
             .from('contacts')
-            .select('id, phone, dedupe_key, custom')
+            .select('id, name, phone, dedupe_key, custom')
             .eq('id', req.params.id)
             .single();
         if (cErr || !contact) return res.status(404).json({ error: 'Contact not found' });
@@ -264,6 +276,23 @@ router.post('/:id/sms', async (req: Request, res: Response) => {
         if (!lead) return res.status(404).json({ error: 'Leadet finns inte kvar' });
         const pageId = String((lead.custom as Record<string, unknown> | null)?.page_id ?? '');
         if (!pageId) return res.status(400).json({ error: 'Leadet saknar page_id' });
+
+        // Mall → hämta texten ur kundens routing-config och fyll i förnamnet.
+        let text = parsed.data.text ?? '';
+        if (parsed.data.template) {
+            const { data: route } = await supabase
+                .from('meta_lead_routes')
+                .select('config')
+                .eq('page_id', pageId)
+                .maybeSingle();
+            const mall = (route?.config as { sms?: Record<string, unknown> } | null)?.sms?.[parsed.data.template];
+            if (typeof mall !== 'string' || !mall.trim()) {
+                return res.status(400).json({ error: `Kunden saknar mallen "${parsed.data.template}" i sin config` });
+            }
+            text = mall
+                .replace(/\{fornamn\}/g, fornamnAv(contact.name))
+                .replace(/\{namn\}/g, String(contact.name ?? ''));
+        }
 
         // steg är unikt per lead. Sekvensen äger 1–3; handskrivna läggs efter.
         const { data: senaste } = await supabase
