@@ -5,12 +5,23 @@ import { supabase } from '../services/supabase';
 import { summarizeBatch, outcomesByAgent, type CostRow } from '../services/officeBatch';
 import { checkAll } from '../services/integrationHealth';
 import { pollerStatus } from '../services/pollerWatchdog';
+import { kortCache } from '../utils/kortCache';
 
 const router = Router();
 
 // SCC-49 etapp 1–2: batchkortet + utfall per nod, ur costs (plan 2.4). Best effort:
 // faller DB-frågan slutar kontoret aldrig fungera, kortet uteblir bara.
-async function loadBatchAndOutcomes(): Promise<{ batch: ReturnType<typeof summarizeBatch>; outcomes: ReturnType<typeof outcomesByAgent> }> {
+type BatchOutcomes = { batch: ReturnType<typeof summarizeBatch>; outcomes: ReturnType<typeof outcomesByAgent> };
+
+// Kontorsvyn pollade den här rutten var femte sekund och varje träff kostade
+// två costs-frågor. Mätt 17 sep: ~1 600 Supabase-anrop i timmen så länge fliken
+// stod öppen — systemets största egresspost, och hela poängen med kortet är en
+// dagssiffra som inte ändrar sig oftare än någon gång i timmen. Cachen gör
+// rutten billig oavsett hur hårt någon pollar den, och håller samtidigt ihop
+// samtidiga anrop så tio öppna flikar ger en fråga, inte tio.
+const loadBatchAndOutcomes = kortCache(30_000, () => hamtaBatchOchUtfall());
+
+async function hamtaBatchOchUtfall(): Promise<BatchOutcomes> {
     try {
         // Svensk dygnsgräns; containern kör UTC.
         const now = new Date();

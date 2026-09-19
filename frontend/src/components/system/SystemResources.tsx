@@ -82,29 +82,28 @@ export function SystemResources() {
     useSynligtIntervall(fetchResources, 60000);
 
     // Real cron jobs from the gateway's scheduled-jobs DB (not mock).
-    useEffect(() => {
-        const load = async () => {
-            try {
-                const res = await fetch(`${API_URL}/api/v1/automations`);
-                const data = await res.json();
-                setCronJobs((data.jobs || []).map((j: {
-                    id: string; name: string; schedule: string | null;
-                    nextRun: string | null; enabled: boolean;
-                }) => ({
-                    id: j.id,
-                    name: j.name,
-                    schedule: j.schedule || '—',
-                    nextRun: j.nextRun,
-                    status: j.enabled ? 'active' : 'paused',
-                })));
-            } catch {
-                setCronJobs([]);
-            }
-        };
-        load();
-        const interval = setInterval(load, 60000);
-        return () => clearInterval(interval);
+    const hamtaCron = useCallback(async () => {
+        try {
+            const res = await fetch(`${API_URL}/api/v1/automations`);
+            const data = await res.json();
+            setCronJobs((data.jobs || []).map((j: {
+                id: string; name: string; schedule: string | null;
+                nextRun: string | null; enabled: boolean;
+            }) => ({
+                id: j.id,
+                name: j.name,
+                schedule: j.schedule || '—',
+                nextRun: j.nextRun,
+                status: j.enabled ? 'active' : 'paused',
+            })));
+        } catch {
+            setCronJobs([]);
+        }
     }, []);
+
+    useEffect(() => { void hamtaCron(); }, [hamtaCron]);
+    // Cron-listan var 60:e sekund, men bara när fliken syns.
+    useSynligtIntervall(() => { void hamtaCron(); }, 60000);
 
     return (
         <div className="sys-panel sys-resources">

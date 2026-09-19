@@ -6,6 +6,7 @@ import { getGatewaySocket, type GatewaySession } from '../gateway/gatewaySocket'
 import { AGENT_PROFILES } from '../data/agentProfiles';
 import { CharacterSheet, type AgentLiveInfo } from '../components/CharacterSheet';
 import { navigateToView } from '../navigation/uiActions';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 
 // ─── Static office layout: main in the centre, 8 sub-agents around it ───
 const MAIN = { x: 500, y: 360 };
@@ -156,18 +157,14 @@ export default function OfficeView() {
     const [health, setHealth] = useState<OfficeHealth | null>(null);
 
     // Hälsolamporna: var 60:e sekund räcker, backend cachar probarna lika länge.
-    useEffect(() => {
-        let stop = false;
-        const load = async () => {
-            try {
-                const res = await fetchWithAuth('/api/v1/agents/office/health');
-                if (res.ok && !stop) setHealth(await res.json());
-            } catch { /* lamporna blir grå */ }
-        };
-        load();
-        const t = setInterval(load, 60_000);
-        return () => { stop = true; clearInterval(t); };
+    const loadHealth = useCallback(async () => {
+        try {
+            const res = await fetchWithAuth('/api/v1/agents/office/health');
+            if (res.ok) setHealth(await res.json());
+        } catch { /* lamporna blir grå */ }
     }, []);
+    useEffect(() => { void loadHealth(); }, [loadHealth]);
+    useSynligtIntervall(() => { void loadHealth(); }, 60_000);
     const [outcomes, setOutcomes] = useState<Record<string, AgentOutcome[]>>({});
     const [nowMs, setNowMs] = useState(Date.now());
     // Briefen per sessionsnyckel hämtas EN gång — inte var femte sekund.
@@ -347,18 +344,24 @@ export default function OfficeView() {
         }
     }, [applyStatuses]);
 
+    // Skrivbordsstatus: fem sekunder är rätt takt för en levande vy, men bara
+    // när någon faktiskt tittar. Kontorskortet (batch + utfall) låg tidigare i
+    // samma tick och kostade då två costs-frågor var femte sekund dygnet runt —
+    // omkring 1 600 Supabase-anrop i timmen så länge fliken var öppen, vilket
+    // var systemets enskilt största egresspost. Det byter inte värde snabbare
+    // än en gång i minuten, så det får ett eget, långsammare intervall.
+    const tickStatus = useCallback(async () => {
+        const gwOk = await refreshGateway();
+        const ok = gwOk || await refreshBackend();
+        setConnected(ok);
+    }, [refreshGateway, refreshBackend]);
+
     useEffect(() => {
-        let stop = false;
-        const tick = async () => {
-            const gwOk = await refreshGateway();
-            const ok = gwOk || await refreshBackend();
-            if (!stop) setConnected(ok);
-            await refreshOffice();
-        };
-        tick();
-        const t = setInterval(tick, 5000);
-        return () => { stop = true; clearInterval(t); };
-    }, [refreshGateway, refreshBackend, refreshOffice]);
+        void tickStatus();
+        void refreshOffice();
+    }, [tickStatus, refreshOffice]);
+    useSynligtIntervall(() => { void tickStatus(); }, 5000);
+    useSynligtIntervall(() => { void refreshOffice(); }, 60_000);
 
     // Esc stänger rollformuläret
     useEffect(() => {

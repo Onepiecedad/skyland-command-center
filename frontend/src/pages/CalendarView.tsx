@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSynligtIntervall } from '../hooks/useSynligtIntervall';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { fetchTodos, fetchBookings, type Todo, type Booking } from '../api';
 import BookingCard from '../components/BookingCard';
@@ -33,7 +34,8 @@ export default function CalendarView() {
         try { setBookings(await fetchBookings()); }
         catch (err) { console.error('Failed to load calendar bookings:', err); }
     }, []);
-    useEffect(() => { void load(); const iv = setInterval(() => void load(), 30000); return () => clearInterval(iv); }, [load]);
+    useEffect(() => { void load(); }, [load]);
+    useSynligtIntervall(() => { void load(); }, 30000);
 
     const dated = useMemo(() => todos.filter(t => t.due_at), [todos]);
     const datedBookings = useMemo(() => bookings.filter(b => b.starts_at), [bookings]);
