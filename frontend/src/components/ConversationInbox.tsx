@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchContactConversation, type ConversationMessage } from '../api';
+import { fetchContactConversation, sendContactSms, type ConversationMessage } from '../api';
 
 /**
  * ConversationInbox (SCC-26) — unified inbox: alla messages för EN kontakt,
@@ -19,8 +19,12 @@ const channelIcon: Record<string, string> = {
 export function ConversationInbox({ contactId, title, onClose }: ConversationInboxProps) {
     const [messages, setMessages] = useState<ConversationMessage[]>([]);
     const [name, setName] = useState<string | null>(null);
+    const [phone, setPhone] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [utkast, setUtkast] = useState('');
+    const [skickar, setSkickar] = useState(false);
+    const [smsFel, setSmsFel] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -28,6 +32,7 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
             const data = await fetchContactConversation(contactId);
             setMessages(data.messages);
             setName((data.contact?.name as string) ?? null);
+            setPhone((data.contact?.phone as string) ?? null);
             setError(null);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Kunde inte hämta tråd');
@@ -38,6 +43,30 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
     useEffect(() => {
         void load();
     }, [load]);
+
+    // Ett handskrivet sms stoppar den automatiska sekvensen i backenden, så
+    // roboten aldrig tjatar parallellt med dig.
+    const skicka = async () => {
+        const text = utkast.trim();
+        if (!text || skickar) return;
+        setSkickar(true);
+        setSmsFel(null);
+        try {
+            await sendContactSms(contactId, text);
+            setUtkast('');
+            // Utskicket sker i edge-funktionen och loggas när 46elks svarat.
+            // Två laddningar: den första fångar det vanliga fallet, den andra
+            // täcker en trög provider utan att kräva att du laddar om sidan.
+            setTimeout(() => { void load(); }, 1500);
+            setTimeout(() => { void load(); }, 5000);
+        } catch (err) {
+            setSmsFel(err instanceof Error ? err.message : 'Kunde inte skicka');
+        }
+        setSkickar(false);
+    };
+
+    // 160 tecken = ett segment. Över det kostar utskicket dubbelt.
+    const segment = utkast.length === 0 ? 0 : utkast.length <= 160 ? 1 : Math.ceil(utkast.length / 153);
 
     return (
         <div style={{
@@ -102,6 +131,52 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
                     );
                 })}
             </div>
+
+            {phone && (
+                <div style={{ marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12 }}>
+                    <textarea
+                        value={utkast}
+                        onChange={(e) => setUtkast(e.target.value)}
+                        onKeyDown={(e) => {
+                            // Enter skickar, Shift+Enter ger ny rad.
+                            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void skicka(); }
+                        }}
+                        placeholder={`Skriv ett sms till ${phone}…`}
+                        rows={3}
+                        style={{
+                            width: '100%', boxSizing: 'border-box', resize: 'vertical',
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: 10, padding: '8px 10px',
+                            color: 'inherit', fontSize: 14, fontFamily: 'inherit',
+                        }}
+                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                        <div style={{ fontSize: 11, opacity: 0.5 }}>
+                            {utkast.length} tecken{segment > 1 ? ` · ${segment} sms` : ''}
+                        </div>
+                        {smsFel && <div style={{ fontSize: 12, color: '#ff6b6b' }}>{smsFel}</div>}
+                        <button
+                            onClick={() => void skicka()}
+                            disabled={skickar || utkast.trim().length === 0}
+                            style={{
+                                marginLeft: 'auto',
+                                background: utkast.trim() ? 'rgba(90,140,255,0.35)' : 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: 10, padding: '6px 16px',
+                                color: 'inherit', fontSize: 13, fontWeight: 600,
+                                cursor: skickar || !utkast.trim() ? 'default' : 'pointer',
+                                opacity: skickar ? 0.6 : 1,
+                            }}
+                        >
+                            {skickar ? 'Skickar…' : 'Skicka sms'}
+                        </button>
+                    </div>
+                    <div style={{ fontSize: 11, opacity: 0.4, marginTop: 6 }}>
+                        Enter skickar · Shift+Enter ny rad · stoppar den automatiska uppföljningen
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

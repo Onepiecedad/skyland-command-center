@@ -295,6 +295,13 @@ Det är inget fel att jaga.
 En SSH-tunnel (`ssh -L 18789:127.0.0.1:18789`) fungerar också, men är fel svar:
 den binder Alex till en påslagen dator, och `tailscale serve` finns redan.
 
+**Ändrat 17 sep:** `accept-dns` var av igen (tredje gången). Det är dessutom fel fix:
+med `accept-dns=true` blir `100.100.100.100` primär resolver för ALL DNS på Macen, och
+Claude (web + desktop) tappar synk när Tailscale hickar. Nytt läge: `accept-dns=false`
+permanent, och `100.97.160.13 alex.tail8a8e79.ts.net` i `/etc/hosts` på Macen. TLS
+matchar eftersom hostnamnet är oförändrat. Startappen `Skyland Command Center.app` på
+skrivbordet kontrollerar båda vid varje start och öppnar SCC som Chrome-appfönster.
+
 **Kvar att reda ut:** `0 skills`, `0 noder` och `Capabilities 0` står kvar även
 med grön gateway. Anslutningen är alltså hel; registreringen av skills och noder
 är en egen fråga.
