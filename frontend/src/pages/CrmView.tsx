@@ -185,7 +185,11 @@ export default function CrmView() {
                                     ✕
                                 </button>
                             </div>
-                            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                            {/* Innehållet scrollar bara vertikalt. overflowY: auto ensamt gör
+                                overflow-x till 'auto' automatiskt, så ett enda obrytbart ord i en
+                                konversationsbubbla gjorde hela panelen dragbar i sidled och texten
+                                hamnade utanför skärmkanten. */}
+                            <div className="crm-detail-body" style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
                                 {detailTab === 'detail'
                                     ? <ContactDetail opportunity={selected} onSaved={handleSaved} onDeleted={handleDeleted} />
                                     : detailTab === 'inbox'

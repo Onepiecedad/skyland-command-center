@@ -22,6 +22,7 @@ import {
   Database,
   Plug,
   ChevronDown,
+  PanelLeft,
 } from 'lucide-react';
 import { AlexChat } from '../components/AlexChat';
 import { ThreadSidebar } from '../components/chat/ThreadSidebar';
@@ -88,6 +89,10 @@ const SKILLS_API = `${API_BASE}/skills`;
 
 export default function AlexView() {
   const [activeTab, setActiveTab] = useState<SidebarTab>('chat');
+  /* Sidofältet är en utfällbar låda under 1100px (se alex.css). Tidigare var
+     det bara bortgömt med display: none, vilket tog bort trådlistan och
+     "Ny tråd" helt på telefon. */
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [skillSearch, setSkillSearch] = useState('');
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -97,6 +102,20 @@ export default function AlexView() {
   const [skillsAvailable, setSkillsAvailable] = useState(true);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+
+  // Varje val i lådan stänger den — annars ligger den kvar över det man valde.
+  const openTab = useCallback((tab: SidebarTab) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
+  }, []);
+
+  // Esc stänger lådan, som vilken overlay som helst.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSidebarOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [sidebarOpen]);
 
   const toggleSection = useCallback((section: string) => {
     setCollapsedSections(prev => {
@@ -119,6 +138,9 @@ export default function AlexView() {
     return () => clearTimeout(t);
   }, []);
   const useBackendAlex = gateway.status !== 'connected' && gatewayGraceOver;
+  /* Server-Alex håller sitt conversation_id internt. "Ny tråd" i lådan måste
+     fungera även där — en ny nyckel monterar om chatten och börjar om. */
+  const [backendChatNonce, setBackendChatNonce] = useState(0);
 
   /* ─── Färsk inloggning → starta i en NY tråd (flaggan sätts av LoginView) ─── */
   useEffect(() => {
@@ -267,7 +289,14 @@ export default function AlexView() {
   const currentAvatar = '/avatars/alex.png';
 
   return (
-    <div className="alex-view">
+    <div className={`alex-view${sidebarOpen ? ' alex-sidebar-open' : ''}`}>
+      {/* Mörkläggning bakom lådan — klick utanför stänger. */}
+      <div
+        className="alex-sidebar-scrim"
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
       {/* ─── Left Sidebar ─── */}
       <aside className="alex-sidebar">
         {/* Alex Profile Card with Avatar */}
@@ -327,18 +356,24 @@ export default function AlexView() {
               <div className="alex-section-items">
                 <button
                   className={`alex-section-item ${activeTab === 'chat' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('chat')}
+                  onClick={() => openTab('chat')}
                 >
                   <MessageCircle size={13} />
                   <span>Aktiv chatt</span>
                 </button>
+                {useBackendAlex && (
+                  <p className="alex-thread-note">
+                    Server-läge — trådhistoriken bor i gatewayen. Här startar du en ny chatt.
+                  </p>
+                )}
                 <ThreadSidebar
                   sessions={gateway.sessions}
                   activeSessionKey={gateway.sessionKey}
                   threadPreviews={gateway.threadPreviews}
-                  onSelectSession={(key) => gateway.setSessionKey(key)}
+                  onSelectSession={(key) => { gateway.setSessionKey(key); openTab('chat'); }}
                   onNewThread={() => {
-                    setActiveTab('chat');
+                    openTab('chat');
+                    if (useBackendAlex) { setBackendChatNonce(n => n + 1); return; }
                     gateway.createNewSession().catch(console.error);
                   }}
                 />
@@ -359,7 +394,7 @@ export default function AlexView() {
               <div className="alex-section-items">
                 <button
                   className={`alex-section-item ${activeTab === 'tasks' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('tasks')}
+                  onClick={() => openTab('tasks')}
                 >
                   <ListTodo size={13} />
                   <span>Aktiva uppgifter</span>
@@ -381,7 +416,7 @@ export default function AlexView() {
               <div className="alex-section-items">
                 <button
                   className={`alex-section-item ${activeTab === 'skills' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('skills')}
+                  onClick={() => openTab('skills')}
                 >
                   <Puzzle size={13} />
                   <span>Capabilities</span>
@@ -392,7 +427,7 @@ export default function AlexView() {
                 </button>
                 <button
                   className={`alex-section-item ${activeTab === 'costs' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('costs')}
+                  onClick={() => openTab('costs')}
                 >
                   <Wallet size={13} />
                   <span>Kostnader</span>
@@ -425,9 +460,24 @@ export default function AlexView() {
 
       {/* ─── Main Content Area ─── */}
       <section className="alex-content">
+        {/* Bara synlig under 1100px — desktop har sidofältet permanent. */}
+        <button
+          type="button"
+          className="alex-sidebar-toggle"
+          onClick={() => setSidebarOpen(true)}
+          aria-expanded={sidebarOpen}
+          aria-label="Visa trådar och paneler"
+        >
+          <PanelLeft size={14} />
+          <span>Trådar</span>
+          {gateway.sessions.length > 0 && (
+            <span className="alex-section-count">{gateway.sessions.length}</span>
+          )}
+        </button>
+
         {activeTab === 'chat' && (
           useBackendAlex
-            ? <BackendAlexChat />
+            ? <BackendAlexChat key={backendChatNonce} />
             : <AlexChat onTaskCreated={handleTaskCreated} gateway={gateway} />
         )}
 

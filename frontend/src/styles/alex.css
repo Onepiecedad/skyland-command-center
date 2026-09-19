@@ -2545,3 +2545,115 @@
 .msg-attachment-file svg {
   color: rgba(129, 140, 248, 0.8);
 }
+/* ============================================================================
+   ALEX — SIDOFÄLTET SOM UTFÄLLBAR LÅDA (≤1100px)
+   ----------------------------------------------------------------------------
+   Sidofältet var satt till display: none under 1100px. Det tog inte bara bort
+   en kolumn: trådhistoriken, "Ny tråd", uppgifterna, capabilities och
+   kostnaderna fanns ENBART där. På telefon gick det därför varken att se
+   tidigare trådar eller starta en ny — man satt fast i den tråd gatewayn råkade
+   ha aktiv. Samma markup, samma komponenter — men som en låda man drar fram.
+   ========================================================================== */
+
+.alex-sidebar-toggle,
+.alex-sidebar-scrim {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .alex-view {
+    position: relative;
+  }
+
+  /* Öppnaren ligger i innehållsflödet högst upp, inte som flytande knapp —
+     en flytande knapp hade legat ovanpå chattens första meddelande. */
+  .alex-sidebar-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    align-self: flex-start;
+    margin: 0.55rem 0.9rem 0;
+    padding: 7px 13px;
+    min-height: 38px;
+    border-radius: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.78);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+  }
+
+  .alex-sidebar-toggle:active {
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  .alex-sidebar {
+    display: flex;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 640;
+    width: min(80vw, 320px);
+    max-width: 320px;
+    padding-top: calc(0.75rem + env(safe-area-inset-top));
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 24px 0 60px rgba(0, 0, 0, 0.55);
+    transform: translateX(-102%);
+    transition: transform 0.28s var(--ease-out);
+    overscroll-behavior: contain;
+  }
+
+  .alex-view.alex-sidebar-open .alex-sidebar {
+    transform: translateX(0);
+  }
+
+  .alex-sidebar-scrim {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 630;
+    background: rgba(2, 8, 6, 0.55);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s var(--ease-out);
+  }
+
+  .alex-view.alex-sidebar-open .alex-sidebar-scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Tumvänliga rader i lådan */
+  .alex-sidebar .alex-section-item,
+  .alex-sidebar .thread-item,
+  .alex-sidebar .thread-new-btn {
+    min-height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alex-sidebar,
+  .alex-sidebar-scrim {
+    transition: none;
+  }
+}
+
+/* Notis i trådlistan när gatewayn inte är nåbar (server-Alex). */
+.alex-thread-note {
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 9px;
+  border: 1px solid rgba(124, 140, 255, 0.28);
+  background: rgba(124, 140, 255, 0.1);
+  color: rgba(200, 208, 255, 0.85);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}

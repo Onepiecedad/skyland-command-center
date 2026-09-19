@@ -11,6 +11,41 @@
   gap: 2px;
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
+  /* Raden rullar i sidled i stället för att klippas. Flikarna fick tidigare
+     aldrig plats på telefon: raden centrerades och sköt ut åt BÅDA håll, så
+     första och sista fliken låg utanför skärmen utan att något visade det.
+     Pillret är absolut placerat inuti scrollcontainern och följer därför med
+     innehållet — ingen extra kompensation behövs. */
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 10px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.segmented-control::-webkit-scrollbar {
+  display: none;
+}
+
+/* Tonad kant bara åt det håll det finns mer att dra fram (sätts av
+   SegmentedControl vid scroll/resize). */
+.segmented-control[data-fade-h='1'] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent 100%);
+}
+
+.segmented-control[data-fade-v='1'] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(to left, #000 calc(100% - 26px), transparent 100%);
+}
+
+.segmented-control[data-fade-v='1'][data-fade-h='1'] {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
 }
 
 .seg-pill {
@@ -28,6 +63,10 @@
 .seg-btn {
   position: relative;
   z-index: 1;
+  /* Inget i raden får krympa — annars pressas texten ihop i stället för att
+     raden blir rullbar. */
+  flex: none;
+  scroll-snap-align: start;
   padding: 0.5rem 1.15rem;
   background: transparent;
   border: none;
@@ -259,9 +298,10 @@
     grid-template-columns: 1fr;
   }
 
-  .alex-sidebar {
-    display: none;
-  }
+  /* Sidofältet göms inte längre — det blir en utfällbar låda. Se alex.css.
+     Att bara sätta display: none tog bort trådlistan, "Ny tråd", uppgifter,
+     capabilities och kostnader från telefonen: allt utom den aktiva chatten
+     var oåtkomligt. */
 
   .cv-cards-area.with-detail {
     flex: 0 0 40%;

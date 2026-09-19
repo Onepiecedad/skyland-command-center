@@ -79,6 +79,8 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
             flexDirection: 'column',
             // Flödar naturligt — den yttre panelen (crm-detail) sköter scrollen.
             // Tidigare dubbel scroll (panel + inre lista) klämde sista meddelandet.
+            minWidth: 0,
+            maxWidth: '100%',
         }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <div>
@@ -105,9 +107,16 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
                     const shadow = m.status === 'shadow';
                     const bounced = m.status === 'bounced' || m.status === 'complained';
                     return (
-                        <div key={m.id} style={{ display: 'flex', justifyContent: outbound ? 'flex-end' : 'flex-start' }}>
+                        <div key={m.id} style={{ display: 'flex', justifyContent: outbound ? 'flex-end' : 'flex-start', minWidth: 0 }}>
                             <div style={{
+                                // Ett meddelande med en lång obrytbar sträng (länk, e-postadress,
+                                // telefonnummer utan mellanslag) sprängde bubblan bredare än
+                                // skärmen. maxWidth håller bara lådan — texten måste få brytas,
+                                // annars rinner den ut och hela tråden blir dragbar i sidled.
                                 maxWidth: '78%',
+                                minWidth: 0,
+                                overflowWrap: 'anywhere',
+                                wordBreak: 'break-word',
                                 background: shadow ? 'rgba(233,169,74,0.08)' : outbound ? 'rgba(90,140,255,0.18)' : 'rgba(255,255,255,0.06)',
                                 border: shadow ? '1px dashed rgba(233,169,74,0.6)' : bounced ? '1px solid rgba(255,107,107,0.6)' : '1px solid rgba(255,255,255,0.08)',
                                 borderRadius: 12,
@@ -126,7 +135,7 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
                                         </span>
                                     )}
                                 </div>
-                                <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.content}</div>
+                                <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{m.content}</div>
                             </div>
                         </div>
                     );
@@ -152,7 +161,9 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
                             color: 'inherit', fontSize: 14, fontFamily: 'inherit',
                         }}
                     />
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+                    {/* Knappraden bryter till ny rad på smal skärm i stället för att
+                        tvinga fram sidoscroll i panelen. */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
                         <div style={{ fontSize: 11, opacity: 0.5 }}>
                             {utkast.length} tecken{segment > 1 ? ` · ${segment} sms` : ''}
                         </div>

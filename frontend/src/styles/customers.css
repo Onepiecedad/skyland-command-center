@@ -839,9 +839,10 @@
     grid-template-columns: 1fr;
   }
 
-  .alex-sidebar {
-    display: none;
-  }
+  /* Sidofältet göms inte längre — det blir en utfällbar låda. Se alex.css.
+     Att bara sätta display: none tog bort trådlistan, "Ny tråd", uppgifter,
+     capabilities och kostnader från telefonen: allt utom den aktiva chatten
+     var oåtkomligt. */
 
   .cv-cards-area.with-detail {
     flex: 0 0 40%;

@@ -38,8 +38,26 @@ html, body, #root {
     padding-top: calc(0.45rem + env(safe-area-inset-top));
     gap: 0.6rem;
   }
-  .dashboard-v2-title { font-size: 1rem !important; }
+  /* Titeln klipptes till "Skyla" när statuschipsen tryckte på. Logga + namn
+     är identiteten — den krymper inte; chipsen får ge med sig i stället. */
+  .dashboard-v2-title {
+    font-size: 1rem !important;
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
   .dashboard-v2-focus-label { font-size: 0.7rem; }
+  .dashboard-v2-header .agent-monitor { min-width: 0; flex-shrink: 1; }
+
+  /* ═══ Undernav: rullbar rad i stället för avklippt ═══
+     Raden centrerades med fast padding, så på telefon låg första OCH sista
+     fliken utanför skärmen. Smalare padding ger plats åt fler flikar; resten
+     sköter .segmented-control (overflow-x: auto). */
+  .pane-subnav {
+    padding: 0.4rem 0.55rem 0.35rem;
+    justify-content: flex-start;
+  }
+  .pane-subnav > .segmented-control { margin-inline: auto; }
+  .seg-btn { padding: 0.5rem 0.9rem; }
 
   /* ── iOS zoomar på inputs < 16px — förhindra ── */
   input, textarea, select { font-size: 16px !important; }
@@ -60,9 +78,17 @@ html, body, #root {
   /* KRITISKT: bara .pl-columns får scrolla i sidled. Utan hård bredd-låsning
      på föräldrarna pannar HELA vyn horisontellt (toolbar/flikar glider bort
      och klick landar fel på sena kolumner). Lås allt utom kolumnraden. */
-  .crm-view, .crm-head, .crm-layout, .crm-board, .pl-board, .pl-toolbar {
+  .crm-view, .crm-head, .crm-layout, .crm-board, .pl-board {
     max-width: 100vw !important;
     overflow-x: hidden !important;
+  }
+  /* Filterraden är en ScrollStrip och SKA gå att dra — den låg med i låsningen
+     ovan, vilket gjorde tier C och kostnadschipen omöjliga att nå på telefon.
+     overscroll-behavior-x: contain (ScrollStrip.css) hindrar att draget läcker
+     vidare till sidan, så undantaget är säkert. */
+  .pl-toolbar {
+    max-width: 100vw !important;
+    overflow-x: auto !important;
   }
 
   /* Kanban: en kolumn i taget, snap-svep i sidled */
@@ -96,8 +122,14 @@ html, body, #root {
     -webkit-backdrop-filter: blur(24px);
     backdrop-filter: blur(24px);
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
   }
+  /* Detaljpanelen och dess inre scrollyta får ALDRIG panna i sidled. Ett enda
+     obrytbart ord (länk, lång e-postadress) i en konversationsbubbla räckte för
+     att hela tråden skulle gå att dra i sidled och texten klipptes vid kanten. */
+  .crm-detail, .crm-detail > div { max-width: 100vw !important; }
+  .crm-detail-body { overflow-x: hidden !important; }
   .contact-card {
     height: auto !important;
     max-height: none !important;
@@ -245,6 +277,14 @@ html, body, #root {
   /* ═══ Statusbar: safe area i botten ═══ */
   .status-bar, .dashboard-v2 > footer { padding-bottom: env(safe-area-inset-bottom); }
 
+  /* ═══ Alex: vyn ska fylla panelen exakt ═══
+     calc(100vh - 82px) räknade med desktopheadern och sköt botten (och därmed
+     trådlådans nederkant) utanför skärmen på telefon. */
+  .alex-view {
+    height: 100% !important;
+    min-height: 0;
+  }
+
   /* ═══ Focus-navigatorns minimap: kompakt (kompletterar focus-nav.css) ═══ */
   .fnav-minimap { transform: scale(0.9); transform-origin: bottom left; }
 }
@@ -265,4 +305,6 @@ html, body, #root {
 /* Små telefoner: dölj fokus-etiketten helt, ge plats åt statusen */
 @media (max-width: 430px) {
   .dashboard-v2-focus-label { display: none; }
+  /* Nodräknaren säger ingenting på telefon och stal bredden från titeln. */
+  .dashboard-v2-header .am-nodes-summary { display: none; }
 }

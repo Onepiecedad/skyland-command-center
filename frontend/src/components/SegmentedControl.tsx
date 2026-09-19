@@ -39,6 +39,24 @@ export function SegmentedControl({ segments, activeKey, onSelect }: Props) {
         }
     }, [activeKey, segments]);
 
+    // Tonad kant bara åt det håll det finns mer att hämta. Utan den ser en
+    // avklippt rad ut som en rad som tagit slut — samma lösning som ScrollStrip.
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const uppdatera = () => {
+            el.dataset.fadeV = el.scrollLeft > 2 ? '1' : '0';
+            el.dataset.fadeH = el.scrollLeft + el.clientWidth < el.scrollWidth - 2 ? '1' : '0';
+        };
+        uppdatera();
+        el.addEventListener('scroll', uppdatera, { passive: true });
+        // jsdom saknar ResizeObserver i äldre miljöer — hoppa hellre över
+        // toningen än att krascha renderingen i testerna.
+        const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(uppdatera) : null;
+        ro?.observe(el);
+        return () => { el.removeEventListener('scroll', uppdatera); ro?.disconnect(); };
+    }, [segments]);
+
     return (
         <div className="segmented-control" ref={containerRef}>
             <div
