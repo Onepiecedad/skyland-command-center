@@ -35,6 +35,7 @@ import { logger } from './logger';
 
 const MAX_STEPS_PER_TICK = 50;      // skydd mot oändliga loopar
 const RETRY_BACKOFF_MS = 30 * 60_000; // 30 min vid TRANSPORTFEL (provider nere, DB-fel)
+const INACTIVE_SEQUENCE_BACKOFF_MS = 6 * 3_600_000; // 6 h när sekvensen inte är aktiv — den väntar på en människa
 const MAX_RETRIES = 5;
 /** Policy-/budgetstopp (kill switch av, dagstak nått, väntar på godkännande) är
  *  INTE fel: de skjuts upp utan att räkna upp retries. Annars dog en kö som
@@ -637,9 +638,13 @@ async function processEnrollment(enr: EnrollmentRow, enrolledAtISO: string): Pro
         .from('sequences').select('id, status, exit_on, outbound_policy').eq('id', enr.sequence_id).maybeSingle();
     const sequence = seq as SequenceRow | null;
     if (!sequence || sequence.status !== 'active') {
-        // Sekvensen är pausad/borta → skjut upp, rör inte enrollment-status
+        // Sekvensen är pausad/borta → skjut upp, rör inte enrollment-status.
+        // Hit kommer vi numera bara om sekvensen pausades mellan hämtningen och
+        // den här raden; tomgångsfallet filtreras bort redan i tick-frågan.
+        // Backoffen är lång med flit: en pausad sekvens väntar på en människa,
+        // inte på en timer, och ska inte kosta ett varv varje halvtimme.
         await supabase.from('sequence_enrollments')
-            .update({ next_run_at: new Date(Date.now() + RETRY_BACKOFF_MS).toISOString() })
+            .update({ next_run_at: new Date(Date.now() + INACTIVE_SEQUENCE_BACKOFF_MS).toISOString() })
             .eq('id', enr.id);
         return;
     }
@@ -788,10 +793,18 @@ export async function runDueEnrollments(limit = 25): Promise<{ processed: number
 
 async function runDueEnrollmentsInner(limit: number): Promise<{ processed: number }> {
     const nowISO = new Date().toISOString();
+    // !inner + sequences.status=active: enrollments vars sekvens ligger i draft
+    // eller paused hämtas inte alls. Utan det filtret plockades de upp, hittade en
+    // icke-aktiv sekvens längre ned i processEnrollment och sköts upp 30 minuter —
+    // om och om igen, i evighet. Mätt 19 sep: 44 enrollments på EN sekvens som
+    // aldrig lämnat draft sedan 29 augusti snurrade så här dygnet runt och stod
+    // för omkring 150 Supabase-anrop i timmen, för arbete som aldrig kunde utföras.
+    // Gratisplanens egress är den bindande gränsen, så tomgång kostar på riktigt.
     const { data, error } = await supabase
         .from('sequence_enrollments')
-        .select('id, sequence_id, contact_id, opportunity_id, status, current_position, context, enrolled_at')
+        .select('id, sequence_id, contact_id, opportunity_id, status, current_position, context, enrolled_at, sequences!inner(status)')
         .eq('status', 'active')
+        .eq('sequences.status', 'active')
         .lte('next_run_at', nowISO)
         .order('next_run_at', { ascending: true })
         .limit(limit);
