@@ -46,14 +46,15 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
 
     // Ett handskrivet sms stoppar den automatiska sekvensen i backenden, så
     // roboten aldrig tjatar parallellt med dig.
-    const skicka = async () => {
+    const skicka = async (payload?: { template: 'call_ahead' }) => {
         const text = utkast.trim();
-        if (!text || skickar) return;
+        if (!payload && (!text || skickar)) return;
+        if (skickar) return;
         setSkickar(true);
         setSmsFel(null);
         try {
-            await sendContactSms(contactId, text);
-            setUtkast('');
+            await sendContactSms(contactId, payload ?? text);
+            if (!payload) setUtkast('');
             // Utskicket sker i edge-funktionen och loggas när 46elks svarat.
             // Två laddningar: den första fångar det vanliga fallet, den andra
             // täcker en trög provider utan att kräva att du laddar om sidan.
@@ -157,10 +158,25 @@ export function ConversationInbox({ contactId, title, onClose }: ConversationInb
                         </div>
                         {smsFel && <div style={{ fontSize: 12, color: '#ff6b6b' }}>{smsFel}</div>}
                         <button
+                            onClick={() => void skicka({ template: 'call_ahead' })}
+                            disabled={skickar}
+                            title="Skickar 'jag ringer dig om fem minuter från 073-…' så ditt nummer är väntat när du ringer"
+                            style={{
+                                marginLeft: 'auto',
+                                background: 'rgba(255,255,255,0.06)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: 10, padding: '6px 12px',
+                                color: 'inherit', fontSize: 13,
+                                cursor: skickar ? 'default' : 'pointer',
+                                opacity: skickar ? 0.6 : 1,
+                            }}
+                        >
+                            📞 Ringer om 5 min
+                        </button>
+                        <button
                             onClick={() => void skicka()}
                             disabled={skickar || utkast.trim().length === 0}
                             style={{
-                                marginLeft: 'auto',
                                 background: utkast.trim() ? 'rgba(90,140,255,0.35)' : 'rgba(255,255,255,0.06)',
                                 border: '1px solid rgba(255,255,255,0.15)',
                                 borderRadius: 10, padding: '6px 16px',

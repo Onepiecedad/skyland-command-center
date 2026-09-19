@@ -76,3 +76,11 @@ select cron.schedule(
   );
   $$
 );
+
+-- Förvarning före samtal. Sms:en går från 46elks-numret men samtalet från
+-- Joakims mobil — två okända nummer för leadet. En rad innan man ringer gör
+-- mobilnumret väntat. Skickas med knappen "Ringer om 5 min" på kortet.
+update meta_lead_routes
+   set config = jsonb_set(config, '{sms,call_ahead}',
+     '"Hej {fornamn}, Joakim här igen. Jag ringer dig om fem minuter från 073-564 34 95, så du vet vem det är."'::jsonb, true)
+ where page_id = '1021795327677822';
